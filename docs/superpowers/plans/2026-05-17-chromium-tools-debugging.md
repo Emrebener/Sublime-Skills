@@ -720,6 +720,7 @@ const p = (await b.pages()).at(-1); // last open tab, as every script does
 
 if (!p) {
 	console.error("✗ No active tab found");
+	await b.disconnect();
 	process.exit(1);
 }
 
@@ -731,13 +732,18 @@ try {
 	process.exit(1);
 }
 
-if (clear) {
-	await p.click(selector, { clickCount: 3 }); // select existing content
-	await p.keyboard.press("Backspace");
+try {
+	if (clear) {
+		await p.click(selector, { clickCount: 3 }); // select existing content
+		await p.keyboard.press("Backspace");
+	}
+	await p.type(selector, text);
+	if (enter) await p.keyboard.press("Enter");
+} catch (err) {
+	console.error(`✗ Type failed: ${err.message}`);
+	await b.disconnect();
+	process.exit(1);
 }
-
-await p.type(selector, text);
-if (enter) await p.keyboard.press("Enter");
 
 console.log(`✓ Typed into ${selector}${clear ? " (cleared first)" : ""}${enter ? " + Enter" : ""}`);
 
@@ -793,50 +799,58 @@ const p = (await b.pages()).at(-1); // last open tab, as every script does
 
 if (!p) {
 	console.error("✗ No active tab found");
+	await b.disconnect();
 	process.exit(1);
 }
 
-// Register the LCP observer BEFORE navigation so it is live from the
-// first frame — a one-shot read after load misses LCP.
-await p.evaluateOnNewDocument(() => {
-	window.__lcp = 0;
-	try {
-		new PerformanceObserver((list) => {
-			for (const e of list.getEntries()) window.__lcp = e.startTime;
-		}).observe({ type: "largest-contentful-paint", buffered: true });
-	} catch {}
-});
+let m;
+try {
+	// Register the LCP observer BEFORE navigation so it is live from the
+	// first frame — a one-shot read after load misses LCP.
+	await p.evaluateOnNewDocument(() => {
+		window.__lcp = 0;
+		try {
+			new PerformanceObserver((list) => {
+				for (const e of list.getEntries()) window.__lcp = e.startTime;
+			}).observe({ type: "largest-contentful-paint", buffered: true });
+		} catch {}
+	});
 
-if (url) {
-	await p.goto(url, { waitUntil: "load" });
-} else {
-	await p.reload({ waitUntil: "load" });
+	if (url) {
+		await p.goto(url, { waitUntil: "load" });
+	} else {
+		await p.reload({ waitUntil: "load" });
+	}
+
+	// Settle for a late LCP candidate before reading.
+	await new Promise((r) => setTimeout(r, 1000));
+
+	m = await p.evaluate(() => {
+		const nav = performance.getEntriesByType("navigation")[0] || {};
+		const paint = performance.getEntriesByType("paint");
+		const fcp = paint.find((e) => e.name === "first-contentful-paint");
+		const res = performance.getEntriesByType("resource");
+		const slowest = res
+			.map((r) => ({ url: r.name, ms: Math.round(r.duration), size: r.transferSize || 0 }))
+			.sort((a, b) => b.ms - a.ms)
+			.slice(0, 5);
+		const totalBytes = res.reduce((s, r) => s + (r.transferSize || 0), 0);
+		return {
+			ttfb: nav.responseStart ? Math.round(nav.responseStart) : null,
+			fcp: fcp ? Math.round(fcp.startTime) : null,
+			lcp: Math.round(window.__lcp || 0),
+			dcl: nav.domContentLoadedEventEnd ? Math.round(nav.domContentLoadedEventEnd) : null,
+			load: nav.loadEventEnd ? Math.round(nav.loadEventEnd) : null,
+			count: res.length,
+			totalKB: Math.round(totalBytes / 1024),
+			slowest,
+		};
+	});
+} catch (err) {
+	console.error(`✗ Trace failed: ${err.message}`);
+	await b.disconnect();
+	process.exit(1);
 }
-
-// Settle for a late LCP candidate before reading.
-await new Promise((r) => setTimeout(r, 1000));
-
-const m = await p.evaluate(() => {
-	const nav = performance.getEntriesByType("navigation")[0] || {};
-	const paint = performance.getEntriesByType("paint");
-	const fcp = paint.find((e) => e.name === "first-contentful-paint");
-	const res = performance.getEntriesByType("resource");
-	const slowest = res
-		.map((r) => ({ url: r.name, ms: Math.round(r.duration), size: r.transferSize || 0 }))
-		.sort((a, b) => b.ms - a.ms)
-		.slice(0, 5);
-	const totalBytes = res.reduce((s, r) => s + (r.transferSize || 0), 0);
-	return {
-		ttfb: nav.responseStart ? Math.round(nav.responseStart) : null,
-		fcp: fcp ? Math.round(fcp.startTime) : null,
-		lcp: Math.round(window.__lcp || 0),
-		dcl: nav.domContentLoadedEventEnd ? Math.round(nav.domContentLoadedEventEnd) : null,
-		load: nav.loadEventEnd ? Math.round(nav.loadEventEnd) : null,
-		count: res.length,
-		totalKB: Math.round(totalBytes / 1024),
-		slowest,
-	};
-});
 
 console.log(`URL: ${p.url()}`);
 console.log(`TTFB:                     ${m.ttfb ?? "?"} ms`);
