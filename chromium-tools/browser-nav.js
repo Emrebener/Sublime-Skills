@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 
 const args = process.argv.slice(2);
 const newTab = args.includes("--new");

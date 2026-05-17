@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 
 export const CACHE_DIR = join(homedir(), ".cache", "browser-tools");
 export const MONITOR_JSON = join(CACHE_DIR, "monitor.json");

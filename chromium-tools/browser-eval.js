@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 
 const code = process.argv.slice(2).join(" ");
 if (!code) {

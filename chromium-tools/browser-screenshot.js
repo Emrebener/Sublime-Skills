@@ -2,7 +2,7 @@
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 
 const b = await Promise.race([
 	puppeteer.connect({
