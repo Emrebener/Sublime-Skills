@@ -1,6 +1,6 @@
 ---
 name: chromium-tools
-description: Interactive Chromium browser automation via Chrome DevTools Protocol. Use when you need to interact with web pages, test frontends, or when user interaction with a visible browser is required.
+description: Interactive Chromium browser automation and debugging via Chrome DevTools Protocol. Use when you need to interact with web pages, test frontends, capture console and network activity, or when user interaction with a visible browser is required.
 ---
 
 # Chromium Tools
@@ -79,6 +79,76 @@ Display all cookies for the current tab including domain, path, httpOnly, and se
 ```
 
 Navigate to a URL and extract readable content as markdown. Uses Mozilla Readability for article extraction and Turndown for HTML-to-markdown conversion. Works on pages with JavaScript content (waits for page to load).
+
+## Monitor Console & Network
+
+```bash
+{baseDir}/browser-monitor.js start    # begin capturing
+{baseDir}/browser-monitor.js status   # is it running? event counts
+{baseDir}/browser-monitor.js stop     # stop capturing
+```
+
+Console and network events are live streams — Chrome does not replay history to a newly connected client. Start the monitor *before* the activity you want to capture. It runs as a background daemon attached to the browser on `:9222`, recording console messages, uncaught errors, and network activity to log files. `start` clears previous logs, so each session is clean.
+
+## Console Messages
+
+```bash
+{baseDir}/browser-console.js              # all captured console output
+{baseDir}/browser-console.js --errors     # errors and warnings only
+{baseDir}/browser-console.js --limit 20   # last 20 entries
+```
+
+Print console messages and uncaught JavaScript errors captured by the monitor. Run `browser-monitor.js start` first.
+
+## Network Activity
+
+```bash
+{baseDir}/browser-network.js              # all captured requests
+{baseDir}/browser-network.js --failed     # failures and HTTP >= 400 only
+{baseDir}/browser-network.js --limit 20   # last 20 entries
+```
+
+Print network requests captured by the monitor: method, status, type, size, timing. Run `browser-monitor.js start` first.
+
+## Click
+
+```bash
+{baseDir}/browser-click.js "#submit"
+```
+
+Wait for a CSS selector (5s) and click it.
+
+## Type
+
+```bash
+{baseDir}/browser-type.js "#search" "hello world"
+{baseDir}/browser-type.js "#search" "hello" --clear --enter
+```
+
+Wait for a CSS selector, then type text into it. `--clear` empties the field first; `--enter` presses Enter after.
+
+## Performance Trace
+
+```bash
+{baseDir}/browser-trace.js https://example.com
+{baseDir}/browser-trace.js                       # reload current tab
+```
+
+Navigate (or reload the current tab) and print a performance summary: TTFB, First/Largest Contentful Paint, DOMContentLoaded, Load, request count, total transfer size, and the 5 slowest requests.
+
+## Debugging Workflow
+
+```bash
+{baseDir}/browser-start.js
+{baseDir}/browser-monitor.js start
+{baseDir}/browser-nav.js https://your-app.example
+# ... interact: browser-click.js / browser-type.js / browser-eval.js ...
+{baseDir}/browser-console.js --errors
+{baseDir}/browser-network.js --failed
+{baseDir}/browser-monitor.js stop
+```
+
+The monitor attaches to one running Chromium. **If you restart Chromium, restart the monitor too** — `browser-monitor.js status` shows it as not running after a browser restart.
 
 ## When to Use
 
