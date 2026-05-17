@@ -15,18 +15,10 @@ export const HEARTBEAT_STALE_MS = 15000;
 // Connect to the browser on :9222 with a 5s timeout. Returns the browser
 // or null — never throws, never exits.
 export async function tryConnect() {
-	let browser;
-	try {
-		browser = await Promise.race([
-			puppeteer.connect({ browserURL: "http://localhost:9222", defaultViewport: null }),
-			new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-		]);
-		return browser;
-	} catch {
-		// If connect() resolved after the race rejected, disconnect it.
-		if (browser) browser.disconnect().catch(() => {});
-		return null;
-	}
+	return Promise.race([
+		puppeteer.connect({ browserURL: "http://localhost:9222", defaultViewport: null }),
+		new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
+	]).catch(() => null);
 }
 
 // Connect or exit(1) with the standard guidance.
