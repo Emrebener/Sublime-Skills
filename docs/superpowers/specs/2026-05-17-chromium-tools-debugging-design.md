@@ -28,7 +28,7 @@ solution is a background collector daemon.
 
 ## Architecture
 
-Five new scripts plus a `SKILL.md` rewrite. No new npm dependencies —
+Six new scripts plus a `SKILL.md` rewrite. No new npm dependencies —
 `puppeteer-core` already exposes console, network, input, and performance
 APIs.
 
@@ -109,7 +109,7 @@ if omitted), then collects and prints a digestible performance summary:
 - TTFB, First Contentful Paint, Largest Contentful Paint
 - DOMContentLoaded, Load event timing
 - Total request count and total transfer size
-- The slowest few requests
+- The 5 slowest requests
 
 Metrics come from the Navigation Timing, Paint Timing, Resource Timing,
 and LCP (`PerformanceObserver`) APIs via page evaluation. Output is a
