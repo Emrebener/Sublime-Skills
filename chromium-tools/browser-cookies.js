@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer-core";
+import puppeteer from "puppeteer";
 
 const b = await Promise.race([
 	puppeteer.connect({
