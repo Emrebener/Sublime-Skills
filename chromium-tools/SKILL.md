@@ -16,6 +16,10 @@ cd {baseDir}
 npm install
 ```
 
+`npm install` also downloads a private copy of Chromium (~150 MB, one-time) — no separate browser installation is required.
+
+**Node version:** use a current Node.js LTS (20, 22, or 24). Node 26 has a known puppeteer bug that downloads Chromium but fails to extract it — if `npm install` succeeds but `browser-start.js` reports the browser missing, switch to a Node LTS release and rerun `npm install`.
+
 ## Start the Browser
 
 ```bash
@@ -23,7 +27,7 @@ npm install
 {baseDir}/browser-start.js --profile    # Copy user's profile (cookies, logins)
 ```
 
-Launch the browser with remote debugging on `:9222`. Chromium is preferred and Chrome is used as a fallback; the binary is auto-detected on Linux, macOS, and Windows. Use `--profile` to preserve the user's authentication state.
+Launch puppeteer's bundled Chromium with remote debugging on `:9222`. Use `--profile` to copy your real Chrome/Chromium profile (cookies, logins) into the throwaway session — `--profile` requires a Chrome or Chromium profile to already exist on this machine (created by running Chrome or Chromium at least once).
 
 ## Navigate
 
