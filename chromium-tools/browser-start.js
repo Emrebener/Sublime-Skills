@@ -7,9 +7,8 @@ import { homedir, platform } from "node:os";
 import { fileURLToPath } from "node:url";
 
 // Preflight: dependencies must be installed before puppeteer/lib.js can be
-// imported. A static `import` of a missing package fails at module
-// resolution — before any code runs — so this check, and the imports it
-// guards, are done dynamically.
+// imported. A static import of a missing package fails at module
+// resolution, so this check and the imports it guards are dynamic.
 const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
 if (!existsSync(join(SKILL_DIR, "node_modules", "puppeteer"))) {
 	console.error("✗ chromium-tools dependencies not installed");
@@ -18,14 +17,18 @@ if (!existsSync(join(SKILL_DIR, "node_modules", "puppeteer"))) {
 }
 
 const puppeteer = (await import("puppeteer")).default;
-const { CACHE_DIR } = await import("./lib.js");
+const lib = await import("./lib.js");
+const { extractSession, profileDir, sessionDir, findFreePort, readRegistry, writeRegistry, pidAlive } = lib;
 
-const useProfile = process.argv[2] === "--profile";
-
-if (process.argv[2] && process.argv[2] !== "--profile") {
-	console.log("Usage: browser-start.js [--profile]");
+// Parse: browser-start.js [--profile] [--session NAME]
+const { session, rest } = extractSession(process.argv.slice(2));
+const useProfile = rest.includes("--profile");
+const unknown = rest.filter((a) => a !== "--profile");
+if (unknown.length) {
+	console.log("Usage: browser-start.js [--profile] [--session NAME]");
 	console.log("\nOptions:");
-	console.log("  --profile  Copy your default Chrome/Chromium profile (cookies, logins)");
+	console.log("  --profile       Copy your default Chrome/Chromium profile (cookies, logins)");
+	console.log("  --session NAME  Name this browser session (default: \"default\")");
 	process.exit(1);
 }
 
@@ -40,20 +43,13 @@ function findUserProfile() {
 		];
 	} else if (platform() === "win32") {
 		const local = process.env.LOCALAPPDATA || "";
-		candidates = [
-			`${local}\\Google\\Chrome\\User Data`,
-			`${local}\\Chromium\\User Data`,
-		];
+		candidates = [`${local}\\Google\\Chrome\\User Data`, `${local}\\Chromium\\User Data`];
 	} else {
-		candidates = [
-			`${home}/.config/google-chrome`,
-			`${home}/.config/chromium`,
-		];
+		candidates = [`${home}/.config/google-chrome`, `${home}/.config/chromium`];
 	}
 	return candidates.find((c) => existsSync(c)) || null;
 }
 
-// Names skipped when copying a profile: lock/socket files and session state.
 const EXCLUDE_NAMES = new Set([
 	"SingletonLock",
 	"SingletonSocket",
@@ -63,31 +59,36 @@ const EXCLUDE_NAMES = new Set([
 	"Last Session",
 	"Last Tabs",
 ]);
-
 function profileFilter(src) {
 	if (EXCLUDE_NAMES.has(basename(src))) return false;
 	if (src.split(/[\\/]/).includes("Sessions")) return false;
 	return true;
 }
 
-// Check if already running on :9222
-try {
-	const browser = await puppeteer.connect({
-		browserURL: "http://localhost:9222",
-		defaultViewport: null,
-	});
-	await browser.disconnect();
-	console.log("✓ Browser already running on :9222");
-	process.exit(0);
-} catch {}
+// If this session is already registered and alive, nothing to do.
+const reg = readRegistry();
+if (reg[session] && pidAlive(reg[session].pid)) {
+	try {
+		const b = await puppeteer.connect({
+			browserURL: `http://localhost:${reg[session].port}`,
+			defaultViewport: null,
+		});
+		await b.disconnect();
+		console.log(`✓ Session "${session}" already running on :${reg[session].port}`);
+		process.exit(0);
+	} catch {
+		// Registered pid alive but not reachable — fall through and relaunch.
+	}
+}
 
-// The bundled Chromium downloaded by `npm install`.
 const binary = puppeteer.executablePath();
 if (!existsSync(binary)) {
 	console.error("✗ Bundled Chromium not found");
 	console.error("  Run: npm install");
 	process.exit(1);
 }
+
+const profile = profileDir(session);
 
 if (useProfile) {
 	const userProfile = findUserProfile();
@@ -96,39 +97,38 @@ if (useProfile) {
 		process.exit(1);
 	}
 	console.log("Syncing profile...");
-	// Wipe any stale copy, recreate an empty dir, then mirror the user
-	// profile into it. cpSync (no shell) works on every platform.
-	rmSync(CACHE_DIR, { recursive: true, force: true });
-	mkdirSync(CACHE_DIR, { recursive: true });
-	cpSync(userProfile, CACHE_DIR, { recursive: true, filter: profileFilter });
+	rmSync(profile, { recursive: true, force: true });
+	mkdirSync(profile, { recursive: true });
+	cpSync(userProfile, profile, { recursive: true, filter: profileFilter });
 } else {
-	mkdirSync(CACHE_DIR, { recursive: true });
-	// Remove Singleton* lock files to allow a new instance
+	mkdirSync(profile, { recursive: true });
 	for (const f of ["SingletonLock", "SingletonSocket", "SingletonCookie"]) {
 		try {
-			rmSync(join(CACHE_DIR, f), { force: true });
+			rmSync(join(profile, f), { force: true });
 		} catch {}
 	}
 }
 
-// Start the bundled browser, detached, with remote debugging.
-spawn(
+const port = await findFreePort(9222);
+
+const child = spawn(
 	binary,
 	[
-		"--remote-debugging-port=9222",
-		`--user-data-dir=${CACHE_DIR}`,
+		`--remote-debugging-port=${port}`,
+		`--user-data-dir=${profile}`,
 		"--no-first-run",
 		"--no-default-browser-check",
 	],
 	{ detached: true, stdio: "ignore" },
-).unref();
+);
+child.unref();
 
-// Wait for the browser to be ready
+// Wait for the browser to accept connections.
 let connected = false;
 for (let i = 0; i < 30; i++) {
 	try {
 		const b = await puppeteer.connect({
-			browserURL: "http://localhost:9222",
+			browserURL: `http://localhost:${port}`,
 			defaultViewport: null,
 		});
 		await b.disconnect();
@@ -138,10 +138,19 @@ for (let i = 0; i < 30; i++) {
 		await new Promise((r) => setTimeout(r, 500));
 	}
 }
-
 if (!connected) {
 	console.error("✗ Failed to connect to browser");
 	process.exit(1);
 }
 
-console.log(`✓ Browser started on :9222 (bundled Chromium)${useProfile ? " with your profile" : ""}`);
+// Record the session. child.pid is the launcher; Chromium may fork, but
+// the launcher process staying alive is a sufficient liveness signal and
+// killing it terminates the browser.
+mkdirSync(sessionDir(session), { recursive: true });
+const reg2 = readRegistry();
+reg2[session] = { port, pid: child.pid, userDataDir: profile, startedAt: Date.now() };
+writeRegistry(reg2);
+
+console.log(
+	`✓ Session "${session}" started on :${port} (bundled Chromium)${useProfile ? " with your profile" : ""}`,
+);
