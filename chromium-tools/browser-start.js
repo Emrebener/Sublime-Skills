@@ -2,10 +2,23 @@
 
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, cpSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { homedir, platform } from "node:os";
-import puppeteer from "puppeteer";
-import { CACHE_DIR } from "./lib.js";
+import { fileURLToPath } from "node:url";
+
+// Preflight: dependencies must be installed before puppeteer/lib.js can be
+// imported. A static `import` of a missing package fails at module
+// resolution — before any code runs — so this check, and the imports it
+// guards, are done dynamically.
+const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
+if (!existsSync(join(SKILL_DIR, "node_modules", "puppeteer"))) {
+	console.error("✗ chromium-tools dependencies not installed");
+	console.error(`  Run: cd "${SKILL_DIR}" && npm install`);
+	process.exit(1);
+}
+
+const puppeteer = (await import("puppeteer")).default;
+const { CACHE_DIR } = await import("./lib.js");
 
 const useProfile = process.argv[2] === "--profile";
 
