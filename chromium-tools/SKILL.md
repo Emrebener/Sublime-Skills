@@ -166,9 +166,18 @@ The monitor attaches to one running Chromium. **If you restart Chromium, restart
 
 ## Efficiency Guide
 
-### DOM Inspection Over Screenshots
+### Choosing an Approach: Dedicated Tools vs. `eval`
 
-**Don't** take screenshots to see page state. **Do** parse the DOM directly:
+There are two ways to act on a page, and they have different strengths:
+
+- **Dedicated tools** — `browser-click.js`, `browser-type.js`, `browser-nav.js`, `browser-screenshot.js` — are for ordinary, single interactions: click a button, fill a field, open a URL. They wait for the selector and dispatch real input events, so apps that depend on genuine events (React and the like) behave correctly. Prefer these for normal interaction.
+- **`browser-eval.js`** is for *bulk or programmatic* DOM work: extracting structured data, reading a lot of page state in one shot, or driving many elements at once where a separate call per element would be wasteful. The patterns below are its niche.
+
+Rule of thumb: "click this one button" → `browser-click.js`; "pull the title, price, and stock of all 40 items" → `browser-eval.js`.
+
+### Inspect the DOM to Read State
+
+To understand page *state* — what is on the page, what is interactive — parse the DOM with `eval`. It is cheaper and more precise than a screenshot:
 
 ```javascript
 // Get page structure
@@ -181,6 +190,8 @@ Array.from(document.querySelectorAll('button, input, [role="button"]')).map(e =>
   class: e.className
 }))
 ```
+
+Screenshots (`browser-screenshot.js`) do a different job: confirming *visual* rendering — layout, styling, what a human would actually see. Reach for a screenshot to verify appearance, not to read state.
 
 ### Complex Scripts in Single Calls
 
@@ -200,19 +211,23 @@ Wrap everything in an IIFE to run multi-statement code:
 })()
 ```
 
-### Batch Interactions
+### Bulk Programmatic Clicks
 
-**Don't** make separate calls for each click. **Do** batch them:
+For a *single* real interaction, use `browser-click.js`. But to drive *many* elements at once — every cell of a grid, a run of game controls — one `eval` call beats one `browser-click.js` call per element:
 
 ```javascript
 (function() {
-  const actions = ["btn1", "btn2", "btn3"];
-  actions.forEach(id => document.getElementById(id).click());
+  const ids = ["cell-1", "cell-2", "cell-3"];
+  ids.forEach(id => document.getElementById(id).click());
   return "Done";
 })()
 ```
 
-### Typing/Input Sequences
+`el.click()` dispatches a synthetic event. Most apps accept it; if a target relies on real pointer events and ignores it, fall back to `browser-click.js` for that one.
+
+### Driving On-Screen Keyboards
+
+To type into a normal form field, use `browser-type.js`. This pattern is for something else — *clicking on-screen key elements*, as on a virtual keyboard, a calculator, or a game's letter buttons:
 
 ```javascript
 (function() {
@@ -221,7 +236,7 @@ Wrap everything in an IIFE to run multi-statement code:
     document.getElementById("key-" + char).click();
   }
   document.getElementById("submit").click();
-  return "Submitted: " + text;
+  return "Entered: " + text;
 })()
 ```
 
@@ -268,3 +283,5 @@ Always start by understanding the page structure:
 ```
 
 Then target specific elements based on what you find.
+
+When the task is debugging rather than scraping, start `browser-monitor.js` before reproducing the issue, then read `browser-console.js --errors` and `browser-network.js --failed` — console errors and failed requests usually point straight at the cause.
