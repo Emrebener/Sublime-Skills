@@ -3,7 +3,7 @@
 import { connect, extractSession, getPage } from "./lib.js";
 
 const { session, rest } = extractSession(process.argv.slice(2));
-const message = rest[0];
+const message = rest.join(" ");
 
 if (!message) {
 	console.log("Usage: browser-pick.js 'message' [--session NAME]");

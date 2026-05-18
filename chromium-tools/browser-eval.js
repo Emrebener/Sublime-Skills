@@ -3,7 +3,7 @@
 import { connect, extractSession, getPage } from "./lib.js";
 
 const { session, rest } = extractSession(process.argv.slice(2));
-const code = rest[0];
+const code = rest.join(" ");
 
 if (!code) {
 	console.log("Usage: browser-eval.js <javascript> [--session NAME]");
