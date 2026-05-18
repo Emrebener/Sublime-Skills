@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer";
+import { connect, extractSession, getPage } from "./lib.js";
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
@@ -13,10 +13,11 @@ const timeoutId = setTimeout(() => {
 	process.exit(1);
 }, TIMEOUT).unref();
 
-const url = process.argv[2];
+const { session, rest } = extractSession(process.argv.slice(2));
+const url = rest[0];
 
 if (!url) {
-	console.log("Usage: browser-content.js <url>");
+	console.log("Usage: browser-content.js <url> [--session NAME]");
 	console.log("\nExtracts readable content from a URL as markdown.");
 	console.log("\nExamples:");
 	console.log("  browser-content.js https://example.com");
@@ -24,19 +25,8 @@ if (!url) {
 	process.exit(1);
 }
 
-const b = await Promise.race([
-	puppeteer.connect({
-		browserURL: "http://localhost:9222",
-		defaultViewport: null,
-	}),
-	new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-]).catch((e) => {
-	console.error("✗ Could not connect to browser:", e.message);
-	console.error("  Run: browser-start.js");
-	process.exit(1);
-});
-
-const p = (await b.pages()).at(-1);
+const b = await connect(session);
+const p = await getPage(b);
 if (!p) {
 	console.error("✗ No active tab found");
 	process.exit(1);

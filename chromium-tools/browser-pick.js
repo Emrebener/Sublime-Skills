@@ -1,28 +1,19 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer";
+import { connect, extractSession, getPage } from "./lib.js";
 
-const message = process.argv.slice(2).join(" ");
+const { session, rest } = extractSession(process.argv.slice(2));
+const message = rest[0];
+
 if (!message) {
-	console.log("Usage: browser-pick.js 'message'");
+	console.log("Usage: browser-pick.js 'message' [--session NAME]");
 	console.log("\nExample:");
 	console.log('  browser-pick.js "Click the submit button"');
 	process.exit(1);
 }
 
-const b = await Promise.race([
-	puppeteer.connect({
-		browserURL: "http://localhost:9222",
-		defaultViewport: null,
-	}),
-	new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-]).catch((e) => {
-	console.error("✗ Could not connect to browser:", e.message);
-	console.error("  Run: browser-start.js");
-	process.exit(1);
-});
-
-const p = (await b.pages()).at(-1);
+const b = await connect(session);
+const p = await getPage(b);
 
 if (!p) {
 	console.error("✗ No active tab found");

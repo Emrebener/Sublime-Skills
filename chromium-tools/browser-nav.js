@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
-import puppeteer from "puppeteer";
+import { connect, extractSession, getPage } from "./lib.js";
 
-const args = process.argv.slice(2);
-const newTab = args.includes("--new");
-const reload = args.includes("--reload");
-const url = args.find(a => !a.startsWith("--"));
+const { session, rest } = extractSession(process.argv.slice(2));
+const url = rest.find(a => !a.startsWith("--"));
+const newTab = rest.includes("--new");
+const reload = rest.includes("--reload");
 
 if (!url) {
-	console.log("Usage: browser-nav.js <url> [--new] [--reload]");
+	console.log("Usage: browser-nav.js <url> [--new] [--reload] [--session NAME]");
 	console.log("\nExamples:");
 	console.log("  browser-nav.js https://example.com          # Navigate current tab");
 	console.log("  browser-nav.js https://example.com --new    # Open in new tab");
@@ -16,24 +16,15 @@ if (!url) {
 	process.exit(1);
 }
 
-const b = await Promise.race([
-	puppeteer.connect({
-		browserURL: "http://localhost:9222",
-		defaultViewport: null,
-	}),
-	new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 5000)),
-]).catch((e) => {
-	console.error("✗ Could not connect to browser:", e.message);
-	console.error("  Run: browser-start.js");
-	process.exit(1);
-});
+const b = await connect(session);
 
 if (newTab) {
 	const p = await b.newPage();
+	await p.bringToFront();
 	await p.goto(url, { waitUntil: "domcontentloaded" });
 	console.log("✓ Opened:", url);
 } else {
-	const p = (await b.pages()).at(-1);
+	const p = await getPage(b);
 	await p.goto(url, { waitUntil: "domcontentloaded" });
 	if (reload) {
 		await p.reload({ waitUntil: "domcontentloaded" });
