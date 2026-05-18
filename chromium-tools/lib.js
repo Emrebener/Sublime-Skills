@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import net from "node:net";
 import puppeteer from "puppeteer";
 
@@ -63,7 +63,9 @@ export function readRegistry() {
 }
 export function writeRegistry(reg) {
 	mkdirSync(CACHE_DIR, { recursive: true });
-	writeFileSync(REGISTRY, JSON.stringify(reg, null, 2));
+	const tmp = `${REGISTRY}.${process.pid}.tmp`;
+	writeFileSync(tmp, JSON.stringify(reg, null, 2));
+	renameSync(tmp, REGISTRY);
 }
 export function pidAlive(pid) {
 	if (!pid) return false;
@@ -77,8 +79,12 @@ export function pidAlive(pid) {
 
 // Find a free TCP port at or above `start` (default 9222).
 export function findFreePort(start = 9222) {
-	return new Promise((resolve) => {
+	return new Promise((resolve, reject) => {
 		const tryPort = (port) => {
+			if (port > 65535) {
+				reject(new Error("no free port available"));
+				return;
+			}
 			const srv = net.createServer();
 			srv.once("error", () => tryPort(port + 1));
 			srv.once("listening", () => srv.close(() => resolve(port)));
@@ -93,11 +99,11 @@ export function findFreePort(start = 9222) {
 export function resolvePort(session) {
 	const reg = readRegistry();
 	const entry = reg[session];
-	if (entry && !pidAlive(entry.pid)) {
-		delete reg[session];
-		writeRegistry(reg);
-	}
 	if (!entry || !pidAlive(entry.pid)) {
+		if (entry) {
+			delete reg[session];
+			writeRegistry(reg);
+		}
 		console.error(`✗ Session "${session}" is not running`);
 		const flag = session === "default" ? "" : ` --session ${session}`;
 		console.error(`  Run: browser-start.js${flag}`);
@@ -122,7 +128,8 @@ export async function connect(session) {
 	const browser = await tryConnect(port);
 	if (!browser) {
 		console.error(`✗ Could not connect to session "${session}" on :${port}`);
-		console.error("  The browser may have crashed. Run: browser-start.js");
+		const flag = session === "default" ? "" : ` --session ${session}`;
+		console.error(`  The browser may have crashed. Run: browser-start.js${flag}`);
 		process.exit(1);
 	}
 	return browser;
@@ -155,7 +162,6 @@ export function resolveTarget(arg) {
 // clear, actionable error on timeout.
 export async function waitActionable(page, target, timeout = 5000) {
 	const selector = resolveTarget(target);
-	const deadline = Date.now() + timeout;
 	let handle;
 	try {
 		handle = await page.waitForSelector(selector, { visible: true, timeout });
@@ -171,8 +177,10 @@ export async function waitActionable(page, target, timeout = 5000) {
 		(el) => !el.disabled && el.getAttribute("aria-disabled") !== "true",
 	);
 	if (!enabled) throw new Error(`element is disabled: ${target}`);
-	// Stability: bounding box unchanged across two animation frames.
-	while (Date.now() < deadline) {
+	// Stability: bounding box unchanged across two animation frames. This
+	// check gets its own budget so a slow selector wait above cannot starve it.
+	const stabilityDeadline = Date.now() + 1000;
+	while (Date.now() < stabilityDeadline) {
 		const a = await handle.boundingBox();
 		await page.evaluate(
 			() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),

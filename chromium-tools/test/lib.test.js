@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractSession } from "../lib.js";
+import { extractSession, resolveTarget } from "../lib.js";
 
 test("extractSession: defaults to 'default' with no flag or env", () => {
 	delete process.env.BROWSER_SESSION;
@@ -24,8 +24,6 @@ test("extractSession: BROWSER_SESSION env used when no flag", () => {
 	assert.deepEqual(rest, ["--errors"]);
 	delete process.env.BROWSER_SESSION;
 });
-
-import { resolveTarget } from "../lib.js";
 
 test("resolveTarget: @eN token becomes a data-ct-ref selector", () => {
 	assert.equal(resolveTarget("@e5"), '[data-ct-ref="e5"]');
