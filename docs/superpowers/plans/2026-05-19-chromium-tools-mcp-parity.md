@@ -86,7 +86,7 @@ test("extractSession: BROWSER_SESSION env used when no flag", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd chromium-tools && node --test test/`
+Run: `cd chromium-tools && node --test test/*.test.js`
 Expected: FAIL — `extractSession` is not exported from `lib.js`.
 
 - [ ] **Step 3: Rewrite `lib.js`**
@@ -320,7 +320,7 @@ test("resolveTarget: ordinary selectors pass through unchanged", () => {
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cd chromium-tools && node --test test/`
+Run: `cd chromium-tools && node --test test/*.test.js`
 Expected: PASS — 5 tests pass.
 
 - [ ] **Step 6: Commit**
@@ -2044,7 +2044,7 @@ export BROWSER_SESSION="$SESSION"
 ./browser-monitor.js start >/dev/null
 
 # unit tests
-node --test test/ >/dev/null && pass "lib unit tests" || fail "lib unit tests"
+node --test "test/*.test.js" >/dev/null && pass "lib unit tests" || fail "lib unit tests"
 
 # snapshot + ref interaction
 ./browser-nav.js "$FIX/form.html" >/dev/null
