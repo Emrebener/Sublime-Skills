@@ -7,19 +7,23 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-	CACHE_DIR, MONITOR_JSON, MONITOR_ERR, CONSOLE_LOG, NETWORK_LOG,
-	HEARTBEAT_MS, tryConnect, connect,
-	readMonitor, isMonitorAlive,
+	extractSession, sessionDir, monitorJson, monitorErr, consoleLog, networkLog,
+	HEARTBEAT_MS, tryConnect, connect, resolvePort, readMonitor, isMonitorAlive,
 } from "./lib.js";
 
 const SELF = fileURLToPath(import.meta.url);
 
 // ---------------------------------------------------------------------
-// Daemon loop (runs as a detached background process: `__daemon`)
+// Daemon loop (runs as a detached background process: `__daemon <session>`)
 // ---------------------------------------------------------------------
 async function runDaemon() {
-	mkdirSync(CACHE_DIR, { recursive: true });
-	const browser = await connect(); // exits(1) -> stderr to monitor.err
+	const session = process.argv[3];
+	mkdirSync(sessionDir(session), { recursive: true });
+	const browser = await connect(session); // exits(1) -> stderr to monitor.err
+
+	const MON = monitorJson(session);
+	const CONSOLE = consoleLog(session);
+	const NETWORK = networkLog(session);
 
 	const identity = {
 		pid: process.pid,
@@ -27,15 +31,15 @@ async function runDaemon() {
 		wsEndpoint: browser.wsEndpoint(),
 		lastHeartbeat: Date.now(),
 	};
-	const persist = () => writeFileSync(MONITOR_JSON, JSON.stringify(identity));
+	const persist = () => writeFileSync(MON, JSON.stringify(identity));
 	persist();
 	const hb = setInterval(() => {
 		identity.lastHeartbeat = Date.now();
 		persist();
 	}, HEARTBEAT_MS);
 
-	const logConsole = (e) => appendFileSync(CONSOLE_LOG, JSON.stringify(e) + "\n");
-	const logNetwork = (e) => appendFileSync(NETWORK_LOG, JSON.stringify(e) + "\n");
+	const logConsole = (e) => appendFileSync(CONSOLE, JSON.stringify(e) + "\n");
+	const logNetwork = (e) => appendFileSync(NETWORK, JSON.stringify(e) + "\n");
 
 	const attach = async (page) => {
 		page.on("console", (msg) => {
@@ -115,7 +119,7 @@ async function runDaemon() {
 
 	browser.on("disconnected", () => {
 		clearInterval(hb);
-		try { rmSync(MONITOR_JSON, { force: true }); } catch {}
+		try { rmSync(MON, { force: true }); } catch {}
 		process.exit(0);
 	});
 }
@@ -123,31 +127,31 @@ async function runDaemon() {
 // ---------------------------------------------------------------------
 // CLI: start
 // ---------------------------------------------------------------------
-async function startDaemon() {
-	mkdirSync(CACHE_DIR, { recursive: true });
+async function startDaemon(session) {
+	mkdirSync(sessionDir(session), { recursive: true });
 
-	if (isMonitorAlive()) {
-		console.log(`✓ Monitor already running (pid ${readMonitor().pid})`);
+	if (isMonitorAlive(session)) {
+		console.log(`✓ Monitor already running for "${session}" (pid ${readMonitor(session).pid})`);
 		process.exit(0);
 	}
 
-	// Pre-check the browser so the common "forgot browser-start" case
-	// fails fast with clear guidance instead of after a 3s wait.
-	const pre = await tryConnect();
+	const port = resolvePort(session); // exits(1) if session not running
+	const pre = await tryConnect(port);
 	if (!pre) {
-		console.error("✗ Chromium is not running on :9222");
+		console.error(`✗ Session "${session}" browser is not reachable`);
 		console.error("  Run: browser-start.js");
 		process.exit(1);
 	}
 	await pre.disconnect();
 
+	const MON = monitorJson(session);
 	// A non-alive monitor.json is stale — remove before the lock.
-	if (existsSync(MONITOR_JSON)) rmSync(MONITOR_JSON, { force: true });
+	if (existsSync(MON)) rmSync(MON, { force: true });
 
 	// Exclusive create = atomic lock. Loses to a concurrent start.
 	let fd;
 	try {
-		fd = openSync(MONITOR_JSON, "wx");
+		fd = openSync(MON, "wx");
 	} catch {
 		console.error("✗ Another monitor start is in progress");
 		process.exit(1);
@@ -156,12 +160,12 @@ async function startDaemon() {
 	closeSync(fd);
 
 	// Only now — lock held — clear the logs.
-	writeFileSync(CONSOLE_LOG, "");
-	writeFileSync(NETWORK_LOG, "");
+	writeFileSync(consoleLog(session), "");
+	writeFileSync(networkLog(session), "");
 
 	// Spawn the detached daemon, stderr -> monitor.err.
-	const errFd = openSync(MONITOR_ERR, "w");
-	const child = spawn(process.execPath, [SELF, "__daemon"], {
+	const errFd = openSync(monitorErr(session), "w");
+	const child = spawn(process.execPath, [SELF, "__daemon", session], {
 		detached: true,
 		stdio: ["ignore", "ignore", errFd],
 	});
@@ -171,17 +175,17 @@ async function startDaemon() {
 	// Wait up to 3s for the daemon's first real heartbeat.
 	const deadline = Date.now() + 3000;
 	const tick = () => {
-		if (isMonitorAlive()) {
-			console.log(`✓ Monitor started (pid ${readMonitor().pid})`);
+		if (isMonitorAlive(session)) {
+			console.log(`✓ Monitor started for "${session}" (pid ${readMonitor(session).pid})`);
 			process.exit(0);
 		}
 		if (Date.now() > deadline) {
 			console.error("✗ Monitor failed to start");
 			try {
-				const tail = readFileSync(MONITOR_ERR, "utf8").trim().split("\n").slice(-10);
+				const tail = readFileSync(monitorErr(session), "utf8").trim().split("\n").slice(-10);
 				if (tail.length && tail[0]) console.error("  monitor.err:\n  " + tail.join("\n  "));
 			} catch {}
-			rmSync(MONITOR_JSON, { force: true });
+			rmSync(MON, { force: true });
 			process.exit(1);
 		}
 		setTimeout(tick, 200);
@@ -192,15 +196,15 @@ async function startDaemon() {
 // ---------------------------------------------------------------------
 // CLI: stop
 // ---------------------------------------------------------------------
-function stopDaemon() {
-	const info = readMonitor();
-	if (isMonitorAlive(info)) {
+function stopDaemon(session) {
+	const info = readMonitor(session);
+	if (isMonitorAlive(session, info)) {
 		try { process.kill(info.pid); } catch {}
-		rmSync(MONITOR_JSON, { force: true });
-		console.log(`✓ Monitor stopped (pid ${info.pid})`);
+		rmSync(monitorJson(session), { force: true });
+		console.log(`✓ Monitor stopped for "${session}" (pid ${info.pid})`);
 	} else {
-		if (info) rmSync(MONITOR_JSON, { force: true }); // clean stale file
-		console.log("Monitor not running");
+		if (info) rmSync(monitorJson(session), { force: true }); // clean stale file
+		console.log(`Monitor not running for "${session}"`);
 	}
 }
 
@@ -214,17 +218,17 @@ function countAndSize(path) {
 	return { lines, bytes };
 }
 
-function statusDaemon() {
-	const info = readMonitor();
-	if (isMonitorAlive(info)) {
-		const c = countAndSize(CONSOLE_LOG);
-		const n = countAndSize(NETWORK_LOG);
-		console.log(`✓ Monitor running (pid ${info.pid})`);
+function statusDaemon(session) {
+	const info = readMonitor(session);
+	if (isMonitorAlive(session, info)) {
+		const c = countAndSize(consoleLog(session));
+		const n = countAndSize(networkLog(session));
+		console.log(`✓ Monitor running for "${session}" (pid ${info.pid})`);
 		console.log(`  started: ${new Date(info.startedAt).toISOString()}`);
 		console.log(`  console.jsonl: ${c.lines} events (${(c.bytes / 1024).toFixed(1)} KB)`);
 		console.log(`  network.jsonl: ${n.lines} events (${(n.bytes / 1024).toFixed(1)} KB)`);
 	} else {
-		console.log("✗ Monitor not running");
+		console.log(`✗ Monitor not running for "${session}"`);
 		if (info) console.log("  (stale monitor.json present — a previous daemon ended)");
 	}
 }
@@ -232,18 +236,20 @@ function statusDaemon() {
 // ---------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------
-const cmd = process.argv[2];
+const { session, rest } = extractSession(process.argv.slice(2));
+const cmd = process.argv[2] === "__daemon" ? "__daemon" : rest[0];
+
 if (cmd === "__daemon") {
 	await runDaemon();
 } else if (cmd === "start") {
-	await startDaemon();
+	await startDaemon(session);
 } else if (cmd === "stop") {
-	stopDaemon();
+	stopDaemon(session);
 } else if (cmd === "status") {
-	statusDaemon();
+	statusDaemon(session);
 } else {
-	console.log("Usage: browser-monitor.js <start|stop|status>");
+	console.log("Usage: browser-monitor.js <start|stop|status> [--session NAME]");
 	console.log("\nStart a background daemon that records console and network");
-	console.log("events from the browser on :9222 to log files.");
+	console.log("events from a session's browser to per-session log files.");
 	process.exit(cmd ? 1 : 0);
 }

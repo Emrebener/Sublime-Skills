@@ -1,25 +1,27 @@
 #!/usr/bin/env node
 
+import { extractSession, networkLog, isMonitorAlive } from "./lib.js";
 import { existsSync, readFileSync } from "node:fs";
-import { NETWORK_LOG, isMonitorAlive } from "./lib.js";
 
-const args = process.argv.slice(2);
-const failedOnly = args.includes("--failed");
-const limIdx = args.indexOf("--limit");
-const limit = limIdx !== -1 ? parseInt(args[limIdx + 1], 10) : null;
+const { session, rest } = extractSession(process.argv.slice(2));
+const LOG = networkLog(session);
+
+if (!isMonitorAlive(session) && !existsSync(LOG)) {
+	console.error(`✗ No monitor data for session "${session}"`);
+	console.error("  Run: browser-monitor.js start");
+	process.exit(1);
+}
+
+const failedOnly = rest.includes("--failed");
+const limIdx = rest.indexOf("--limit");
+const limit = limIdx !== -1 ? parseInt(rest[limIdx + 1], 10) : null;
 
 if (limIdx !== -1 && (!limit || limit < 1)) {
 	console.error("✗ --limit needs a positive number");
 	process.exit(1);
 }
 
-if (!existsSync(NETWORK_LOG)) {
-	console.error("✗ No network log found.");
-	console.error("  Run: browser-monitor.js start");
-	process.exit(1);
-}
-
-let events = readFileSync(NETWORK_LOG, "utf8")
+let events = readFileSync(LOG, "utf8")
 	.split("\n")
 	.filter(Boolean)
 	.map((l) => { try { return JSON.parse(l); } catch { return null; } })
@@ -43,7 +45,7 @@ for (const e of events) {
 }
 if (events.length === 0) console.log("(no matching network entries)");
 
-if (!isMonitorAlive()) {
+if (!isMonitorAlive(session)) {
 	console.error("");
 	console.error("⚠ Monitor not running — entries above are from a previous session.");
 	console.error("  Run: browser-monitor.js start");
