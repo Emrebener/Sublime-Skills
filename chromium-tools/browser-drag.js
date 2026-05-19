@@ -28,8 +28,10 @@ try {
 	// is and use the matching technique.
 	const native = await src.evaluate((el) => el.draggable === true);
 	if (native) {
-		await p.setDragInterception(true);
-		await src.dragAndDrop(dst);
+		// Modern non-deprecated native HTML5 drag: drag the source over the
+		// target, then drop it onto the target.
+		await src.drag(dst);
+		await dst.drop(src);
 	} else {
 		const sb = await src.boundingBox();
 		const db = await dst.boundingBox();
