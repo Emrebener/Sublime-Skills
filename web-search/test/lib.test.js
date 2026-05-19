@@ -36,3 +36,50 @@ test("resolveEndpoint: throws when nothing is configured", () => {
 		rmSync(dir, { recursive: true, force: true });
 	}
 });
+import { parseArgs } from "../lib.js";
+
+test("parseArgs: defaults with a single-word query", () => {
+	const o = parseArgs(["hello"]);
+	assert.equal(o.query, "hello");
+	assert.equal(o.count, 10);
+	assert.equal(o.category, "general");
+	assert.equal(o.time, null);
+	assert.equal(o.lang, "all");
+	assert.equal(o.safe, "0");
+	assert.equal(o.json, false);
+});
+
+test("parseArgs: joins a multi-word positional query", () => {
+	assert.equal(parseArgs(["claude", "code", "review"]).query, "claude code review");
+});
+
+test("parseArgs: parses every flag", () => {
+	const o = parseArgs([
+		"q", "--count", "5", "--category", "news", "--time", "week",
+		"--lang", "en-US", "--safe", "1", "--json",
+	]);
+	assert.equal(o.query, "q");
+	assert.equal(o.count, 5);
+	assert.equal(o.category, "news");
+	assert.equal(o.time, "week");
+	assert.equal(o.lang, "en-US");
+	assert.equal(o.safe, "1");
+	assert.equal(o.json, true);
+});
+
+test("parseArgs: rejects an unknown flag", () => {
+	assert.throws(() => parseArgs(["q", "--bogus"]), /unknown flag: --bogus/);
+});
+
+test("parseArgs: rejects an invalid category", () => {
+	assert.throws(() => parseArgs(["q", "--category", "music"]), /--category must be one of/);
+});
+
+test("parseArgs: rejects a non-positive --count", () => {
+	assert.throws(() => parseArgs(["q", "--count", "0"]), /--count must be a positive integer/);
+	assert.throws(() => parseArgs(["q", "--count", "abc"]), /--count must be a positive integer/);
+});
+
+test("parseArgs: rejects an invalid --safe value", () => {
+	assert.throws(() => parseArgs(["q", "--safe", "9"]), /--safe must be 0, 1, or 2/);
+});
