@@ -1,11 +1,12 @@
 # Sublime-Skills
 
-A personal registry of agent skills. Each skill lives in its own directory
-with a `SKILL.md`; this file summarizes what each one does.
+A personal registry of agent skills, grouped into category directories.
+Each skill lives in its own directory with a `SKILL.md`; this file
+summarizes what each one does.
 
 ## Skills
 
-### [browser-tools](browser-tools/)
+### [browser-tools](web-utilities/browser-tools/)
 
 Interactive Chromium browser automation and debugging over the Chrome
 DevTools Protocol — a self-contained, MCP-free alternative to Puppeteer MCP
@@ -23,7 +24,7 @@ A set of plain CLI scripts covering:
 - **Debugging** — console and network capture, performance traces,
   page-content extraction, screenshots.
 
-### [web-search](web-search/)
+### [web-search](web-utilities/web-search/)
 
 Web search for AI agents via a self-hosted
 [SearXNG](https://docs.searxng.org/) instance — a self-contained, MCP-free
@@ -43,7 +44,7 @@ What each skill needs before its tools will run:
 
 - **Node.js** 20, 22, or 24 LTS (Node 26 has a puppeteer extraction bug — see
   the skill's `SKILL.md`).
-- **`npm install`** in the `browser-tools/` directory — this also downloads a
+- **`npm install`** in the `web-utilities/browser-tools/` directory — this also downloads a
   private copy of Chromium (~150 MB, one-time), so no separate browser
   install is needed.
 
@@ -54,5 +55,5 @@ What each skill needs before its tools will run:
 - **A reachable SearXNG instance** with the JSON format enabled (`json` listed
   under `search.formats` in its `settings.yml`).
 - The instance URL configured via the `SEARXNG_URL` environment variable, or
-  by copying `web-search/config.example.json` to `web-search/config.json` and
-  setting `searxng_url`.
+  by copying `web-utilities/web-search/config.example.json` to
+  `web-utilities/web-search/config.json` and setting `searxng_url`.
