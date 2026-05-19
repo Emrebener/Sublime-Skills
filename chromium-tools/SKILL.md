@@ -1,6 +1,6 @@
 ---
 name: chromium-tools
-description: Interactive Chromium browser automation and debugging via Chrome DevTools Protocol. Use when you need to interact with web pages, test frontends, capture console and network activity, or when user interaction with a visible browser is required.
+description: Interactive Chromium browser automation and debugging via Chrome DevTools Protocol — an MCP-free alternative to Puppeteer/Chrome MCP. Use when you need to interact with web pages, fill forms, test frontends, capture console and network activity, take an accessibility snapshot of a page, run multiple isolated browser sessions, or when user interaction with a visible browser is required.
 ---
 
 # Chromium Tools
@@ -19,6 +19,23 @@ npm install
 `npm install` also downloads a private copy of Chromium (~150 MB, one-time) — no separate browser installation is required.
 
 **Node version:** use a current Node.js LTS (20, 22, or 24). Node 26 has a known puppeteer bug that downloads Chromium but fails to extract it — if `npm install` succeeds but `browser-start.js` reports the browser missing, switch to a Node LTS release and rerun `npm install`.
+
+## Sessions
+
+Every tool operates on a named **session** — one browser instance with its
+own port, profile, and logs. This lets independent tasks run browsers in
+parallel without colliding.
+
+- Default session is `"default"` — omit `--session` and everything just works.
+- Pass `--session NAME` to any tool, or export `BROWSER_SESSION=NAME` once so
+  every later call in that environment is session-scoped with no flag.
+- `{baseDir}/browser-sessions.js list` shows running sessions;
+  `{baseDir}/browser-sessions.js kill <name|--all>` stops them.
+
+```bash
+{baseDir}/browser-start.js --session scrape
+{baseDir}/browser-nav.js https://example.com --session scrape
+```
 
 ## Start the Browser
 
@@ -54,6 +71,27 @@ Execute JavaScript in the active tab. Code runs in async context. Use this to ex
 ```
 
 Capture current viewport and return temporary file path. Use this to visually inspect page state or verify UI changes.
+
+## Accessibility Snapshot and Refs
+
+```bash
+{baseDir}/browser-snapshot.js          # interactive elements + refs
+{baseDir}/browser-snapshot.js --all    # also include landmarks/headings
+```
+
+Prints a compact accessibility tree. Each element gets a stable `[ref=eN]`
+id, e.g. `button "Sign Up" [ref=e5]`. Every interaction tool accepts that
+ref as `@eN` in place of a CSS selector:
+
+```bash
+{baseDir}/browser-click.js @e5
+{baseDir}/browser-type.js @e3 "hello"
+```
+
+This is the recommended loop: **snapshot → act on refs → re-snapshot**.
+Prefer it over hand-written selectors — it is more robust and needs no
+guessing about page structure. Refs go stale when the DOM changes; just run
+`browser-snapshot.js` again to refresh them.
 
 ## Pick Elements
 
@@ -118,18 +156,110 @@ Print network requests captured by the monitor: method, status, type, size, timi
 
 ```bash
 {baseDir}/browser-click.js "#submit"
+{baseDir}/browser-click.js @e5
 ```
 
-Wait for a CSS selector (5s) and click it.
+Wait for a CSS selector or `@eN` ref to become visible, enabled, and stable (actionability wait), then click it.
 
 ## Type
 
 ```bash
 {baseDir}/browser-type.js "#search" "hello world"
-{baseDir}/browser-type.js "#search" "hello" --clear --enter
+{baseDir}/browser-type.js @e3 "hello" --clear --enter
 ```
 
-Wait for a CSS selector, then type text into it. `--clear` empties the field first; `--enter` presses Enter after.
+Wait for a CSS selector or `@eN` ref to become actionable, then type text into it. `--clear` empties the field first; `--enter` presses Enter after.
+
+## Hover
+
+```bash
+{baseDir}/browser-hover.js "#menu-item"
+{baseDir}/browser-hover.js @e7
+```
+
+Wait for a CSS selector or `@eN` ref to become actionable, then hover over it. Useful for revealing dropdown menus or tooltips.
+
+## Keys
+
+```bash
+{baseDir}/browser-key.js Escape
+{baseDir}/browser-key.js Tab
+{baseDir}/browser-key.js "Control+A"
+```
+
+Press a key or chord on the currently focused element. Use standard Puppeteer key names (`Enter`, `Tab`, `Escape`, `ArrowDown`, etc.) and `+` to combine with modifiers.
+
+## Select
+
+```bash
+{baseDir}/browser-select.js "#country" "United States"
+{baseDir}/browser-select.js @e4 "CA"
+```
+
+Wait for a `<select>` element (by CSS selector or `@eN` ref) to become actionable, then choose an option by its visible label or `value` attribute. Pass multiple values to select more than one option in a multi-select.
+
+## Drag
+
+```bash
+{baseDir}/browser-drag.js "#item-1" "#drop-zone"
+{baseDir}/browser-drag.js @e2 @e9
+```
+
+Drag an element to a target (both accept CSS selector or `@eN` ref). Automatically detects native HTML5 drag (`draggable="true"`) vs. mouse-gesture drag and uses the appropriate mechanism.
+
+## Scroll
+
+```bash
+{baseDir}/browser-scroll.js "#footer"
+{baseDir}/browser-scroll.js @e12
+{baseDir}/browser-scroll.js --by 500
+```
+
+Scroll an element into view (by CSS selector or `@eN` ref), or scroll the window by a pixel amount with `--by <pixels>` (positive = down, negative = up).
+
+## Wait
+
+```bash
+{baseDir}/browser-wait.js visible "#modal"
+{baseDir}/browser-wait.js gone "#spinner"
+{baseDir}/browser-wait.js text "Order confirmed"
+{baseDir}/browser-wait.js text-gone "Loading..."
+{baseDir}/browser-wait.js navigation
+{baseDir}/browser-wait.js idle
+{baseDir}/browser-wait.js delay 2000
+```
+
+Wait for a condition before proceeding. Use `--timeout MS` to override the default 10 000 ms limit. Modes: `visible`/`gone` wait for a selector to appear or disappear; `text`/`text-gone` wait for body text; `navigation` waits for a full page load; `idle` waits for network quiet; `delay` is a fixed pause.
+
+## Tabs
+
+```bash
+{baseDir}/browser-tabs.js list
+{baseDir}/browser-tabs.js new https://example.com
+{baseDir}/browser-tabs.js select 1
+{baseDir}/browser-tabs.js close 1
+```
+
+Manage browser tabs. `list` shows all open tabs with their index, URL, and title (active tab marked with `*`). `new` opens and focuses a new tab, optionally navigating to a URL. `select`/`close` target a tab by its numeric index from `list`.
+
+## Upload
+
+```bash
+{baseDir}/browser-upload.js "#file-input" /path/to/file.pdf
+{baseDir}/browser-upload.js @e6 /img/a.png /img/b.png
+```
+
+Set one or more files on a file input element (by CSS selector or `@eN` ref). File inputs are often visually hidden — the tool waits for the element's presence without requiring it to be visible.
+
+## Dialogs (alert / confirm / prompt)
+
+```bash
+{baseDir}/browser-dialog.js accept & ; {baseDir}/browser-click.js @e3
+{baseDir}/browser-dialog.js dismiss --timeout 5000 &
+```
+
+Arm the handler in the background **before** the action that triggers the
+dialog. `accept --text "..."` supplies a response to a `prompt`.
 
 ## Performance Trace
 
