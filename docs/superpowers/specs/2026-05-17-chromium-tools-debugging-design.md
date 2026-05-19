@@ -9,8 +9,8 @@ Extend the `chromium-tools` skill from a browser *automation* skill into a
 solid, reliable *automation and debugging* skill — without MCP, so it works
 in agents (like pi) that have no MCP support.
 
-The skill already covers navigation, JS evaluation, screenshots, element
-picking, cookies, and content extraction. This adds the debugging half:
+The skill already covers navigation, JS evaluation, screenshots,
+cookies, and content extraction. This adds the debugging half:
 console capture, network inspection, dedicated interaction, and a
 performance summary.
 

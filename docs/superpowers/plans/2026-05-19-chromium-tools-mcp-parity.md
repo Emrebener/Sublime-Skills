@@ -37,7 +37,7 @@ All paths under `chromium-tools/` unless noted.
 - `browser-start.js` — port allocation, registry entry, `--session`
 - `browser-monitor.js` — per-session daemon and log paths
 - `browser-click.js`, `browser-type.js` — `@eN` refs + `waitActionable`
-- `browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`, `browser-pick.js`, `browser-console.js`, `browser-network.js`, `browser-trace.js` — `--session` support, `getPage`
+- `browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`, `browser-console.js`, `browser-network.js`, `browser-trace.js` — `--session` support, `getPage`
 - `browser-trace.js` — also: clearer subresource-count label
 - `SKILL.md` — document sessions, snapshot/ref workflow, all new tools
 
@@ -620,10 +620,10 @@ git commit -m "feat(chromium-tools): browser-sessions.js to list and kill sessio
 
 ## Task 4: Thread `--session` through navigation/inspection scripts
 
-Updates `browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`, `browser-pick.js` to resolve a session and use `getPage`. The pattern for each: import `extractSession`/`getPage`, derive `{ session, rest }`, read positional args from `rest`, call `connect(session)`, and replace `(await b.pages()).at(-1)` with `await getPage(b)`.
+Updates `browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js` to resolve a session and use `getPage`. The pattern for each: import `extractSession`/`getPage`, derive `{ session, rest }`, read positional args from `rest`, call `connect(session)`, and replace `(await b.pages()).at(-1)` with `await getPage(b)`.
 
 **Files:**
-- Modify: `chromium-tools/browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`, `browser-pick.js`
+- Modify: `chromium-tools/browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`
 
 - [ ] **Step 1: Update `browser-nav.js`**
 
@@ -681,9 +681,9 @@ const p = await getPage(b);
 
 Keep the rest of the script (the `p.evaluate` call and output) unchanged, but ensure it references `p` from `getPage`.
 
-- [ ] **Step 4: Update `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`, `browser-pick.js`**
+- [ ] **Step 4: Update `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`**
 
-For each of these four scripts apply the same transformation:
+For each of these three scripts apply the same transformation:
 1. Add `extractSession`, `getPage` to the `./lib.js` import.
 2. Add `const { session, rest } = extractSession(process.argv.slice(2));` near the top.
 3. Read any positional arguments from `rest` instead of `process.argv`.
@@ -691,9 +691,9 @@ For each of these four scripts apply the same transformation:
 5. Replace `(await b.pages()).at(-1)` with `await getPage(b)`.
 6. Add ` [--session NAME]` to each script's printed usage string.
 
-`browser-content.js` and `browser-pick.js` take a positional argument (URL / instruction) — read it from `rest[0]`. `browser-screenshot.js` and `browser-cookies.js` take no positional args.
+`browser-content.js` takes a positional argument (URL) — read it from `rest[0]`. `browser-screenshot.js` and `browser-cookies.js` take no positional args.
 
-- [ ] **Step 5: Verify the four scripts against the default session**
+- [ ] **Step 5: Verify the three scripts against the default session**
 
 Run:
 ```bash
@@ -721,7 +721,7 @@ Expected: `example.com` printed for the `t1` session.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-screenshot.js chromium-tools/browser-content.js chromium-tools/browser-cookies.js chromium-tools/browser-pick.js
+git add chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-screenshot.js chromium-tools/browser-content.js chromium-tools/browser-cookies.js
 git commit -m "feat(chromium-tools): --session support for navigation and inspection tools"
 ```
 

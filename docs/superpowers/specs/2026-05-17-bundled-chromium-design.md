@@ -51,7 +51,6 @@ so this is a one-token change per file with no behavior change:
 - `browser-nav.js`
 - `browser-eval.js`
 - `browser-content.js`
-- `browser-pick.js`
 - `browser-screenshot.js`
 - `browser-cookies.js`
 

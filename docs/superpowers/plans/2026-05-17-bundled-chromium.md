@@ -26,7 +26,6 @@
 | `chromium-tools/browser-nav.js` | Import: `puppeteer-core` → `puppeteer` |
 | `chromium-tools/browser-eval.js` | Import: `puppeteer-core` → `puppeteer` |
 | `chromium-tools/browser-content.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-pick.js` | Import: `puppeteer-core` → `puppeteer` |
 | `chromium-tools/browser-screenshot.js` | Import: `puppeteer-core` → `puppeteer` |
 | `chromium-tools/browser-cookies.js` | Import: `puppeteer-core` → `puppeteer` |
 | `chromium-tools/browser-start.js` | Full rewrite: bundled-only launch + cross-platform `--profile` |
@@ -40,7 +39,7 @@ The six debugging scripts (`browser-monitor/console/network/click/type/trace.js`
 
 **Files:**
 - Modify: `chromium-tools/package.json`
-- Modify: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-pick.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`
+- Modify: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`
 
 - [ ] **Step 1: Replace the dependency in `package.json`**
 
@@ -82,7 +81,7 @@ In each file, replace it with:
 import puppeteer from "puppeteer";
 ```
 
-The seven files: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-pick.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`.
+The six files: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`.
 
 (Note: `chromium-tools/browser-start.js` also imports `puppeteer-core`, but it is fully rewritten in Task 2 — do NOT edit its import here.)
 
@@ -103,13 +102,13 @@ Expected: prints a path ending in a Chrome/Chromium executable, followed by `EXI
 
 - [ ] **Step 6: Syntax-check the changed scripts**
 
-Run: `cd chromium-tools && for f in lib.js browser-nav.js browser-eval.js browser-content.js browser-pick.js browser-screenshot.js browser-cookies.js; do node --check "$f" && echo "ok: $f"; done`
+Run: `cd chromium-tools && for f in lib.js browser-nav.js browser-eval.js browser-content.js browser-screenshot.js browser-cookies.js; do node --check "$f" && echo "ok: $f"; done`
 Expected: `ok:` for all seven files.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/package.json chromium-tools/lib.js chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-content.js chromium-tools/browser-pick.js chromium-tools/browser-screenshot.js chromium-tools/browser-cookies.js chromium-tools/package-lock.json
+git add chromium-tools/package.json chromium-tools/lib.js chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-content.js chromium-tools/browser-screenshot.js chromium-tools/browser-cookies.js chromium-tools/package-lock.json
 git commit -m "Switch dependency from puppeteer-core to full puppeteer"
 ```
 
