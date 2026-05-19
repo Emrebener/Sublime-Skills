@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { connect } from "./lib.js";
+import { connect, extractSession, getPage } from "./lib.js";
 
-const url = process.argv[2];
+const { session, rest } = extractSession(process.argv.slice(2));
+const url = rest[0];
 
-const b = await connect();
-const p = (await b.pages()).at(-1); // last open tab, as every script does
+const b = await connect(session);
+const p = await getPage(b);
 
 if (!p) {
 	console.error("✗ No active tab found");
@@ -68,7 +69,8 @@ console.log(`First Contentful Paint:   ${m.fcp ?? "?"} ms`);
 console.log(`Largest Contentful Paint: ${m.lcp ?? "?"} ms (LCP at capture time)`);
 console.log(`DOMContentLoaded:         ${m.dcl ?? "?"} ms`);
 console.log(`Load:                     ${m.load ?? "?"} ms`);
-console.log(`Requests:                 ${m.count} (${m.totalKB} KB total)`);
+console.log(`Subresources:             ${m.count} (${m.totalKB} KB total)`);
+console.log("  (the main document is not counted — it is a navigation, not a resource)");
 console.log("Slowest requests:");
 for (const r of m.slowest) {
 	console.log(`  ${r.ms} ms  ${(r.size / 1024).toFixed(1)} KB  ${r.url}`);
