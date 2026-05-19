@@ -139,7 +139,8 @@ async function startDaemon(session) {
 	const pre = await tryConnect(port);
 	if (!pre) {
 		console.error(`✗ Session "${session}" browser is not reachable`);
-		console.error("  Run: browser-start.js");
+		const flag = session === "default" ? "" : ` --session ${session}`;
+		console.error(`  Run: browser-start.js${flag}`);
 		process.exit(1);
 	}
 	await pre.disconnect();
@@ -236,20 +237,22 @@ function statusDaemon(session) {
 // ---------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------
-const { session, rest } = extractSession(process.argv.slice(2));
-const cmd = process.argv[2] === "__daemon" ? "__daemon" : rest[0];
-
-if (cmd === "__daemon") {
+if (process.argv[2] === "__daemon") {
+	// Internal entrypoint: the session is passed positionally as argv[3].
 	await runDaemon();
-} else if (cmd === "start") {
-	await startDaemon(session);
-} else if (cmd === "stop") {
-	stopDaemon(session);
-} else if (cmd === "status") {
-	statusDaemon(session);
 } else {
-	console.log("Usage: browser-monitor.js <start|stop|status> [--session NAME]");
-	console.log("\nStart a background daemon that records console and network");
-	console.log("events from a session's browser to per-session log files.");
-	process.exit(cmd ? 1 : 0);
+	const { session, rest } = extractSession(process.argv.slice(2));
+	const cmd = rest[0];
+	if (cmd === "start") {
+		await startDaemon(session);
+	} else if (cmd === "stop") {
+		stopDaemon(session);
+	} else if (cmd === "status") {
+		statusDaemon(session);
+	} else {
+		console.log("Usage: browser-monitor.js <start|stop|status> [--session NAME]");
+		console.log("\nStart a background daemon that records console and network");
+		console.log("events from a session's browser to per-session log files.");
+		process.exit(cmd ? 1 : 0);
+	}
 }
