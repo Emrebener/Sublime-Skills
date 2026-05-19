@@ -5,6 +5,9 @@
 	"description": "Minimal CDP tools for collaborative site exploration",
 	"author": "Mario Zechner",
 	"license": "MIT",
+	"engines": {
+		"node": ">=20 <26"
+	},
 	"dependencies": {
 		"@mozilla/readability": "^0.6.0",
 		"jsdom": "^27.0.1",

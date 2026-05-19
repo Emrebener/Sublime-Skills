@@ -18,7 +18,7 @@ npm install
 
 `npm install` also downloads a private copy of Chromium (~150 MB, one-time) — no separate browser installation is required.
 
-**Node version:** use a current Node.js LTS (20, 22, or 24). Node 26 has a known puppeteer bug that downloads Chromium but fails to extract it — if `npm install` succeeds but `browser-start.js` reports the browser missing, switch to a Node LTS release and rerun `npm install`.
+**Node version:** use a current Node.js LTS (20, 22, or 24). Node 26 has a known puppeteer bug that downloads Chromium but fails to extract it. The skill enforces this: `package.json` declares `"engines": "node >=20 <26"` and `.npmrc` sets `engine-strict=true`, so `npm install` refuses to run on an unsupported Node version with a clear error rather than producing a broken install. An `.nvmrc` pins Node 22 — with `nvm`/`fnm`/`mise`, run the version-manager's `use` command in this directory to switch.
 
 ## Sessions
 
