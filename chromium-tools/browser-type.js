@@ -4,11 +4,11 @@ import { connect, extractSession, getPage, waitActionable } from "./lib.js";
 
 const { session, rest } = extractSession(process.argv.slice(2));
 const target = rest[0];
-const text = rest[1];
+const text = rest.slice(1).filter((a) => a !== "--clear" && a !== "--enter").join(" ");
 const clear = rest.includes("--clear");
 const enter = rest.includes("--enter");
 
-if (!target || text === undefined) {
+if (!target) {
 	console.log("Usage: browser-type.js <selector|@ref> <text> [--clear] [--enter] [--session NAME]");
 	process.exit(1);
 }
