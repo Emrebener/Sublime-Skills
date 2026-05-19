@@ -70,7 +70,9 @@ expect "upload set a file" "$UP" "1 file(s)"
 # dialog
 ./browser-nav.js "$FIX/dialog.html" >/dev/null
 ./browser-snapshot.js >/dev/null
-( ./browser-dialog.js accept & ) ; sleep 1 ; ./browser-click.js @e1 >/dev/null
+./browser-dialog.js accept &
+until [ -f ~/.cache/browser-tools/sessions/"$SESSION"/dialog-armed ]; do sleep 0.1; done
+./browser-click.js @e1 >/dev/null
 sleep 1
 DLG=$(./browser-eval.js 'document.getElementById("out").textContent')
 expect "dialog was accepted" "$DLG" "accepted"

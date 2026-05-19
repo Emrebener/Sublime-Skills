@@ -30,7 +30,8 @@ parallel without colliding.
 - Pass `--session NAME` to any tool, or export `BROWSER_SESSION=NAME` once so
   every later call in that environment is session-scoped with no flag.
 - `{baseDir}/browser-sessions.js list` shows running sessions;
-  `{baseDir}/browser-sessions.js kill <name|--all>` stops them.
+  `{baseDir}/browser-sessions.js kill <name>` stops one (also accepts `--session <name>`);
+  `{baseDir}/browser-sessions.js kill --all` stops all.
 
 ```bash
 {baseDir}/browser-start.js --session scrape
@@ -254,12 +255,18 @@ Set one or more files on a file input element (by CSS selector or `@eN` ref). Fi
 ## Dialogs (alert / confirm / prompt)
 
 ```bash
-{baseDir}/browser-dialog.js accept & ; {baseDir}/browser-click.js @e3
-{baseDir}/browser-dialog.js dismiss --timeout 5000 &
+# Arm the handler in the background, wait until it is ready, then trigger:
+{baseDir}/browser-dialog.js accept &
+until [ -f ~/.cache/browser-tools/sessions/default/dialog-armed ]; do sleep 0.1; done
+{baseDir}/browser-click.js @e3
 ```
 
-Arm the handler in the background **before** the action that triggers the
-dialog. `accept --text "..."` supplies a response to a `prompt`.
+`browser-dialog.js` writes a `dialog-armed` marker file once its handler is
+attached; wait for that file before triggering the dialog so the handler is
+never missed. For a non-default session, the path is
+`~/.cache/browser-tools/sessions/<session>/dialog-armed`.
+
+`accept --text "..."` supplies a response to a `prompt`. Use `dismiss` to cancel.
 
 ## Performance Trace
 

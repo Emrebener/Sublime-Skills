@@ -19,7 +19,8 @@ if (cmd === "list") {
 		);
 	}
 } else if (cmd === "kill") {
-	const target = process.argv[3];
+	let target = process.argv[3];
+	if (target === "--session") target = process.argv[4];
 	const all = target === "--all";
 	if (!target) {
 		console.error("Usage: browser-sessions.js kill <name|--all>");

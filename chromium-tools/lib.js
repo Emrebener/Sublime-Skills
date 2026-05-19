@@ -31,6 +31,9 @@ export function consoleLog(name) {
 export function networkLog(name) {
 	return join(sessionDir(name), "network.jsonl");
 }
+export function dialogArmed(name) {
+	return join(sessionDir(name), "dialog-armed");
+}
 
 // ----- argument parsing --------------------------------------------------
 // Pull `--session NAME` out of an argv array, returning { session, rest }

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { connect, extractSession } from "./lib.js";
+import { connect, extractSession, sessionDir, dialogArmed } from "./lib.js";
+import { writeFileSync, rmSync, mkdirSync } from "node:fs";
 
 const { session, rest } = extractSession(process.argv.slice(2));
 const action = rest[0];
@@ -13,9 +14,14 @@ if (action !== "accept" && action !== "dismiss") {
 	console.log("Usage: browser-dialog.js <accept|dismiss> [--text TEXT] [--timeout MS] [--session NAME]");
 	console.log("\nArms a handler for the NEXT dialog. Run in the background before the");
 	console.log("action that triggers the dialog, e.g.:");
-	console.log("  browser-dialog.js accept & ; browser-click.js @e3");
+	console.log("  browser-dialog.js accept &");
+	console.log("  until [ -f ~/.cache/browser-tools/sessions/default/dialog-armed ]; do sleep 0.1; done");
+	console.log("  browser-click.js @e3");
 	process.exit(action ? 1 : 0);
 }
+
+// Clear any stale marker from a previous run.
+rmSync(dialogArmed(session), { force: true });
 
 const b = await connect(session);
 let handled = false;
@@ -33,6 +39,7 @@ function arm(page) {
 		} catch (err) {
 			console.error(`✗ Dialog handling failed: ${err.message}`);
 		}
+		rmSync(dialogArmed(session), { force: true });
 		await b.disconnect();
 		process.exit(0);
 	});
@@ -45,9 +52,14 @@ b.on("targetcreated", async (t) => {
 	if (page) arm(page);
 });
 
+// Signal readiness: callers wait for this file before triggering the dialog.
+mkdirSync(sessionDir(session), { recursive: true });
+writeFileSync(dialogArmed(session), String(Date.now()));
+
 setTimeout(async () => {
 	if (!handled) {
 		console.error(`✗ No dialog appeared within ${timeout}ms`);
+		rmSync(dialogArmed(session), { force: true });
 		await b.disconnect();
 		process.exit(1);
 	}
