@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Drag Fixture</title>
+<style>#src,#dst{width:120px;height:120px;display:inline-block;margin:20px}
+#src{background:#cdf}#dst{background:#dfc}</style></head>
+<body>
+  <div id="src" draggable="true">SOURCE</div>
+  <div id="dst">DROP HERE</div>
+  <div id="status">idle</div>
+  <script>
+    const dst = document.getElementById('dst');
+    dst.addEventListener('mouseup', () => {
+      document.getElementById('status').textContent = 'dropped';
+    });
+  </script>
+</body>
+</html>
