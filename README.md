@@ -34,3 +34,25 @@ returns ranked results (`title / url / snippet`, or JSON). Supports result
 count, category (general/news/images/videos), time range, language/region,
 and safe-search level. The SearXNG endpoint is configured via the
 `SEARXNG_URL` environment variable or a local `config.json`.
+
+## Setup
+
+What each skill needs before its tools will run:
+
+### browser-tools
+
+- **Node.js** 20, 22, or 24 LTS (Node 26 has a puppeteer extraction bug — see
+  the skill's `SKILL.md`).
+- **`npm install`** in the `browser-tools/` directory — this also downloads a
+  private copy of Chromium (~150 MB, one-time), so no separate browser
+  install is needed.
+
+### web-search
+
+- **Node.js** 18 or newer (for the built-in `fetch`). No `npm install` — the
+  skill has no dependencies.
+- **A reachable SearXNG instance** with the JSON format enabled (`json` listed
+  under `search.formats` in its `settings.yml`).
+- The instance URL configured via the `SEARXNG_URL` environment variable, or
+  by copying `web-search/config.example.json` to `web-search/config.json` and
+  setting `searxng_url`.
