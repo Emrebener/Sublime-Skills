@@ -22,3 +22,15 @@ A set of plain CLI scripts covering:
   key presses, tabs, dialogs, file uploads.
 - **Debugging** — console and network capture, performance traces,
   page-content extraction, screenshots.
+
+### [web-search](web-search/)
+
+Web search for AI agents via a self-hosted
+[SearXNG](https://docs.searxng.org/) instance — a self-contained, MCP-free
+search tool for harnesses that can't run MCP servers.
+
+A single dependency-free CLI script that queries SearXNG's JSON API and
+returns ranked results (`title / url / snippet`, or JSON). Supports result
+count, category (general/news/images/videos), time range, language/region,
+and safe-search level. The SearXNG endpoint is configured via the
+`SEARXNG_URL` environment variable or a local `config.json`.
