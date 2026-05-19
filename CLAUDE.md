@@ -8,5 +8,6 @@ Each skill lives in its own directory containing a `SKILL.md` with YAML
 frontmatter (`name`, `description`) and instructions. Supporting files
 (references, scripts, templates) sit alongside it.
 
-The registry is currently empty; entries will be added as skills are
-created or collected.
+Every skill must also have a short summary entry in `README.md`, under its
+"Skills" section — add one whenever a skill is created or collected, and
+keep it current when the skill changes.
