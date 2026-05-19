@@ -111,3 +111,48 @@ test("buildSearchUrl: URL-encodes the query", () => {
 	const u = new URL(buildSearchUrl("http://x:8080", { ...baseOpts, query: "a & b=c" }));
 	assert.equal(u.searchParams.get("q"), "a & b=c");
 });
+import { formatResults } from "../lib.js";
+
+const sampleResults = [
+	{ title: "First", url: "http://a.com", content: "  alpha  ", engine: "google" },
+	{ title: "Second", url: "http://b.com", content: "beta", engine: "bing" },
+	{ title: "Third", url: "http://c.com", content: "gamma", engine: "ddg" },
+];
+
+test("formatResults: text format renders rank, title, url, snippet", () => {
+	const out = formatResults(sampleResults, 10, false);
+	assert.match(out, /1\. First/);
+	assert.match(out, /http:\/\/a\.com/);
+	assert.match(out, /alpha/);
+	assert.match(out, /3\. Third/);
+});
+
+test("formatResults: truncates to count", () => {
+	const out = formatResults(sampleResults, 2, false);
+	assert.match(out, /2\. Second/);
+	assert.equal(/3\. Third/.test(out), false);
+});
+
+test("formatResults: json format returns a parseable array", () => {
+	const out = formatResults(sampleResults, 2, true);
+	const arr = JSON.parse(out);
+	assert.equal(arr.length, 2);
+	assert.deepEqual(arr[0], {
+		rank: 1, title: "First", url: "http://a.com", snippet: "alpha", engine: "google",
+	});
+});
+
+test("formatResults: empty results give an empty string in text mode", () => {
+	assert.equal(formatResults([], 10, false), "");
+});
+
+test("formatResults: empty results give '[]' in json mode", () => {
+	assert.equal(formatResults([], 10, true), "[]");
+});
+
+test("formatResults: tolerates missing fields", () => {
+	const out = formatResults([{ url: "http://x.com" }], 10, true);
+	assert.deepEqual(JSON.parse(out)[0], {
+		rank: 1, title: "", url: "http://x.com", snippet: "", engine: "",
+	});
+});

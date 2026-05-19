@@ -98,3 +98,18 @@ export function buildSearchUrl(base, opts) {
 	if (opts.time) u.searchParams.set("time_range", opts.time);
 	return u.toString();
 }
+
+// Render SearXNG's `results` array. Takes the first `count` entries and
+// returns either a human-readable text block or a JSON array string.
+// Missing fields on a result are tolerated and become empty strings.
+export function formatResults(results, count, asJson) {
+	const top = results.slice(0, count).map((r, i) => ({
+		rank: i + 1,
+		title: r.title || "",
+		url: r.url || "",
+		snippet: (r.content || "").trim(),
+		engine: r.engine || "",
+	}));
+	if (asJson) return JSON.stringify(top, null, 2);
+	return top.map((r) => `${r.rank}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join("\n\n");
+}
