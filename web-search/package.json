@@ -1,0 +1,7 @@
+{
+	"name": "web-search",
+	"version": "1.0.0",
+	"description": "SearXNG-backed web search for AI agents",
+	"type": "module",
+	"private": true
+}
