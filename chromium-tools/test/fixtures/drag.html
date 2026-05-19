@@ -9,6 +9,13 @@
   <div id="status">idle</div>
   <script>
     const dst = document.getElementById('dst');
+    // Native HTML5 drop: dragover must preventDefault to allow the drop.
+    dst.addEventListener('dragover', (e) => e.preventDefault());
+    dst.addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.getElementById('status').textContent = 'dropped';
+    });
+    // Mouse-gesture drop: also accept a plain mouseup on the target.
     dst.addEventListener('mouseup', () => {
       document.getElementById('status').textContent = 'dropped';
     });
