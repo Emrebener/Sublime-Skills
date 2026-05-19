@@ -94,19 +94,6 @@ Prefer it over hand-written selectors — it is more robust and needs no
 guessing about page structure. Refs go stale when the DOM changes; just run
 `browser-snapshot.js` again to refresh them.
 
-## Pick Elements
-
-```bash
-{baseDir}/browser-pick.js "Click the submit button"
-```
-
-**IMPORTANT**: Use this tool when the user wants to select specific DOM elements on the page. This launches an interactive picker that lets the user click elements to select them. The user can select multiple elements (Cmd/Ctrl+Click) and press Enter when done. The tool returns CSS selectors for the selected elements.
-
-Common use cases:
-- User says "I want to click that button" → Use this tool to let them select it
-- User says "extract data from these items" → Use this tool to let them select the elements
-- When you need specific selectors but the page structure is complex or ambiguous
-
 ## Cookies
 
 ```bash
