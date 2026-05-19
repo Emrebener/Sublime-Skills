@@ -1,12 +1,12 @@
 {
-  "skill_name": "chromium-tools",
+  "skill_name": "browser-tools",
   "evals": [
     {
       "id": 0,
       "name": "debug-broken-button",
       "prompt": "My signup page is broken — the 'Sign Up' button does nothing when clicked. The page is at file://FIXTURES/signup.html (open it locally). Figure out what's wrong. Check the browser console for errors.",
       "expected_output": "Identifies that clicking the button throws an uncaught ReferenceError because validateForm is not defined, found via the captured console errors.",
-      "files": ["../chromium-tools-workspace/fixtures/signup.html"]
+      "files": ["../browser-tools-workspace/fixtures/signup.html"]
     },
     {
       "id": 1,

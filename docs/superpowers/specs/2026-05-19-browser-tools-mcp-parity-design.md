@@ -1,11 +1,11 @@
-# chromium-tools: MCP-parity upgrade
+# browser-tools: MCP-parity upgrade
 
 **Date:** 2026-05-19
 **Status:** Approved design, pending implementation plan
 
 ## Goal
 
-Raise the `chromium-tools` skill to be a practical, self-contained alternative
+Raise the `browser-tools` skill to be a practical, self-contained alternative
 to Puppeteer MCP and Chrome DevTools MCP, for use in AI coding harnesses that
 do not support MCP servers (the immediate target is the "pi" harness,
 https://pi.dev). The skill must remain a set of plain CLI scripts an agent

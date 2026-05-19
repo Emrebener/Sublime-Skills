@@ -1,20 +1,20 @@
-# chromium-tools MCP-parity Upgrade — Implementation Plan
+# browser-tools MCP-parity Upgrade — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Upgrade the `chromium-tools` skill into a practical, MCP-free alternative to Puppeteer MCP / Chrome DevTools MCP — named multi-sessions, an accessibility snapshot with stable element refs, actionability waits, and a set of parity tools (tabs, dialog, upload, wait, hover, select, drag, scroll, key).
+**Goal:** Upgrade the `browser-tools` skill into a practical, MCP-free alternative to Puppeteer MCP / Chrome DevTools MCP — named multi-sessions, an accessibility snapshot with stable element refs, actionability waits, and a set of parity tools (tabs, dialog, upload, wait, hover, select, drag, scroll, key).
 
 **Architecture:** Plain CLI scripts kept stateless — each connects fresh, acts, disconnects. A passive registry file (`~/.cache/browser-tools/sessions.json`) maps named sessions to debugging ports. `browser-snapshot.js` annotates the live DOM with `data-ct-ref` attributes so interaction tools can target `@eN` refs that survive across separate process invocations.
 
 **Tech Stack:** Node.js (ESM, top-level await), puppeteer (bundled Chromium), Node's built-in `node:test` runner. No new dependencies.
 
-**Spec:** `docs/superpowers/specs/2026-05-19-chromium-tools-mcp-parity-design.md`
+**Spec:** `docs/superpowers/specs/2026-05-19-browser-tools-mcp-parity-design.md`
 
 ---
 
 ## File Structure
 
-All paths under `chromium-tools/` unless noted.
+All paths under `browser-tools/` unless noted.
 
 **Created:**
 - `browser-snapshot.js` — accessibility tree + `@eN` ref assignment
@@ -48,12 +48,12 @@ All paths under `chromium-tools/` unless noted.
 Adds the registry, port allocation, session resolution, and arg parsing. `connect()`/`tryConnect()` gain parameters — callers are updated in later tasks; `browser-monitor.js` is the only existing caller and is updated in Task 5, so the codebase will not run cleanly until Task 5. That is expected.
 
 **Files:**
-- Modify: `chromium-tools/lib.js`
-- Test: `chromium-tools/test/lib.test.js`
+- Modify: `browser-tools/lib.js`
+- Test: `browser-tools/test/lib.test.js`
 
 - [ ] **Step 1: Write the failing test**
 
-Create `chromium-tools/test/lib.test.js`:
+Create `browser-tools/test/lib.test.js`:
 
 ```js
 import test from "node:test";
@@ -86,12 +86,12 @@ test("extractSession: BROWSER_SESSION env used when no flag", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `cd chromium-tools && node --test test/*.test.js`
+Run: `cd browser-tools && node --test test/*.test.js`
 Expected: FAIL — `extractSession` is not exported from `lib.js`.
 
 - [ ] **Step 3: Rewrite `lib.js`**
 
-Replace the entire contents of `chromium-tools/lib.js` with:
+Replace the entire contents of `browser-tools/lib.js` with:
 
 ```js
 import { homedir } from "node:os";
@@ -303,7 +303,7 @@ export function isMonitorAlive(session, info = readMonitor(session)) {
 
 - [ ] **Step 4: Add a unit test for `resolveTarget`**
 
-Append to `chromium-tools/test/lib.test.js`:
+Append to `browser-tools/test/lib.test.js`:
 
 ```js
 import { resolveTarget } from "../lib.js";
@@ -320,14 +320,14 @@ test("resolveTarget: ordinary selectors pass through unchanged", () => {
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
-Run: `cd chromium-tools && node --test test/*.test.js`
+Run: `cd browser-tools && node --test test/*.test.js`
 Expected: PASS — 5 tests pass.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add chromium-tools/lib.js chromium-tools/test/lib.test.js
-git commit -m "feat(chromium-tools): session registry and targeting helpers in lib.js"
+git add browser-tools/lib.js browser-tools/test/lib.test.js
+git commit -m "feat(browser-tools): session registry and targeting helpers in lib.js"
 ```
 
 ---
@@ -337,11 +337,11 @@ git commit -m "feat(chromium-tools): session registry and targeting helpers in l
 Allocate a free port, launch the browser, and record the session in the registry.
 
 **Files:**
-- Modify: `chromium-tools/browser-start.js`
+- Modify: `browser-tools/browser-start.js`
 
 - [ ] **Step 1: Rewrite `browser-start.js`**
 
-Replace the entire contents of `chromium-tools/browser-start.js` with:
+Replace the entire contents of `browser-tools/browser-start.js` with:
 
 ```js
 #!/usr/bin/env node
@@ -357,7 +357,7 @@ import { fileURLToPath } from "node:url";
 // resolution, so this check and the imports it guards are dynamic.
 const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
 if (!existsSync(join(SKILL_DIR, "node_modules", "puppeteer"))) {
-	console.error("✗ chromium-tools dependencies not installed");
+	console.error("✗ browser-tools dependencies not installed");
 	console.error(`  Run: cd "${SKILL_DIR}" && npm install`);
 	process.exit(1);
 }
@@ -506,7 +506,7 @@ console.log(
 
 Run:
 ```bash
-cd chromium-tools && ./browser-start.js && cat ~/.cache/browser-tools/sessions.json
+cd browser-tools && ./browser-start.js && cat ~/.cache/browser-tools/sessions.json
 ```
 Expected: `✓ Session "default" started on :9222 ...` and the JSON shows a `default` entry with `port`, `pid`, `userDataDir`, `startedAt`.
 
@@ -514,20 +514,20 @@ Expected: `✓ Session "default" started on :9222 ...` and the JSON shows a `def
 
 Run:
 ```bash
-cd chromium-tools && ./browser-start.js --session work && cat ~/.cache/browser-tools/sessions.json
+cd browser-tools && ./browser-start.js --session work && cat ~/.cache/browser-tools/sessions.json
 ```
 Expected: `✓ Session "work" started on :9223 ...`; registry now has both `default` and `work`.
 
 - [ ] **Step 4: Verify idempotent restart**
 
-Run: `cd chromium-tools && ./browser-start.js --session work`
+Run: `cd browser-tools && ./browser-start.js --session work`
 Expected: `✓ Session "work" already running on :9223`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-start.js
-git commit -m "feat(chromium-tools): per-session browser launch with port allocation"
+git add browser-tools/browser-start.js
+git commit -m "feat(browser-tools): per-session browser launch with port allocation"
 ```
 
 ---
@@ -535,7 +535,7 @@ git commit -m "feat(chromium-tools): per-session browser launch with port alloca
 ## Task 3: `browser-sessions.js` — list and kill sessions
 
 **Files:**
-- Create: `chromium-tools/browser-sessions.js`
+- Create: `browser-tools/browser-sessions.js`
 
 - [ ] **Step 1: Create `browser-sessions.js`**
 
@@ -594,26 +594,26 @@ if (cmd === "list") {
 
 - [ ] **Step 2: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-sessions.js`
+Run: `cd browser-tools && chmod +x browser-sessions.js`
 
 - [ ] **Step 3: Verify listing**
 
-Run: `cd chromium-tools && ./browser-sessions.js list`
+Run: `cd browser-tools && ./browser-sessions.js list`
 Expected: lines for `default` and `work`, both `✓ ... running` (from Task 2).
 
 - [ ] **Step 4: Verify kill**
 
 Run:
 ```bash
-cd chromium-tools && ./browser-sessions.js kill work && ./browser-sessions.js list
+cd browser-tools && ./browser-sessions.js kill work && ./browser-sessions.js list
 ```
 Expected: `✓ Killed 1 session(s)`; the follow-up list shows only `default`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-sessions.js
-git commit -m "feat(chromium-tools): browser-sessions.js to list and kill sessions"
+git add browser-tools/browser-sessions.js
+git commit -m "feat(browser-tools): browser-sessions.js to list and kill sessions"
 ```
 
 ---
@@ -623,7 +623,7 @@ git commit -m "feat(chromium-tools): browser-sessions.js to list and kill sessio
 Updates `browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js` to resolve a session and use `getPage`. The pattern for each: import `extractSession`/`getPage`, derive `{ session, rest }`, read positional args from `rest`, call `connect(session)`, and replace `(await b.pages()).at(-1)` with `await getPage(b)`.
 
 **Files:**
-- Modify: `chromium-tools/browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`
+- Modify: `browser-tools/browser-nav.js`, `browser-eval.js`, `browser-screenshot.js`, `browser-content.js`, `browser-cookies.js`
 
 - [ ] **Step 1: Update `browser-nav.js`**
 
@@ -652,10 +652,10 @@ Then, where the script currently picks the page, use `await getPage(b)` for the 
 
 Run:
 ```bash
-cd chromium-tools && ./browser-nav.js https://example.com && ./browser-eval.js 2>/dev/null; echo ok
+cd browser-tools && ./browser-nav.js https://example.com && ./browser-eval.js 2>/dev/null; echo ok
 ```
 Then verify the connect path explicitly in the next step's tools. For now run:
-`cd chromium-tools && ./browser-nav.js https://example.com`
+`cd browser-tools && ./browser-nav.js https://example.com`
 Expected: `✓ Navigated to: https://example.com`.
 
 - [ ] **Step 3: Update `browser-eval.js`**
@@ -697,7 +697,7 @@ For each of these three scripts apply the same transformation:
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js https://example.com
 ./browser-eval.js 'document.title'
 ./browser-screenshot.js
@@ -710,7 +710,7 @@ Expected: `Example Domain` from eval; a `/tmp/screenshot-*.png` path; cookies ou
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-start.js --session t1
 ./browser-nav.js https://example.com --session t1
 ./browser-eval.js 'location.host' --session t1
@@ -721,8 +721,8 @@ Expected: `example.com` printed for the `t1` session.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-screenshot.js chromium-tools/browser-content.js chromium-tools/browser-cookies.js
-git commit -m "feat(chromium-tools): --session support for navigation and inspection tools"
+git add browser-tools/browser-nav.js browser-tools/browser-eval.js browser-tools/browser-screenshot.js browser-tools/browser-content.js browser-tools/browser-cookies.js
+git commit -m "feat(browser-tools): --session support for navigation and inspection tools"
 ```
 
 ---
@@ -732,7 +732,7 @@ git commit -m "feat(chromium-tools): --session support for navigation and inspec
 `browser-monitor.js` becomes session-aware: the daemon connects to a named session and writes logs to that session's directory; `browser-console.js` and `browser-network.js` read the session's logs.
 
 **Files:**
-- Modify: `chromium-tools/browser-monitor.js`, `browser-console.js`, `browser-network.js`
+- Modify: `browser-tools/browser-monitor.js`, `browser-console.js`, `browser-network.js`
 
 - [ ] **Step 1: Update `browser-monitor.js` imports and daemon**
 
@@ -930,7 +930,7 @@ Then keep the existing flag parsing (`--errors`, `--limit`) but source flags fro
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-monitor.js start
 ./browser-nav.js https://example.com
 ./browser-network.js --limit 5
@@ -942,8 +942,8 @@ Expected: `✓ Monitor started for "default"`; at least one network row from `br
 - [ ] **Step 6: Commit**
 
 ```bash
-git add chromium-tools/browser-monitor.js chromium-tools/browser-console.js chromium-tools/browser-network.js
-git commit -m "feat(chromium-tools): per-session monitor daemon and logs"
+git add browser-tools/browser-monitor.js browser-tools/browser-console.js browser-tools/browser-network.js
+git commit -m "feat(browser-tools): per-session monitor daemon and logs"
 ```
 
 ---
@@ -951,12 +951,12 @@ git commit -m "feat(chromium-tools): per-session monitor daemon and logs"
 ## Task 6: `browser-snapshot.js` — accessibility tree with refs
 
 **Files:**
-- Create: `chromium-tools/browser-snapshot.js`
-- Create: `chromium-tools/test/fixtures/form.html`
+- Create: `browser-tools/browser-snapshot.js`
+- Create: `browser-tools/test/fixtures/form.html`
 
 - [ ] **Step 1: Create the test fixture**
 
-Create `chromium-tools/test/fixtures/form.html`:
+Create `browser-tools/test/fixtures/form.html`:
 
 ```html
 <!doctype html>
@@ -1086,13 +1086,13 @@ await b.disconnect();
 
 - [ ] **Step 3: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-snapshot.js`
+Run: `cd browser-tools && chmod +x browser-snapshot.js`
 
 - [ ] **Step 4: Verify against the fixture**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-start.js
 ./browser-nav.js "file://$(pwd)/test/fixtures/form.html"
 ./browser-snapshot.js
@@ -1110,8 +1110,8 @@ link "Help" [ref=e5]
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-snapshot.js chromium-tools/test/fixtures/form.html
-git commit -m "feat(chromium-tools): browser-snapshot.js accessibility tree with @ref ids"
+git add browser-tools/browser-snapshot.js browser-tools/test/fixtures/form.html
+git commit -m "feat(browser-tools): browser-snapshot.js accessibility tree with @ref ids"
 ```
 
 ---
@@ -1119,7 +1119,7 @@ git commit -m "feat(chromium-tools): browser-snapshot.js accessibility tree with
 ## Task 7: Refs and actionability waits in `browser-click.js` and `browser-type.js`
 
 **Files:**
-- Modify: `chromium-tools/browser-click.js`, `browser-type.js`
+- Modify: `browser-tools/browser-click.js`, `browser-type.js`
 
 - [ ] **Step 1: Rewrite `browser-click.js`**
 
@@ -1212,7 +1212,7 @@ await b.disconnect();
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/form.html"
 ./browser-snapshot.js
 ./browser-type.js @e1 "user@test.com"
@@ -1223,14 +1223,14 @@ Expected: `user@test.com` echoed from eval; `✓ Typed into @e1`; `✓ Clicked: 
 
 - [ ] **Step 4: Verify the disabled-element guard**
 
-Run: `cd chromium-tools && ./browser-click.js @e4`
+Run: `cd browser-tools && ./browser-click.js @e4`
 Expected: `✗ Click failed: element is disabled: @e4` and a non-zero exit.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-click.js chromium-tools/browser-type.js
-git commit -m "feat(chromium-tools): @ref targeting and actionability waits for click/type"
+git add browser-tools/browser-click.js browser-tools/browser-type.js
+git commit -m "feat(browser-tools): @ref targeting and actionability waits for click/type"
 ```
 
 ---
@@ -1238,7 +1238,7 @@ git commit -m "feat(chromium-tools): @ref targeting and actionability waits for 
 ## Task 8: `browser-wait.js`
 
 **Files:**
-- Create: `chromium-tools/browser-wait.js`
+- Create: `browser-tools/browser-wait.js`
 
 - [ ] **Step 1: Create `browser-wait.js`**
 
@@ -1307,13 +1307,13 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-wait.js`
+Run: `cd browser-tools && chmod +x browser-wait.js`
 
 - [ ] **Step 3: Verify the delay and text modes**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/form.html"
 ./browser-wait.js delay 200
 ./browser-wait.js text "Account"
@@ -1324,8 +1324,8 @@ Expected: `✓ Waited 200ms`; `✓ Text appeared: "Account"`; `✓ Visible: #sav
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-wait.js
-git commit -m "feat(chromium-tools): browser-wait.js for explicit wait conditions"
+git add browser-tools/browser-wait.js
+git commit -m "feat(browser-tools): browser-wait.js for explicit wait conditions"
 ```
 
 ---
@@ -1335,7 +1335,7 @@ git commit -m "feat(chromium-tools): browser-wait.js for explicit wait condition
 Three small interaction tools grouped because each is a few lines.
 
 **Files:**
-- Create: `chromium-tools/browser-hover.js`, `browser-key.js`, `browser-scroll.js`
+- Create: `browser-tools/browser-hover.js`, `browser-key.js`, `browser-scroll.js`
 
 - [ ] **Step 1: Create `browser-hover.js`**
 
@@ -1462,13 +1462,13 @@ await b.disconnect();
 
 - [ ] **Step 4: Make them executable**
 
-Run: `cd chromium-tools && chmod +x browser-hover.js browser-key.js browser-scroll.js`
+Run: `cd browser-tools && chmod +x browser-hover.js browser-key.js browser-scroll.js`
 
 - [ ] **Step 5: Verify**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/form.html"
 ./browser-hover.js "#save"
 ./browser-scroll.js "#link"
@@ -1481,8 +1481,8 @@ Expected: `✓ Hovered: #save`; `✓ Scrolled into view: #link`; `✓ Scrolled w
 - [ ] **Step 6: Commit**
 
 ```bash
-git add chromium-tools/browser-hover.js chromium-tools/browser-key.js chromium-tools/browser-scroll.js
-git commit -m "feat(chromium-tools): hover, key, and scroll tools"
+git add browser-tools/browser-hover.js browser-tools/browser-key.js browser-tools/browser-scroll.js
+git commit -m "feat(browser-tools): hover, key, and scroll tools"
 ```
 
 ---
@@ -1492,7 +1492,7 @@ git commit -m "feat(chromium-tools): hover, key, and scroll tools"
 Choose `<select>` option(s) by value or visible label.
 
 **Files:**
-- Create: `chromium-tools/browser-select.js`
+- Create: `browser-tools/browser-select.js`
 
 - [ ] **Step 1: Create `browser-select.js`**
 
@@ -1549,13 +1549,13 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-select.js`
+Run: `cd browser-tools && chmod +x browser-select.js`
 
 - [ ] **Step 3: Verify against the fixture**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/form.html"
 ./browser-select.js "#plan" "Pro"
 ./browser-eval.js 'document.getElementById("plan").value'
@@ -1565,8 +1565,8 @@ Expected: `✓ Selected Pro in #plan`; eval prints `pro`.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-select.js
-git commit -m "feat(chromium-tools): browser-select.js for dropdown options"
+git add browser-tools/browser-select.js
+git commit -m "feat(browser-tools): browser-select.js for dropdown options"
 ```
 
 ---
@@ -1574,12 +1574,12 @@ git commit -m "feat(chromium-tools): browser-select.js for dropdown options"
 ## Task 11: `browser-drag.js`
 
 **Files:**
-- Create: `chromium-tools/browser-drag.js`
-- Create: `chromium-tools/test/fixtures/drag.html`
+- Create: `browser-tools/browser-drag.js`
+- Create: `browser-tools/test/fixtures/drag.html`
 
 - [ ] **Step 1: Create the drag fixture**
 
-Create `chromium-tools/test/fixtures/drag.html`:
+Create `browser-tools/test/fixtures/drag.html`:
 
 ```html
 <!doctype html>
@@ -1648,13 +1648,13 @@ await b.disconnect();
 
 - [ ] **Step 3: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-drag.js`
+Run: `cd browser-tools && chmod +x browser-drag.js`
 
 - [ ] **Step 4: Verify against the fixture**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/drag.html"
 ./browser-drag.js "#src" "#dst"
 ./browser-eval.js 'document.getElementById("status").textContent'
@@ -1664,8 +1664,8 @@ Expected: `✓ Dragged #src → #dst`; eval prints `dropped`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-drag.js chromium-tools/test/fixtures/drag.html
-git commit -m "feat(chromium-tools): browser-drag.js for drag-and-drop"
+git add browser-tools/browser-drag.js browser-tools/test/fixtures/drag.html
+git commit -m "feat(browser-tools): browser-drag.js for drag-and-drop"
 ```
 
 ---
@@ -1675,12 +1675,12 @@ git commit -m "feat(chromium-tools): browser-drag.js for drag-and-drop"
 Pre-arms a handler for the next `alert`/`confirm`/`prompt`. Because the stateless scripts disconnect after each call, this tool stays connected and blocks until a dialog appears or it times out — the agent runs it in the background (`&`) before the action that triggers the dialog.
 
 **Files:**
-- Create: `chromium-tools/browser-dialog.js`
-- Create: `chromium-tools/test/fixtures/dialog.html`
+- Create: `browser-tools/browser-dialog.js`
+- Create: `browser-tools/test/fixtures/dialog.html`
 
 - [ ] **Step 1: Create the dialog fixture**
 
-Create `chromium-tools/test/fixtures/dialog.html`:
+Create `browser-tools/test/fixtures/dialog.html`:
 
 ```html
 <!doctype html>
@@ -1754,13 +1754,13 @@ setTimeout(async () => {
 
 - [ ] **Step 3: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-dialog.js`
+Run: `cd browser-tools && chmod +x browser-dialog.js`
 
 - [ ] **Step 4: Verify the background-arm pattern**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/dialog.html"
 ./browser-snapshot.js
 ( ./browser-dialog.js accept & ) ; sleep 1 ; ./browser-click.js @e1
@@ -1772,8 +1772,8 @@ Expected: a `✓ Accepted confirm: "Proceed?"` line from the backgrounded dialog
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-dialog.js chromium-tools/test/fixtures/dialog.html
-git commit -m "feat(chromium-tools): browser-dialog.js to handle alert/confirm/prompt"
+git add browser-tools/browser-dialog.js browser-tools/test/fixtures/dialog.html
+git commit -m "feat(browser-tools): browser-dialog.js to handle alert/confirm/prompt"
 ```
 
 ---
@@ -1783,12 +1783,12 @@ git commit -m "feat(chromium-tools): browser-dialog.js to handle alert/confirm/p
 Sets files on a file input. File inputs are frequently hidden, so this tool waits only for *presence* (not visibility) — it deliberately does not use `waitActionable`.
 
 **Files:**
-- Create: `chromium-tools/browser-upload.js`
-- Create: `chromium-tools/test/fixtures/upload.html`
+- Create: `browser-tools/browser-upload.js`
+- Create: `browser-tools/test/fixtures/upload.html`
 
 - [ ] **Step 1: Create the upload fixture**
 
-Create `chromium-tools/test/fixtures/upload.html`:
+Create `browser-tools/test/fixtures/upload.html`:
 
 ```html
 <!doctype html>
@@ -1846,13 +1846,13 @@ await b.disconnect();
 
 - [ ] **Step 3: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-upload.js`
+Run: `cd browser-tools && chmod +x browser-upload.js`
 
 - [ ] **Step 4: Verify against the fixture**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js "file://$(pwd)/test/fixtures/upload.html"
 ./browser-upload.js "#file" "$(pwd)/test/fixtures/upload.html"
 ./browser-eval.js 'document.getElementById("out").textContent'
@@ -1862,8 +1862,8 @@ Expected: `✓ Set 1 file(s) on #file`; eval prints `1 file(s)`.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add chromium-tools/browser-upload.js chromium-tools/test/fixtures/upload.html
-git commit -m "feat(chromium-tools): browser-upload.js for file inputs"
+git add browser-tools/browser-upload.js browser-tools/test/fixtures/upload.html
+git commit -m "feat(browser-tools): browser-upload.js for file inputs"
 ```
 
 ---
@@ -1871,7 +1871,7 @@ git commit -m "feat(chromium-tools): browser-upload.js for file inputs"
 ## Task 14: `browser-tabs.js`
 
 **Files:**
-- Create: `chromium-tools/browser-tabs.js`
+- Create: `browser-tools/browser-tabs.js`
 
 - [ ] **Step 1: Create `browser-tabs.js`**
 
@@ -1927,13 +1927,13 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `cd chromium-tools && chmod +x browser-tabs.js`
+Run: `cd browser-tools && chmod +x browser-tabs.js`
 
 - [ ] **Step 3: Verify tab lifecycle and that `select` retargets**
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-nav.js https://example.com
 ./browser-tabs.js new https://example.org
 ./browser-tabs.js list
@@ -1947,8 +1947,8 @@ Expected: `list` shows two tabs with `*` on the second; the first `eval` prints 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-tabs.js
-git commit -m "feat(chromium-tools): browser-tabs.js for multi-tab management"
+git add browser-tools/browser-tabs.js
+git commit -m "feat(browser-tools): browser-tabs.js for multi-tab management"
 ```
 
 ---
@@ -1958,7 +1958,7 @@ git commit -m "feat(chromium-tools): browser-tabs.js for multi-tab management"
 Adds `--session` and renames the confusing `Requests:` line (a zero-subresource page currently reads as `Requests: 0`).
 
 **Files:**
-- Modify: `chromium-tools/browser-trace.js`
+- Modify: `browser-tools/browser-trace.js`
 
 - [ ] **Step 1: Add session support**
 
@@ -1992,7 +1992,7 @@ console.log("  (the main document is not counted — it is a navigation, not a r
 
 Run:
 ```bash
-cd chromium-tools
+cd browser-tools
 ./browser-trace.js https://example.com
 ```
 Expected: a metrics block whose request line now reads `Subresources: 0 (0 KB total)` followed by the clarifying note; TTFB/DOMContentLoaded/Load show numbers.
@@ -2000,8 +2000,8 @@ Expected: a metrics block whose request line now reads `Subresources: 0 (0 KB to
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-trace.js
-git commit -m "feat(chromium-tools): --session for browser-trace.js and clearer subresource label"
+git add browser-tools/browser-trace.js
+git commit -m "feat(browser-tools): --session for browser-trace.js and clearer subresource label"
 ```
 
 ---
@@ -2011,15 +2011,15 @@ git commit -m "feat(chromium-tools): --session for browser-trace.js and clearer 
 A single script that exercises every tool against local fixtures, with no network dependency. This is the fast regression check.
 
 **Files:**
-- Create: `chromium-tools/test/smoke.sh`
+- Create: `browser-tools/test/smoke.sh`
 
 - [ ] **Step 1: Create `test/smoke.sh`**
 
 ```bash
 #!/usr/bin/env bash
-# End-to-end smoke test for chromium-tools. Exercises every tool against
+# End-to-end smoke test for browser-tools. Exercises every tool against
 # local fixtures in an isolated session. Exits non-zero on the first
-# failure. Run from the chromium-tools directory: ./test/smoke.sh
+# failure. Run from the browser-tools directory: ./test/smoke.sh
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -2106,18 +2106,18 @@ echo "ALL SMOKE TESTS PASSED"
 
 - [ ] **Step 2: Make it executable**
 
-Run: `cd chromium-tools && chmod +x test/smoke.sh`
+Run: `cd browser-tools && chmod +x test/smoke.sh`
 
 - [ ] **Step 3: Run the smoke test**
 
-Run: `cd chromium-tools && ./test/smoke.sh`
+Run: `cd browser-tools && ./test/smoke.sh`
 Expected: a series of `PASS:` lines and a final `ALL SMOKE TESTS PASSED`. Exit code 0.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/test/smoke.sh
-git commit -m "test(chromium-tools): end-to-end smoke test for all tools"
+git add browser-tools/test/smoke.sh
+git commit -m "test(browser-tools): end-to-end smoke test for all tools"
 ```
 
 ---
@@ -2127,7 +2127,7 @@ git commit -m "test(chromium-tools): end-to-end smoke test for all tools"
 Document sessions, the snapshot/ref workflow, and every new tool.
 
 **Files:**
-- Modify: `chromium-tools/SKILL.md`
+- Modify: `browser-tools/SKILL.md`
 
 - [ ] **Step 1: Update the frontmatter description**
 
@@ -2211,14 +2211,14 @@ visible, enabled, and stable before acting.
 
 - [ ] **Step 6: Verify the skill still reads coherently**
 
-Run: `cd chromium-tools && head -40 SKILL.md`
+Run: `cd browser-tools && head -40 SKILL.md`
 Expected: updated description and a "Sessions" section present; no `{baseDir}` placeholders left unreplaced in prose (they are intentional in command examples).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/SKILL.md
-git commit -m "docs(chromium-tools): document sessions, snapshot/refs, and new tools"
+git add browser-tools/SKILL.md
+git commit -m "docs(browser-tools): document sessions, snapshot/refs, and new tools"
 ```
 
 ---
@@ -2228,11 +2228,11 @@ git commit -m "docs(chromium-tools): document sessions, snapshot/refs, and new t
 Re-run the skill-creator eval loop with the revised eval set, per the spec's testing section. This is done with the skill-creator skill, not coded here — this task records what iteration-2 must cover so it is not forgotten.
 
 **Files:**
-- Modify: `chromium-tools/evals/evals.json`
+- Modify: `browser-tools/evals/evals.json`
 
 - [ ] **Step 1: Revise the eval set**
 
-Update `chromium-tools/evals/evals.json`:
+Update `browser-tools/evals/evals.json`:
 - Replace the `scrape-dynamic-list` Hacker News eval (static HTML — a poor discriminator) with a genuinely JS-rendered target.
 - Keep `debug-broken-button` (deterministic, still valuable).
 - Add an eval exercising the snapshot → `@ref` → act loop on `test/fixtures/form.html`.
@@ -2242,13 +2242,13 @@ Update `chromium-tools/evals/evals.json`:
 - [ ] **Step 2: Commit the eval set**
 
 ```bash
-git add chromium-tools/evals/evals.json
-git commit -m "test(chromium-tools): revise eval set for iteration-2"
+git add browser-tools/evals/evals.json
+git commit -m "test(browser-tools): revise eval set for iteration-2"
 ```
 
 - [ ] **Step 3: Run iteration-2 via skill-creator**
 
-Hand off to the skill-creator workflow: run the revised evals with-skill vs. baseline. The global skills symlink MUST be removed for baseline runs so the comparison is not contaminated (iteration-1 finding). This step is interactive and produces `chromium-tools-workspace/iteration-2/`.
+Hand off to the skill-creator workflow: run the revised evals with-skill vs. baseline. The global skills symlink MUST be removed for baseline runs so the comparison is not contaminated (iteration-1 finding). This step is interactive and produces `browser-tools-workspace/iteration-2/`.
 
 ---
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Switch the `chromium-tools` skill from `puppeteer-core` to the full `puppeteer` package so `npm install` provisions its own Chromium — making the skill plug-and-play, especially on Windows.
+**Goal:** Switch the `browser-tools` skill from `puppeteer-core` to the full `puppeteer` package so `npm install` provisions its own Chromium — making the skill plug-and-play, especially on Windows.
 
 **Architecture:** Replace the one dependency, update the eight files that import it, rewrite `browser-start.js` to launch puppeteer's bundled browser (and make `--profile` cross-platform via `fs.cpSync`), and update `SKILL.md`.
 
@@ -13,7 +13,7 @@
 ## Reference
 
 - Design spec: `docs/superpowers/specs/2026-05-17-bundled-chromium-design.md`
-- All files are in `chromium-tools/`. `package.json` has `"type": "module"`.
+- All files are in `browser-tools/`. `package.json` has `"type": "module"`.
 - Executable scripts keep their `#!/usr/bin/env node` shebang and `chmod +x` bit (git tracks mode `100755` — unchanged by edits).
 - The full `puppeteer` package re-exports the entire `puppeteer-core` API, so `import puppeteer from "puppeteer"` is a drop-in replacement for `import puppeteer from "puppeteer-core"`.
 
@@ -21,15 +21,15 @@
 
 | File | Change |
 |---|---|
-| `chromium-tools/package.json` | Replace `puppeteer-core` dep with `puppeteer` |
-| `chromium-tools/lib.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-nav.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-eval.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-content.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-screenshot.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-cookies.js` | Import: `puppeteer-core` → `puppeteer` |
-| `chromium-tools/browser-start.js` | Full rewrite: bundled-only launch + cross-platform `--profile` |
-| `chromium-tools/SKILL.md` | Update Setup and Start-the-Browser sections |
+| `browser-tools/package.json` | Replace `puppeteer-core` dep with `puppeteer` |
+| `browser-tools/lib.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-nav.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-eval.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-content.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-screenshot.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-cookies.js` | Import: `puppeteer-core` → `puppeteer` |
+| `browser-tools/browser-start.js` | Full rewrite: bundled-only launch + cross-platform `--profile` |
+| `browser-tools/SKILL.md` | Update Setup and Start-the-Browser sections |
 
 The six debugging scripts (`browser-monitor/console/network/click/type/trace.js`) import only from `lib.js` and are not touched.
 
@@ -38,12 +38,12 @@ The six debugging scripts (`browser-monitor/console/network/click/type/trace.js`
 ## Task 1: Swap the dependency and all imports
 
 **Files:**
-- Modify: `chromium-tools/package.json`
-- Modify: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`
+- Modify: `browser-tools/package.json`
+- Modify: `browser-tools/lib.js`, `browser-tools/browser-nav.js`, `browser-tools/browser-eval.js`, `browser-tools/browser-content.js`, `browser-tools/browser-screenshot.js`, `browser-tools/browser-cookies.js`
 
 - [ ] **Step 1: Replace the dependency in `package.json`**
 
-In `chromium-tools/package.json`, find this line in the `dependencies` block:
+In `browser-tools/package.json`, find this line in the `dependencies` block:
 
 ```json
 		"puppeteer-core": "^23.11.1",
@@ -81,34 +81,34 @@ In each file, replace it with:
 import puppeteer from "puppeteer";
 ```
 
-The six files: `chromium-tools/lib.js`, `chromium-tools/browser-nav.js`, `chromium-tools/browser-eval.js`, `chromium-tools/browser-content.js`, `chromium-tools/browser-screenshot.js`, `chromium-tools/browser-cookies.js`.
+The six files: `browser-tools/lib.js`, `browser-tools/browser-nav.js`, `browser-tools/browser-eval.js`, `browser-tools/browser-content.js`, `browser-tools/browser-screenshot.js`, `browser-tools/browser-cookies.js`.
 
-(Note: `chromium-tools/browser-start.js` also imports `puppeteer-core`, but it is fully rewritten in Task 2 — do NOT edit its import here.)
+(Note: `browser-tools/browser-start.js` also imports `puppeteer-core`, but it is fully rewritten in Task 2 — do NOT edit its import here.)
 
 - [ ] **Step 3: Verify no `puppeteer-core` references remain (except in browser-start.js)**
 
-Run: `cd chromium-tools && grep -l 'puppeteer-core' *.js *.json`
+Run: `cd browser-tools && grep -l 'puppeteer-core' *.js *.json`
 Expected: only `browser-start.js` is listed (it is rewritten in Task 2). If any other file appears, fix it.
 
 - [ ] **Step 4: Install dependencies (downloads Chromium)**
 
-Run: `cd chromium-tools && npm install`
+Run: `cd browser-tools && npm install`
 Expected: completes successfully. This downloads a Chromium build (~150 MB) to `~/.cache/puppeteer`; it may take a minute or two.
 
 - [ ] **Step 5: Verify the bundled Chromium is present**
 
-Run: `cd chromium-tools && node -e "import('puppeteer').then(p => { const fs = require('node:fs'); const ep = p.default.executablePath(); console.log(ep, fs.existsSync(ep) ? 'EXISTS' : 'MISSING'); })"`
+Run: `cd browser-tools && node -e "import('puppeteer').then(p => { const fs = require('node:fs'); const ep = p.default.executablePath(); console.log(ep, fs.existsSync(ep) ? 'EXISTS' : 'MISSING'); })"`
 Expected: prints a path ending in a Chrome/Chromium executable, followed by `EXISTS`.
 
 - [ ] **Step 6: Syntax-check the changed scripts**
 
-Run: `cd chromium-tools && for f in lib.js browser-nav.js browser-eval.js browser-content.js browser-screenshot.js browser-cookies.js; do node --check "$f" && echo "ok: $f"; done`
+Run: `cd browser-tools && for f in lib.js browser-nav.js browser-eval.js browser-content.js browser-screenshot.js browser-cookies.js; do node --check "$f" && echo "ok: $f"; done`
 Expected: `ok:` for all seven files.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/package.json chromium-tools/lib.js chromium-tools/browser-nav.js chromium-tools/browser-eval.js chromium-tools/browser-content.js chromium-tools/browser-screenshot.js chromium-tools/browser-cookies.js chromium-tools/package-lock.json
+git add browser-tools/package.json browser-tools/lib.js browser-tools/browser-nav.js browser-tools/browser-eval.js browser-tools/browser-content.js browser-tools/browser-screenshot.js browser-tools/browser-cookies.js browser-tools/package-lock.json
 git commit -m "Switch dependency from puppeteer-core to full puppeteer"
 ```
 
@@ -119,11 +119,11 @@ git commit -m "Switch dependency from puppeteer-core to full puppeteer"
 ## Task 2: Rewrite `browser-start.js` — bundled-only launch + cross-platform `--profile`
 
 **Files:**
-- Modify (full rewrite): `chromium-tools/browser-start.js`
+- Modify (full rewrite): `browser-tools/browser-start.js`
 
 - [ ] **Step 1: Replace the entire contents of `browser-start.js`**
 
-Overwrite `chromium-tools/browser-start.js` with exactly this content (tab indentation):
+Overwrite `browser-tools/browser-start.js` with exactly this content (tab indentation):
 
 ```javascript
 #!/usr/bin/env node
@@ -266,34 +266,34 @@ Note on the `CACHE_DIR` import: `lib.js` defines `CACHE_DIR` as `~/.cache/browse
 
 - [ ] **Step 2: Confirm the file is still executable**
 
-Run: `ls -l chromium-tools/browser-start.js`
-Expected: permissions show the `x` bit (e.g. `-rwxr-xr-x`). If not, run `chmod +x chromium-tools/browser-start.js`.
+Run: `ls -l browser-tools/browser-start.js`
+Expected: permissions show the `x` bit (e.g. `-rwxr-xr-x`). If not, run `chmod +x browser-tools/browser-start.js`.
 
 - [ ] **Step 3: Syntax-check**
 
-Run: `node --check chromium-tools/browser-start.js`
+Run: `node --check browser-tools/browser-start.js`
 Expected: no output, exit 0.
 
 - [ ] **Step 4: Verify it launches the bundled Chromium**
 
 First, make sure no skill Chromium is already running: `pkill -f 'user-data-dir=.*browser-tools' 2>/dev/null; sleep 2`
 
-Run: `chromium-tools/browser-start.js`
+Run: `browser-tools/browser-start.js`
 Expected: `✓ Browser started on :9222 (bundled Chromium)`
 
 - [ ] **Step 5: Smoke-test a connecting script**
 
-Run: `chromium-tools/browser-nav.js https://example.com`
+Run: `browser-tools/browser-nav.js https://example.com`
 Expected: `✓ Navigated to: https://example.com`
 
-Run: `chromium-tools/browser-eval.js 'document.title'`
+Run: `browser-tools/browser-eval.js 'document.title'`
 Expected: `Example Domain`
 
 - [ ] **Step 6: Verify `--profile`**
 
 Stop the running browser: `pkill -f 'user-data-dir=.*browser-tools' 2>/dev/null; sleep 2`
 
-Run: `chromium-tools/browser-start.js --profile`
+Run: `browser-tools/browser-start.js --profile`
 Expected: prints `Syncing profile...` then `✓ Browser started on :9222 (bundled Chromium) with your profile`. (On this Linux box a `~/.config/google-chrome` or `~/.config/chromium` profile exists, so the copy succeeds. If the machine genuinely has no Chrome/Chromium profile, the expected output is instead `✗ No Chrome/Chromium profile found to copy` — that is also correct behavior.)
 
 Stop the browser again afterward: `pkill -f 'user-data-dir=.*browser-tools' 2>/dev/null`
@@ -301,7 +301,7 @@ Stop the browser again afterward: `pkill -f 'user-data-dir=.*browser-tools' 2>/d
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/browser-start.js
+git add browser-tools/browser-start.js
 git commit -m "Rewrite browser-start.js: launch bundled Chromium, cross-platform --profile"
 ```
 
@@ -310,11 +310,11 @@ git commit -m "Rewrite browser-start.js: launch bundled Chromium, cross-platform
 ## Task 3: Update `SKILL.md`
 
 **Files:**
-- Modify: `chromium-tools/SKILL.md`
+- Modify: `browser-tools/SKILL.md`
 
 - [ ] **Step 1: Update the Setup section**
 
-In `chromium-tools/SKILL.md`, find this block:
+In `browser-tools/SKILL.md`, find this block:
 
 ```markdown
 ## Setup
@@ -344,7 +344,7 @@ npm install
 
 - [ ] **Step 2: Update the Start-the-Browser description**
 
-In `chromium-tools/SKILL.md`, find this exact paragraph (it follows the Start-the-Browser code block):
+In `browser-tools/SKILL.md`, find this exact paragraph (it follows the Start-the-Browser code block):
 
 ```
 Launch the browser with remote debugging on `:9222`. Chromium is preferred and Chrome is used as a fallback; the binary is auto-detected on Linux, macOS, and Windows. Use `--profile` to preserve the user's authentication state.
@@ -358,14 +358,14 @@ Launch puppeteer's bundled Chromium with remote debugging on `:9222`. Use `--pro
 
 - [ ] **Step 3: Verify**
 
-Run: `cd chromium-tools && head -17 SKILL.md` — confirm the Setup section now ends with the "~150 MB" sentence.
+Run: `cd browser-tools && head -17 SKILL.md` — confirm the Setup section now ends with the "~150 MB" sentence.
 Run: `grep -c 'auto-detected' SKILL.md` — expect `0` (the old wording is gone).
 Run: `grep -c 'bundled Chromium' SKILL.md` — expect `1`.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/SKILL.md
+git add browser-tools/SKILL.md
 git commit -m "Update SKILL.md for bundled-Chromium setup"
 ```
 
@@ -375,19 +375,19 @@ git commit -m "Update SKILL.md for bundled-Chromium setup"
 
 - [ ] **Step 1: Syntax-check every script**
 
-Run: `cd chromium-tools && for f in browser-*.js lib.js; do node --check "$f" && echo "ok: $f"; done`
+Run: `cd browser-tools && for f in browser-*.js lib.js; do node --check "$f" && echo "ok: $f"; done`
 Expected: `ok:` for all 14 files.
 
 - [ ] **Step 2: Confirm no `puppeteer-core` references survive**
 
-Run: `cd chromium-tools && grep -rl 'puppeteer-core' *.js *.json || echo "clean — no puppeteer-core references"`
+Run: `cd browser-tools && grep -rl 'puppeteer-core' *.js *.json || echo "clean — no puppeteer-core references"`
 Expected: `clean — no puppeteer-core references`.
 
 - [ ] **Step 3: End-to-end check**
 
 Run: `pkill -f 'user-data-dir=.*browser-tools' 2>/dev/null; sleep 2`
-Run: `chromium-tools/browser-start.js` — expect `✓ Browser started on :9222 (bundled Chromium)`.
-Run: `chromium-tools/browser-eval.js 'navigator.userAgent'` — expect a Chrome user-agent string printed.
+Run: `browser-tools/browser-start.js` — expect `✓ Browser started on :9222 (bundled Chromium)`.
+Run: `browser-tools/browser-eval.js 'navigator.userAgent'` — expect a Chrome user-agent string printed.
 Run: `pkill -f 'user-data-dir=.*browser-tools' 2>/dev/null` to clean up.
 
 ---

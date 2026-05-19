@@ -1,9 +1,9 @@
 ---
-name: chromium-tools
+name: browser-tools
 description: Interactive Chromium browser automation and debugging via Chrome DevTools Protocol — an MCP-free alternative to Puppeteer/Chrome MCP. Use when you need to interact with web pages, fill forms, test frontends, capture console and network activity, take an accessibility snapshot of a page, run multiple isolated browser sessions, or when user interaction with a visible browser is required.
 ---
 
-# Chromium Tools
+# Browser Tools
 
 Chrome DevTools Protocol tools for agent-assisted web automation. These tools connect to Chromium (or Chrome) running on `:9222` with remote debugging enabled.
 

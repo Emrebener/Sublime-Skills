@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# End-to-end smoke test for chromium-tools. Exercises every tool against
+# End-to-end smoke test for browser-tools. Exercises every tool against
 # local fixtures in an isolated session. Exits non-zero on the first
-# failure. Run from the chromium-tools directory: ./test/smoke.sh
+# failure. Run from the browser-tools directory: ./test/smoke.sh
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

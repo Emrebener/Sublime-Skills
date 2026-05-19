@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 // resolution, so this check and the imports it guards are dynamic.
 const SKILL_DIR = dirname(fileURLToPath(import.meta.url));
 if (!existsSync(join(SKILL_DIR, "node_modules", "puppeteer"))) {
-	console.error("✗ chromium-tools dependencies not installed");
+	console.error("✗ browser-tools dependencies not installed");
 	console.error(`  Run: cd "${SKILL_DIR}" && npm install`);
 	process.exit(1);
 }

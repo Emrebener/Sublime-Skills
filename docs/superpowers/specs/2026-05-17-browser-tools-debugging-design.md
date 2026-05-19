@@ -1,11 +1,11 @@
-# chromium-tools: Browser Automation & Debugging Skill — Design
+# browser-tools: Browser Automation & Debugging Skill — Design
 
 **Date:** 2026-05-17
 **Status:** Approved
 
 ## Goal
 
-Extend the `chromium-tools` skill from a browser *automation* skill into a
+Extend the `browser-tools` skill from a browser *automation* skill into a
 solid, reliable *automation and debugging* skill — without MCP, so it works
 in agents (like pi) that have no MCP support.
 
@@ -16,7 +16,7 @@ performance summary.
 
 ## Background
 
-`chromium-tools` is a set of CLI scripts documented by `SKILL.md`. Each
+`browser-tools` is a set of CLI scripts documented by `SKILL.md`. Each
 script connects to a dedicated Chromium instance running with remote
 debugging on `:9222` (launched by `browser-start.js` with an isolated
 profile). Scripts speak the Chrome DevTools Protocol via `puppeteer-core`.

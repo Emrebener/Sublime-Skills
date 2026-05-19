@@ -1,8 +1,8 @@
-# chromium-tools Debugging Tools Implementation Plan
+# browser-tools Debugging Tools Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Extend the `chromium-tools` skill with console capture, network inspection, dedicated interaction, and a performance summary — all as CLI scripts, no MCP.
+**Goal:** Extend the `browser-tools` skill with console capture, network inspection, dedicated interaction, and a performance summary — all as CLI scripts, no MCP.
 
 **Architecture:** A background collector daemon (`browser-monitor.js`) attaches to the Chromium instance on `:9222` and appends console/network events to JSONL log files; query scripts read those logs. Interaction and performance scripts connect, act, and exit. A shared `lib.js` provides the connection helper and the daemon liveness predicate so the three monitor-aware scripts agree on one definition.
 
@@ -12,8 +12,8 @@
 
 ## Reference
 
-- Design spec: `docs/superpowers/specs/2026-05-17-chromium-tools-debugging-design.md`
-- All new files go in `chromium-tools/`. Executable scripts need `chmod +x` and a `#!/usr/bin/env node` shebang, matching the existing `browser-*.js` scripts.
+- Design spec: `docs/superpowers/specs/2026-05-17-browser-tools-debugging-design.md`
+- All new files go in `browser-tools/`. Executable scripts need `chmod +x` and a `#!/usr/bin/env node` shebang, matching the existing `browser-*.js` scripts.
 - `package.json` has `"type": "module"`, so scripts use ESM `import` and top-level `await`.
 - Existing scripts connect with a 5s `Promise.race` timeout and print `Run: browser-start.js` on failure. New scripts reuse this via `lib.js`.
 
@@ -21,14 +21,14 @@
 
 | File | Responsibility |
 |---|---|
-| `chromium-tools/lib.js` (new) | Shared: cache paths, `connect()`/`tryConnect()`, `readMonitor()`, `isMonitorAlive()` |
-| `chromium-tools/browser-monitor.js` (new) | Daemon lifecycle (`start`/`stop`/`status`) + the daemon loop (`__daemon`) |
-| `chromium-tools/browser-console.js` (new) | Query `console.jsonl` |
-| `chromium-tools/browser-network.js` (new) | Query `network.jsonl` |
-| `chromium-tools/browser-click.js` (new) | Click an element by selector |
-| `chromium-tools/browser-type.js` (new) | Type text into a field |
-| `chromium-tools/browser-trace.js` (new) | Navigate + print a performance summary |
-| `chromium-tools/SKILL.md` (modify) | Document the six new tools + debugging workflow |
+| `browser-tools/lib.js` (new) | Shared: cache paths, `connect()`/`tryConnect()`, `readMonitor()`, `isMonitorAlive()` |
+| `browser-tools/browser-monitor.js` (new) | Daemon lifecycle (`start`/`stop`/`status`) + the daemon loop (`__daemon`) |
+| `browser-tools/browser-console.js` (new) | Query `console.jsonl` |
+| `browser-tools/browser-network.js` (new) | Query `network.jsonl` |
+| `browser-tools/browser-click.js` (new) | Click an element by selector |
+| `browser-tools/browser-type.js` (new) | Type text into a field |
+| `browser-tools/browser-trace.js` (new) | Navigate + print a performance summary |
+| `browser-tools/SKILL.md` (modify) | Document the six new tools + debugging workflow |
 
 `lib.js` is new but justified: the spec mandates "a single predicate, used by `start`, `stop`, `status`, and the query scripts." One implementation prevents the predicate drifting across five files. The existing seven `browser-*.js` scripts are **not** refactored to use `lib.js` — that would be unrelated churn.
 
@@ -40,12 +40,12 @@ This skill has no test framework; verification is by running each script against
 
 - [ ] **Step 1: Install dependencies**
 
-Run: `cd chromium-tools && npm install`
+Run: `cd browser-tools && npm install`
 Expected: completes with `found 0 vulnerabilities` (or similar). `node_modules/` now exists.
 
 - [ ] **Step 2: Create the verification fixture**
 
-Create `/tmp/chromium-tools-fixture/index.html`:
+Create `/tmp/browser-tools-fixture/index.html`:
 
 ```html
 <!doctype html>
@@ -69,12 +69,12 @@ setTimeout(() => { throw new Error("uncaught fixture error"); }, 100);
 
 - [ ] **Step 3: Serve the fixture**
 
-Run (in the background): `python3 -m http.server 8123 --directory /tmp/chromium-tools-fixture`
+Run (in the background): `python3 -m http.server 8123 --directory /tmp/browser-tools-fixture`
 The fixture is now at `http://localhost:8123/`. `/` returns 200; `/missing-endpoint` returns 404.
 
 - [ ] **Step 4: Start Chromium**
 
-Run: `chromium-tools/browser-start.js`
+Run: `browser-tools/browser-start.js`
 Expected: `✓ Browser started on :9222 (/usr/bin/chromium)` (or `✓ Chrome already running on :9222`).
 
 ---
@@ -82,7 +82,7 @@ Expected: `✓ Browser started on :9222 (/usr/bin/chromium)` (or `✓ Chrome alr
 ## Task 1: Shared library (`lib.js`)
 
 **Files:**
-- Create: `chromium-tools/lib.js`
+- Create: `browser-tools/lib.js`
 
 - [ ] **Step 1: Write `lib.js`**
 
@@ -147,14 +147,14 @@ export function isMonitorAlive(info = readMonitor()) {
 
 - [ ] **Step 2: Verify it loads**
 
-Run: `cd chromium-tools && node -e "import('./lib.js').then(m => console.log(Object.keys(m).join(',')))"`
+Run: `cd browser-tools && node -e "import('./lib.js').then(m => console.log(Object.keys(m).join(',')))"`
 Expected: `CACHE_DIR,MONITOR_JSON,MONITOR_ERR,CONSOLE_LOG,NETWORK_LOG,HEARTBEAT_MS,HEARTBEAT_STALE_MS,tryConnect,connect,readMonitor,isMonitorAlive`
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add chromium-tools/lib.js
-git commit -m "Add shared lib.js for chromium-tools debugging scripts"
+git add browser-tools/lib.js
+git commit -m "Add shared lib.js for browser-tools debugging scripts"
 ```
 
 ---
@@ -162,7 +162,7 @@ git commit -m "Add shared lib.js for chromium-tools debugging scripts"
 ## Task 2: Monitor daemon (`browser-monitor.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-monitor.js`
+- Create: `browser-tools/browser-monitor.js`
 
 - [ ] **Step 1: Write `browser-monitor.js`**
 
@@ -417,43 +417,43 @@ if (cmd === "__daemon") {
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-monitor.js`
+Run: `chmod +x browser-tools/browser-monitor.js`
 
 - [ ] **Step 3: Verify `start` fails clearly when the browser is down**
 
-If Chromium is running, skip this step. Otherwise run `chromium-tools/browser-monitor.js start`
+If Chromium is running, skip this step. Otherwise run `browser-tools/browser-monitor.js start`
 Expected: `✗ Chromium is not running on :9222` / `  Run: browser-start.js`, exit 1.
 
 - [ ] **Step 4: Verify `start` then `status`**
 
-Run: `chromium-tools/browser-monitor.js start`
+Run: `browser-tools/browser-monitor.js start`
 Expected: `✓ Monitor started (pid <N>)`
 
-Run: `chromium-tools/browser-monitor.js status`
+Run: `browser-tools/browser-monitor.js status`
 Expected: `✓ Monitor running (pid <N>)` with `started:` and two log lines showing `0 events`.
 
 - [ ] **Step 5: Verify capture and the start-twice guard**
 
-Run: `chromium-tools/browser-nav.js http://localhost:8123/`
-Wait ~1s for the fixture's delayed error, then run: `chromium-tools/browser-monitor.js status`
+Run: `browser-tools/browser-nav.js http://localhost:8123/`
+Wait ~1s for the fixture's delayed error, then run: `browser-tools/browser-monitor.js status`
 Expected: `console.jsonl` shows ≥ 3 events, `network.jsonl` shows ≥ 2 events.
 
-Run: `chromium-tools/browser-monitor.js start` again
+Run: `browser-tools/browser-monitor.js start` again
 Expected: `✓ Monitor already running (pid <N>)` — same pid, exit 0. (Logs were not cleared: a following `status` still shows the captured events.)
 
 - [ ] **Step 6: Verify stale detection and `stop`**
 
 Run: `kill -9 (cat ~/.cache/browser-tools/monitor.json | python3 -c "import sys,json; print(json.load(sys.stdin)['pid'])")`
-Wait 16s (heartbeat must go stale), then run: `chromium-tools/browser-monitor.js status`
+Wait 16s (heartbeat must go stale), then run: `browser-tools/browser-monitor.js status`
 Expected: `✗ Monitor not running` + `(stale monitor.json present — a previous daemon ended)`.
 
-Run: `chromium-tools/browser-monitor.js stop`
+Run: `browser-tools/browser-monitor.js stop`
 Expected: `Monitor not running` (and `monitor.json` is removed).
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add chromium-tools/browser-monitor.js
+git add browser-tools/browser-monitor.js
 git commit -m "Add browser-monitor.js collector daemon"
 ```
 
@@ -462,7 +462,7 @@ git commit -m "Add browser-monitor.js collector daemon"
 ## Task 3: Console query (`browser-console.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-console.js`
+- Create: `browser-tools/browser-console.js`
 
 - [ ] **Step 1: Write `browser-console.js`**
 
@@ -514,26 +514,26 @@ if (!isMonitorAlive()) {
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-console.js`
+Run: `chmod +x browser-tools/browser-console.js`
 
 - [ ] **Step 3: Verify against a fresh capture**
 
-Run: `chromium-tools/browser-monitor.js start`
-Run: `chromium-tools/browser-nav.js http://localhost:8123/` then wait ~1s.
+Run: `browser-tools/browser-monitor.js start`
+Run: `browser-tools/browser-nav.js http://localhost:8123/` then wait ~1s.
 
-Run: `chromium-tools/browser-console.js`
+Run: `browser-tools/browser-console.js`
 Expected: lines including `[log] fixture loaded`, `[warning] a sample warning`, `[error] a sample error`, and `[error] uncaught fixture error`.
 
-Run: `chromium-tools/browser-console.js --errors`
+Run: `browser-tools/browser-console.js --errors`
 Expected: only the warning and the two error lines — not `fixture loaded`.
 
-Run: `chromium-tools/browser-console.js --limit 1`
+Run: `browser-tools/browser-console.js --limit 1`
 Expected: exactly one line (the most recent entry).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-console.js
+git add browser-tools/browser-console.js
 git commit -m "Add browser-console.js for querying captured console output"
 ```
 
@@ -542,7 +542,7 @@ git commit -m "Add browser-console.js for querying captured console output"
 ## Task 4: Network query (`browser-network.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-network.js`
+- Create: `browser-tools/browser-network.js`
 
 - [ ] **Step 1: Write `browser-network.js`**
 
@@ -601,23 +601,23 @@ if (!isMonitorAlive()) {
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-network.js`
+Run: `chmod +x browser-tools/browser-network.js`
 
 - [ ] **Step 3: Verify against a fresh capture**
 
-Run: `chromium-tools/browser-monitor.js start`
-Run: `chromium-tools/browser-nav.js http://localhost:8123/` then wait ~1s.
+Run: `browser-tools/browser-monitor.js start`
+Run: `browser-tools/browser-nav.js http://localhost:8123/` then wait ~1s.
 
-Run: `chromium-tools/browser-network.js`
+Run: `browser-tools/browser-network.js`
 Expected: a `200 GET http://localhost:8123/ [...]` line and a line for `/missing-endpoint`.
 
-Run: `chromium-tools/browser-network.js --failed`
+Run: `browser-tools/browser-network.js --failed`
 Expected: only the `/missing-endpoint` request (status 404, or a `FAILED` line) — the 200 for `/` is excluded.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-network.js
+git add browser-tools/browser-network.js
 git commit -m "Add browser-network.js for querying captured network activity"
 ```
 
@@ -626,7 +626,7 @@ git commit -m "Add browser-network.js for querying captured network activity"
 ## Task 5: Click (`browser-click.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-click.js`
+- Create: `browser-tools/browser-click.js`
 
 - [ ] **Step 1: Write `browser-click.js`**
 
@@ -667,22 +667,22 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-click.js`
+Run: `chmod +x browser-tools/browser-click.js`
 
 - [ ] **Step 3: Verify success and not-found**
 
-Run: `chromium-tools/browser-nav.js http://localhost:8123/`
+Run: `browser-tools/browser-nav.js http://localhost:8123/`
 
-Run: `chromium-tools/browser-click.js "#go"`
+Run: `browser-tools/browser-click.js "#go"`
 Expected: `✓ Clicked: #go`
 
-Run: `chromium-tools/browser-click.js "#does-not-exist"`
+Run: `browser-tools/browser-click.js "#does-not-exist"`
 Expected: `✗ Selector not found: #does-not-exist`, exit 1 (after ~5s).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-click.js
+git add browser-tools/browser-click.js
 git commit -m "Add browser-click.js for clicking elements by selector"
 ```
 
@@ -691,7 +691,7 @@ git commit -m "Add browser-click.js for clicking elements by selector"
 ## Task 6: Type (`browser-type.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-type.js`
+- Create: `browser-tools/browser-type.js`
 
 - [ ] **Step 1: Write `browser-type.js`**
 
@@ -752,29 +752,29 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-type.js`
+Run: `chmod +x browser-tools/browser-type.js`
 
 - [ ] **Step 3: Verify typing, clear, and not-found**
 
-Run: `chromium-tools/browser-nav.js http://localhost:8123/`
+Run: `browser-tools/browser-nav.js http://localhost:8123/`
 
-Run: `chromium-tools/browser-type.js "#q" "hello world"`
+Run: `browser-tools/browser-type.js "#q" "hello world"`
 Expected: `✓ Typed into #q`
 
-Run: `chromium-tools/browser-eval.js 'document.querySelector("#q").value'`
+Run: `browser-tools/browser-eval.js 'document.querySelector("#q").value'`
 Expected: `hello world`
 
-Run: `chromium-tools/browser-type.js "#q" "replaced" --clear`
-Run: `chromium-tools/browser-eval.js 'document.querySelector("#q").value'`
+Run: `browser-tools/browser-type.js "#q" "replaced" --clear`
+Run: `browser-tools/browser-eval.js 'document.querySelector("#q").value'`
 Expected: `replaced` (not `hello worldreplaced`).
 
-Run: `chromium-tools/browser-type.js "#nope" "x"`
+Run: `browser-tools/browser-type.js "#nope" "x"`
 Expected: `✗ Selector not found: #nope`, exit 1.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-type.js
+git add browser-tools/browser-type.js
 git commit -m "Add browser-type.js for typing into fields"
 ```
 
@@ -783,7 +783,7 @@ git commit -m "Add browser-type.js for typing into fields"
 ## Task 7: Performance trace (`browser-trace.js`)
 
 **Files:**
-- Create: `chromium-tools/browser-trace.js`
+- Create: `browser-tools/browser-trace.js`
 
 - [ ] **Step 1: Write `browser-trace.js`**
 
@@ -869,20 +869,20 @@ await b.disconnect();
 
 - [ ] **Step 2: Make it executable**
 
-Run: `chmod +x chromium-tools/browser-trace.js`
+Run: `chmod +x browser-tools/browser-trace.js`
 
 - [ ] **Step 3: Verify against the fixture and a real URL**
 
-Run: `chromium-tools/browser-trace.js http://localhost:8123/`
+Run: `browser-tools/browser-trace.js http://localhost:8123/`
 Expected: a summary block — `TTFB`, `First Contentful Paint`, `Largest Contentful Paint`, `DOMContentLoaded`, `Load`, `Requests`, and a `Slowest requests:` list. Metric values are small positive numbers (the fixture is tiny).
 
-Run: `chromium-tools/browser-trace.js https://example.com`
+Run: `browser-tools/browser-trace.js https://example.com`
 Expected: the same summary with populated, plausible values for a real page.
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/browser-trace.js
+git add browser-tools/browser-trace.js
 git commit -m "Add browser-trace.js for page performance summaries"
 ```
 
@@ -891,7 +891,7 @@ git commit -m "Add browser-trace.js for page performance summaries"
 ## Task 8: Document the new tools in `SKILL.md`
 
 **Files:**
-- Modify: `chromium-tools/SKILL.md`
+- Modify: `browser-tools/SKILL.md`
 
 - [ ] **Step 1: Update the frontmatter description**
 
@@ -986,13 +986,13 @@ The monitor attaches to one running Chromium. **If you restart Chromium, restart
 
 - [ ] **Step 3: Verify the file**
 
-Run: `head -3 chromium-tools/SKILL.md && grep -c '^## ' chromium-tools/SKILL.md`
+Run: `head -3 browser-tools/SKILL.md && grep -c '^## ' browser-tools/SKILL.md`
 Expected: frontmatter intact; the `## ` heading count increased by 7 (Monitor, Console, Network, Click, Type, Performance Trace, Debugging Workflow).
 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add chromium-tools/SKILL.md
+git add browser-tools/SKILL.md
 git commit -m "Document monitor, console, network, click, type, trace tools in SKILL.md"
 ```
 
@@ -1003,24 +1003,24 @@ git commit -m "Document monitor, console, network, click, type, trace tools in S
 - [ ] **Step 1: Full debugging workflow end to end**
 
 ```bash
-chromium-tools/browser-start.js
-chromium-tools/browser-monitor.js start
-chromium-tools/browser-nav.js http://localhost:8123/
+browser-tools/browser-start.js
+browser-tools/browser-monitor.js start
+browser-tools/browser-nav.js http://localhost:8123/
 sleep 1
-chromium-tools/browser-console.js --errors
-chromium-tools/browser-network.js --failed
-chromium-tools/browser-type.js "#q" "search term" --enter
-chromium-tools/browser-click.js "#go"
-chromium-tools/browser-trace.js http://localhost:8123/
-chromium-tools/browser-monitor.js status
-chromium-tools/browser-monitor.js stop
+browser-tools/browser-console.js --errors
+browser-tools/browser-network.js --failed
+browser-tools/browser-type.js "#q" "search term" --enter
+browser-tools/browser-click.js "#go"
+browser-tools/browser-trace.js http://localhost:8123/
+browser-tools/browser-monitor.js status
+browser-tools/browser-monitor.js stop
 ```
 
 Expected: console shows the warning + two errors; network shows the 404; type and click succeed; trace prints a full summary; status shows the daemon running then stop ends it.
 
 - [ ] **Step 2: Syntax-check every script**
 
-Run: `cd chromium-tools && for f in browser-*.js lib.js; do node --check "$f" && echo "ok: $f"; done`
+Run: `cd browser-tools && for f in browser-*.js lib.js; do node --check "$f" && echo "ok: $f"; done`
 Expected: `ok:` for all eight files (`lib.js` + seven `browser-*.js`, including the six new ones).
 
 - [ ] **Step 3: Stop the fixture server**

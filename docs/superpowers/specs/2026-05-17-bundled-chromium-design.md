@@ -1,11 +1,11 @@
-# chromium-tools: Switch to Bundled Chromium — Design
+# browser-tools: Switch to Bundled Chromium — Design
 
 **Date:** 2026-05-17
 **Status:** Approved
 
 ## Goal
 
-Make the `chromium-tools` skill plug-and-play across platforms — especially
+Make the `browser-tools` skill plug-and-play across platforms — especially
 Windows, where installing Chromium separately is painful. After this change,
 `npm install` alone fully provisions the skill: it downloads its own
 Chromium, so no separate browser install is required.

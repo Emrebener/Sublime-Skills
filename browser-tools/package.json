@@ -1,5 +1,5 @@
 {
-	"name": "chromium-tools",
+	"name": "browser-tools",
 	"version": "1.0.0",
 	"type": "module",
 	"description": "Minimal CDP tools for collaborative site exploration",
