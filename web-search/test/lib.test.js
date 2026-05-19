@@ -83,3 +83,31 @@ test("parseArgs: rejects a non-positive --count", () => {
 test("parseArgs: rejects an invalid --safe value", () => {
 	assert.throws(() => parseArgs(["q", "--safe", "9"]), /--safe must be 0, 1, or 2/);
 });
+import { buildSearchUrl } from "../lib.js";
+
+const baseOpts = { query: "hello", category: "general", lang: "all", safe: "0", time: null };
+
+test("buildSearchUrl: sets the core query parameters", () => {
+	const u = new URL(buildSearchUrl("http://x:8080", baseOpts));
+	assert.equal(u.pathname, "/search");
+	assert.equal(u.searchParams.get("q"), "hello");
+	assert.equal(u.searchParams.get("format"), "json");
+	assert.equal(u.searchParams.get("categories"), "general");
+	assert.equal(u.searchParams.get("language"), "all");
+	assert.equal(u.searchParams.get("safesearch"), "0");
+});
+
+test("buildSearchUrl: omits time_range when time is null", () => {
+	const u = new URL(buildSearchUrl("http://x:8080", baseOpts));
+	assert.equal(u.searchParams.has("time_range"), false);
+});
+
+test("buildSearchUrl: includes time_range when time is set", () => {
+	const u = new URL(buildSearchUrl("http://x:8080", { ...baseOpts, time: "week" }));
+	assert.equal(u.searchParams.get("time_range"), "week");
+});
+
+test("buildSearchUrl: URL-encodes the query", () => {
+	const u = new URL(buildSearchUrl("http://x:8080", { ...baseOpts, query: "a & b=c" }));
+	assert.equal(u.searchParams.get("q"), "a & b=c");
+});

@@ -84,3 +84,17 @@ export function parseArgs(argv) {
 	opts.query = positional.join(" ").trim();
 	return opts;
 }
+
+// Build the SearXNG JSON search request URL. `base` is the trailing-slash-free
+// endpoint from resolveEndpoint; `opts` is the object from parseArgs. The URL
+// API handles all parameter encoding.
+export function buildSearchUrl(base, opts) {
+	const u = new URL(base + "/search");
+	u.searchParams.set("q", opts.query);
+	u.searchParams.set("format", "json");
+	u.searchParams.set("categories", opts.category);
+	u.searchParams.set("language", opts.lang);
+	u.searchParams.set("safesearch", opts.safe);
+	if (opts.time) u.searchParams.set("time_range", opts.time);
+	return u.toString();
+}
