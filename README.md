@@ -6,6 +6,18 @@ summarizes what each one does.
 
 ## Skills
 
+### [architecture-review](daily-engineering/architecture-review/)
+
+Reviews a codebase for architectural friction and proposes concrete
+refactoring opportunities — turning **shallow**, leaky modules into
+**deep**, testable ones. Explores the code, applies the **deletion
+test** to tell pass-through modules from ones earning their keep,
+presents numbered candidates, then grills the chosen one into a settled
+design (with a parallel sub-agent pattern for comparing alternative
+interfaces). Design-only — it stops at an agreed design and doesn't
+implement the change. Uses a project domain glossary and ADRs if they
+exist, but requires neither.
+
 ### [browser-tools](web-utilities/browser-tools/)
 
 Interactive Chromium browser automation and debugging over the Chrome
