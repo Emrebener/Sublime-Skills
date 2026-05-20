@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sublime-skills.local/sdd/state-schema.json",
+  "title": "SDD State File",
+  "description": "Schema for docs/specs/<feature_id>/state.json. Canonical companion to state-schema.md.",
+  "type": "object",
+  "required": [
+    "feature_id",
+    "short_name",
+    "started_at",
+    "updated_at",
+    "branch",
+    "spec_path",
+    "current_stage",
+    "stages_completed",
+    "stages_skipped",
+    "preflight",
+    "tasks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "feature_id": {
+      "type": "string",
+      "pattern": "^[0-9]{3}-[a-z][a-z0-9-]*$",
+      "description": "Format: NNN-<short-name>"
+    },
+    "short_name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Kebab-case short name"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "spec_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "plan_path": {
+      "type": ["string", "null"],
+      "description": "Set by writing-plans at Stage 8"
+    },
+    "current_stage": {
+      "type": "string",
+      "enum": [
+        "preflight",
+        "discovering",
+        "spec_writing",
+        "spec_auto_review",
+        "spec_second_review",
+        "spec_grill",
+        "adr_maintenance",
+        "spec_approval",
+        "plan_writing",
+        "plan_auto_review",
+        "plan_second_review",
+        "plan_approval",
+        "implementing",
+        "testing",
+        "handoff",
+        "finishing"
+      ]
+    },
+    "stages_completed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "preflight",
+          "discovering",
+          "spec_written",
+          "spec_auto_reviewed",
+          "spec_second_reviewed",
+          "spec_grilled",
+          "adrs_maintained",
+          "spec_approved",
+          "plan_written",
+          "plan_auto_reviewed",
+          "plan_second_reviewed",
+          "plan_approved",
+          "implementation_complete",
+          "testing_complete",
+          "handoff_generated",
+          "finished"
+        ]
+      }
+    },
+    "stages_skipped": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "spec_second_review",
+          "spec_grill",
+          "plan_second_review",
+          "testing",
+          "handoff"
+        ]
+      }
+    },
+    "preflight": {
+      "type": "object",
+      "required": ["original_branch"],
+      "additionalProperties": false,
+      "properties": {
+        "worktree_path": {
+          "type": ["string", "null"]
+        },
+        "original_branch": {
+          "type": "string"
+        }
+      }
+    },
+    "tasks": {
+      "type": "object",
+      "patternProperties": {
+        "^T[0-9]{3,}$": {
+          "type": "string",
+          "enum": ["pending", "in_progress", "completed"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "adr_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "status", "path"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^ADR-[0-9]{4}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["Proposed", "Accepted", "Deprecated"],
+            "description": "Note: 'Superseded by ADR-NNNN' status is tracked in the ADR file itself, not here. This field reflects the status at time of write."
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "test_status": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "passed",
+        "passed_after_fixes",
+        "skipped_mcp_unavailable",
+        "skipped_user_choice",
+        "failed_escalated"
+      ]
+    },
+    "fix_iterations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "final_review_completed": {
+      "type": "boolean"
+    },
+    "handoff_path": {
+      "type": ["string", "null"]
+    },
+    "reviewer_pushbacks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stage", "finding", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "stage": {
+            "type": "string"
+          },
+          "finding": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "spec_auto_review_iterations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    },
+    "plan_auto_review_iterations": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2
+    }
+  }
+}

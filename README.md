@@ -48,6 +48,268 @@ count, category (general/news/images/videos), time range, language/region,
 and safe-search level. The SearXNG endpoint is configured via the
 `SEARXNG_URL` environment variable or a local `config.json`.
 
+### Spec-driven development
+
+A 21-skill family for running structured, spec-driven feature development
+end-to-end. The pipeline: **preflight → discover → spec → reviews → ADRs
+→ plan → reviews → per-task implementation → optional feature testing →
+handoff doc → finish**. Coordinated by `sdd-coordinator`, which is the
+only entry point the user invokes — every other skill is loaded by the
+coordinator or dispatched as a subagent. Designed to be self-contained
+(no dependencies on external skill families), resumable across sessions
+via a per-feature state file at `docs/specs/NNN-name/state.json`, and
+configurable via `.sdd/config.yml` (path overrides, finishing mode,
+harness tool names, handoff toggle). Specs and plans live at
+`docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs at
+`docs/handoff/YYYY-MM-DD-<title>.md`.
+
+Shared scripts at `spec-driven-development/scripts/`:
+- `discover-context.sh` — finds project convention files
+  (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`, `DOMAIN.md`,
+  `CONTEXT-MAP.md`, prior ADRs) so skills can load relevant context
+  without each duplicating the detection logic.
+- `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
+  schema-check the artifacts each writer skill produces. Catch gross
+  format violations (missing sections, placeholders, forbidden diagram
+  syntax, unredacted secrets) before the artifact is committed.
+
+#### [sdd-coordinator](spec-driven-development/sdd-coordinator/)
+
+Entry point for SDD runs. Thin state machine + dispatcher — knows the
+16-stage pipeline, reads the per-feature state file first on every
+invocation (via `inspecting-state`), resumes interrupted runs, loads
+phase-skills inline for interactive stages, dispatches subagents for
+fresh-context stages (reviews, ADR maintenance, per-task implementation,
+testing, handoff). Holds state updates atomic at stage boundaries, never
+mid-stage. Surfaces user-gated optional stages (2nd review pass, grill,
+feature testing). Critically: never tests the feature itself — if the
+tester subagent reports MCP unavailability, the coordinator surfaces a
+manual test plan rather than improvising.
+
+#### [preflight-checks](spec-driven-development/preflight-checks/)
+
+First stage of an SDD run. Inspects git state. **Abort-only on
+problems:** if the working tree is dirty, or the current branch is
+inappropriate (develop / release / random non-SDD branch), the skill
+aborts and tells the user to clean up manually before re-invoking. Only
+proceeds when on `main`/`master` (creates a feature branch from there),
+or on a feature-like branch that has a matching active SDD state file
+(resume case). Optionally creates a `.worktrees/<branch>` worktree when
+configured.
+
+#### [discovering-requirements](spec-driven-development/discovering-requirements/)
+
+Interactive discovery conversation. One question at a time, multiple
+choice with a recommended answer where possible. Walks the user through
+purpose, scope, users, success criteria, key entities, edge cases,
+constraints, and integration points — skipping dimensions already
+covered. Surfaces 2-3 alternatives with recommendations for major design
+decisions. Includes a scope check that catches and decomposes too-big
+feature requests. Output is shared understanding in the coordinator's
+context, not a written artifact — `writing-specs` renders it next.
+
+#### [writing-specs](spec-driven-development/writing-specs/)
+
+Renders the agreed understanding from discovery into `spec.md` at
+`docs/specs/NNN-short-name/spec.md`. Opinionated structure: user stories
+with P1/P2/P3 priorities + Given/When/Then acceptance scenarios,
+FR-### functional requirements with story traceability, measurable
+SC-### success criteria, key entities, edge cases, assumptions,
+out-of-scope. EARS format allowed where precision matters. Initializes
+the state file. Forbids Mermaid/C4/PlantUML/ASCII diagrams. Includes
+automated schema validation (`validate-spec.sh`) followed by an inline
+fresh-eyes pass before handing off to `reviewing-specs`.
+
+#### [reviewing-specs](spec-driven-development/reviewing-specs/)
+
+Subagent skill. Independent fresh-eyes review of a spec before plan
+writing. Detection passes: completeness, internal consistency, clarity/
+testability, constitution / ADR alignment, scope, YAGNI, vocabulary
+drift. Findings categorized CRITICAL / HIGH / MEDIUM / LOW. Strict
+read-only — does not modify files. Calibrated to approve unless there's
+a real CRITICAL/HIGH finding (noisy reviewers get ignored). Used for
+both the mandatory first pass and the optional second pass.
+
+#### [grilling-specs](spec-driven-development/grilling-specs/)
+
+Optional bounded grill that interviews the user about weak/unclear/
+underspecified areas of the spec, with a recommended answer per
+question. Every accepted answer is **applied to the spec inline**
+(atomic per-answer save) — the grill is not a pointless interview;
+findings always land. Stop conditions: user signals done, all
+high-impact areas resolved, or hard cap (default 10, configurable, hard
+ceiling 20).
+
+#### [maintaining-adrs](spec-driven-development/maintaining-adrs/)
+
+Subagent skill. Reads the spec and existing ADRs, identifies decisions
+that warrant new ADR records (architectural, with real alternatives,
+where the reasoning matters), and writes them in a locked format
+(Title / Status / Date / Spec link / Context / Decision / Consequences /
+Alternatives Considered). Avoids duplicates against existing ADRs; marks
+supersession explicitly when applicable. Returns 0 ADRs as a valid
+outcome — not every spec needs new ADRs.
+
+#### [writing-plans](spec-driven-development/writing-plans/)
+
+Renders the approved spec into `plan.md` at
+`docs/specs/NNN-short-name/plan.md`. Tasks are organized into phases by
+user story (Setup → Foundational → Phase per story in priority order →
+Polish), with `[T###]` IDs, optional `[P]` parallel markers, `[US#]`
+story labels, exact file paths, and `**Requirements:** FR-###`
+traceability. Each task has bite-sized TDD steps (2-5 min each) with
+actual code, exact test commands with expected output, and commit
+messages. `[NO-TDD]` opt-out marker is allowed ONLY for strict
+categories (docs-only, config-only, asset-addition, dependency-bump,
+mechanical-rename, lint-only); reviewer flags misuse as CRITICAL.
+Forbids placeholders, Mermaid/C4/PlantUML/ASCII diagrams, and references
+to things not defined in the plan or codebase. Includes automated schema
+validation (`validate-plan.sh`).
+
+#### [reviewing-plans](spec-driven-development/reviewing-plans/)
+
+Subagent skill. Independent review of an implementation plan before
+per-task execution. Detection passes: spec coverage (every FR has a
+task), placeholder scan, type/name/path consistency across tasks, TDD
+discipline, `[P]` correctness, story independence (MVP-first),
+constitution/ADR alignment, granularity. Findings categorized
+CRITICAL / HIGH / MEDIUM / LOW. Strict read-only.
+
+#### [implementing-plans](spec-driven-development/implementing-plans/)
+
+Per-task orchestration loop. For each task in plan order: dispatch
+implementer subagent → handle status (DONE / DONE_WITH_CONCERNS /
+BLOCKED / NEEDS_CONTEXT) → dispatch spec-compliance reviewer subagent →
+loop fix-review until approved (cap 3) → dispatch code-quality reviewer
+subagent → loop until approved (cap 3, Minor findings non-blocking) →
+mark task complete. After all tasks: final code review on the full diff.
+Continuous execution between tasks — no needless check-ins. Includes
+three prompt templates as separate files (implementer-prompt.md,
+spec-compliance-reviewer-prompt.md, code-quality-reviewer-prompt.md).
+
+#### [implementing-task](spec-driven-development/implementing-task/)
+
+Protocol skill loaded by implementer subagents when dispatched per task.
+Covers scope discipline (with concrete in-scope vs out-of-scope
+examples), TDD-by-default + strict `[NO-TDD]` handling, commit hygiene
+(one task → one commit, Conventional Commits style with task ID
+reference), the four-status reporting protocol (DONE / DONE_WITH_CONCERNS /
+BLOCKED / NEEDS_CONTEXT), self-review checklist, and a rationalizations
+table calling out the most common scope-creep traps. Includes the
+"your work will be reviewed" priming that measurably improves output
+quality.
+
+#### [reviewing-task-compliance](spec-driven-development/reviewing-task-compliance/)
+
+Protocol skill loaded by the first-stage per-task reviewer subagent.
+Spec-compliance checks only: coverage + FR traceability, scope creep
+(the dominant failure mode), test presence and meaningful coverage,
+test verification by re-running tests (not trusting the implementer's
+report), silent design decisions, commit hygiene, files-touched scope.
+Outputs Approved | Issues Found with categorized findings. Strict lane
+discipline — does NOT flag code quality, naming, or idiom (that's the
+next reviewer). Calibrated to approve clean work and call out real
+problems, not manufacture issues.
+
+#### [reviewing-task-quality](spec-driven-development/reviewing-task-quality/)
+
+Protocol skill loaded by the second-stage per-task reviewer subagent
+after spec compliance is approved. Six-dimension code review:
+readability, correctness around edges, idiom alignment with the rest of
+the codebase, security (with specific scan anchors for SQL injection,
+unsafe deserialization, secrets in logs, missing authz, custom crypto),
+performance (O(n²), unbounded growth, N+1, missing indexes),
+maintainability. Severity rubric: Critical (correctness/security/data),
+Important (idiom/readability), Minor (style preferences). Style is
+never Critical. Does NOT re-check spec compliance or re-run tests.
+
+#### [testing-implementation](spec-driven-development/testing-implementation/)
+
+Optional feature-level testing stage (user-gated, default yes).
+Dispatches a tester subagent that chooses strategy based on the feature
+type (UI / backend / library / mixed) and available MCPs (browser
+automation for UI, DB MCP for data verification, project test runners
+always). Three possible results: **PASS**, **FAIL** (triggers fix-loop
+with hard cap of 3 iterations before escalating), **MCP_UNAVAILABLE**
+(coordinator surfaces a manual test plan + code-review findings to user;
+explicitly forbidden from testing itself). The tester and fixer
+subagents load full protocol skills (`testing-feature` and
+`fixing-test-failures` respectively); the prompts in this directory are
+dispatch envelopes only.
+
+#### [testing-feature](spec-driven-development/testing-feature/)
+
+Protocol skill loaded by the tester subagent. Strategy selection by
+feature type (UI / backend / library / mixed), explicit tool inventory
+(browser MCPs / DB MCPs / project test runners / HTTP), per-story
+execution against acceptance scenarios, three-status output (PASS / FAIL
+with per-failure structure / MCP_UNAVAILABLE with manual test plan +
+code-review fallback). P1 stories are mandatory floor; P2/P3 covered
+when straightforward, marked "not exercised" otherwise. Hard rule
+against fabricating results — if you can't run real tools, return
+MCP_UNAVAILABLE.
+
+#### [fixing-test-failures](spec-driven-development/fixing-test-failures/)
+
+Protocol skill loaded by the fixer subagent. Narrow-scope fix discipline
+(no adjacent refactors, no spec/plan edits), per-failure diagnose →
+fix → verify via the tester's exact reproduction. Four-status protocol
+(DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT) with the strict
+rule that any unverified failure = BLOCKED, never DONE. One commit per
+failure when separable, grouped by root cause when shared.
+
+#### [finishing-sdd](spec-driven-development/finishing-sdd/)
+
+Final stage. Verifies tests pass one more time, detects environment
+(normal repo vs worktree vs detached HEAD), presents 4 options
+(merge-local / PR / keep-as-is / discard — discard requires typed
+confirmation) or short-circuits to a single mode based on
+`.sdd/config.yml`. Executes the choice, cleans up worktrees that
+preflight created (provenance-checked via state file), and deletes the
+state file (the spec, plan, ADRs, handoff doc, and git history are the
+durable record).
+
+#### [generating-handoff](spec-driven-development/generating-handoff/)
+
+Subagent skill. Reads spec, plan, ADRs, state file, and git log to
+produce a self-contained handoff document at
+`docs/handoff/YYYY-MM-DD-<short-title>.md`. The handoff is a *bridge*
+— it references the source artifacts (with one-line summaries) rather
+than duplicating them. Includes a redaction sweep that catches OpenAI/
+AWS/GitHub tokens, JWTs, private keys, URLs with credentials, and
+sensitive env-var assignments before writing. Schema-validated via
+`validate-handoff.sh`. Optimized for the "iterating on PR feedback in a
+fresh session" use case.
+
+#### [receiving-review-findings](spec-driven-development/receiving-review-findings/)
+
+Inline skill loaded by the coordinator whenever a reviewer subagent
+returns findings on a spec or plan (Stages 3, 4, 9, 10). Borrows from
+superpowers' `receiving-code-review`: no performative agreement, verify
+before fixing, push back with technical reasoning when the reviewer is
+wrong, track push-backs in state file, surface to user when findings
+need human judgment. Per-task reviews stay handled by
+`implementing-plans` (different dynamic — fresh implementer re-dispatch).
+
+#### [inspecting-state](spec-driven-development/inspecting-state/)
+
+Read-only utility. Locates all SDD state files, validates each against
+the schema, checks git for pre-state-file interruption signals, and
+produces a structured report. Used by the coordinator as its very first
+action on every invocation (replaces what used to be the coordinator's
+inline resume-detection logic — cleaner separation). Also directly
+invokable by the user to check status without entering the pipeline.
+
+#### [initializing-project-context](spec-driven-development/initializing-project-context/)
+
+One-time project bootstrap — invoked manually by the user, not by the
+pipeline. Opt-in menu for setting up: project constitution (with guided
+principle-by-principle authoring), `ARCHITECTURE.md` overview,
+`GLOSSARY.md`, `DOMAIN.md`, `CONTEXT-MAP.md` (for monorepos),
+`.sdd/config.yml`, and `docs/adr/` + `docs/specs/` + `docs/handoff/`
+directories with README stubs. Each artifact is independent. Detects
+existing setup and offers to extend/edit rather than overwrite.
+
 ## Setup
 
 What each skill needs before its tools will run:
