@@ -4,7 +4,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ## Contents
 
-- [Why a 17-stage pipeline](#why-a-16-stage-pipeline)
+- [Why a 17-stage pipeline](#why-a-17-stage-pipeline)
 - [Why thin coordinator + many skills](#why-thin-coordinator--many-skills)
 - [Why no external skill dependencies](#why-no-external-skill-dependencies)
 - [Why abort-only preflight](#why-abort-only-preflight)

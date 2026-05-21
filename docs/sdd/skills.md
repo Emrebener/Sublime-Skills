@@ -890,7 +890,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ### validate-config.sh
 
 **Location:** `spec-driven-development/scripts/validate-config.sh`
-**Purpose:** Validate `.sdd/config.yml` structurally and semantically. Used by `bootstrapping-project`'s fix-and-retry loop and by the SDD coordinator's Step 2 halt check.
+**Purpose:** Validate `.sdd/config.yml` structurally and semantically. Used by `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
 
 **Usage:** `./scripts/validate-config.sh [config-path]` (default: `<repo-root>/.sdd/config.yml`)
 

@@ -71,8 +71,9 @@ Shared scripts at `spec-driven-development/scripts/`:
   load relevant context from a single source of truth.
 - `validate-config.sh` — validates `.sdd/config.yml` end-to-end (YAML
   shape, required keys, context-path resolution, enum values). Used by
-  `bootstrapping-project`'s fix-and-retry loop and by `sdd-coordinator`'s
-  Step 2 halt check.
+  `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks`
+  (Stage 0 of the SDD pipeline) to halt if the config is missing or
+  invalid.
 - `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
   schema-check the artifacts each writer skill produces. Catch gross
   format violations (missing sections, placeholders, forbidden diagram
