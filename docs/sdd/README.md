@@ -35,7 +35,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 1. **[pipeline.md](pipeline.md)** — every stage of the 17-stage pipeline explained in detail. Inputs, outputs, mechanism (inline vs subagent), failure handling.
 2. **[skills.md](skills.md)** — reference for all 21 skills, the 6 shared scripts, and the canonical state schema. What each one does, when it's invoked, what it reads, what it writes.
 3. **[artifacts.md](artifacts.md)** — full format specifications for every artifact: spec, plan, ADRs, handoff document. With templates and worked examples.
-4. **[state-and-config.md](state-and-config.md)** — state file schema (every field, who owns it), resume protocol, the `.sdd/config.yml` schema with all defaults and overrides.
+4. **[state-and-config.md](state-and-config.md)** — state file schema (every field, who owns it), resume protocol, the `.sublime-skills/config.yml` schema with all defaults and overrides.
 5. **[operations.md](operations.md)** — subagent dispatch mechanics, validation scripts, project conventions (TDD discipline, `[NO-TDD]` criteria, diagram prohibitions), and troubleshooting common issues.
 6. **[rationale.md](rationale.md)** — design rationale. Why a thin coordinator + many skills, why no external dependencies, why abort-only preflight, comparisons to spec-kit/brainstorming/kiro.
 
@@ -46,7 +46,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 **First-time setup on a project:** invoke `bootstrapping-project` (in the `project-bootstrap/` family) manually. It walks you through each convention file via five inline conversational `discovering-<topic>` skills (constitution / architecture / glossary / domain-model / design) and scaffolds:
 - `docs/constitution.md` (optional project-wide principles)
 - `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
-- `.sdd/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
+- `.sublime-skills/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
 - `docs/adr/`, `docs/specs/`, `docs/handoff/` directories with README stubs
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
@@ -71,7 +71,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 
 ```
 <repo-root>/
-├── .sdd/
+├── .sublime-skills/
 │   └── config.yml                         # project-wide SDD config
 ├── docs/
 │   ├── constitution.md                    # optional, project principles

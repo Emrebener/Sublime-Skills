@@ -86,7 +86,7 @@ Flag "possible pre-state interruption" ONLY when ALL of these are true:
 
 If all three are true, include "possible pre-state interruption" in the report. Otherwise, do not — the user is on an unrelated branch and the coordinator should treat the state as "no active runs."
 
-If the user has a custom `preflight.branch_pattern` in `.sdd/config.yml` that doesn't match the `feat/*` or `fix/*` shape, this detection may miss their interruption — that's acceptable; the coordinator's interactive prompts catch the case at confirmation time. False positives are worse than false negatives here.
+If the user has a custom `preflight.branch_pattern` in `.sublime-skills/config.yml` that doesn't match the `feat/*` or `fix/*` shape, this detection may miss their interruption — that's acceptable; the coordinator's interactive prompts catch the case at confirmation time. False positives are worse than false negatives here.
 
 ## Step 5: Produce Report
 

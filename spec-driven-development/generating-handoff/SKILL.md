@@ -37,7 +37,7 @@ The dispatch prompt includes:
 - `BRANCH` — feature branch name
 - `BASE_SHA` — first commit on this branch
 - `HEAD_SHA` — current HEAD
-- `HANDOFF_DIR` — directory where the handoff goes. Default `docs/handoff` (repo-relative). Overridable via `.sdd/config.yml` → `paths.handoff_dir`. **The override may be an absolute path** (e.g., `/home/user/sdd-handoffs/` or `~/notes/sdd/`) to write the handoff outside the repo — useful for keeping handoffs out of project history.
+- `HANDOFF_DIR` — directory where the handoff goes. Default `docs/handoff` (repo-relative). Overridable via `.sublime-skills/config.yml` → `paths.handoff_dir`. **The override may be an absolute path** (e.g., `/home/user/sdd-handoffs/` or `~/notes/sdd/`) to write the handoff outside the repo — useful for keeping handoffs out of project history.
 - `OUTSIDE_REPO` — boolean. Set by the coordinator. `true` if `HANDOFF_DIR` resolves to a location outside the repo's working tree; `false` otherwise. When `true`, the handoff is NOT staged or committed by the coordinator (file lives outside git's control).
 
 ## Checklist

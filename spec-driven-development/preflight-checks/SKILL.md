@@ -1,13 +1,13 @@
 ---
 name: preflight-checks
-description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. Validates .sdd/config.yml, ensures git state is clean, and confirms the working branch is dedicated to the feature. This skill is the single home for every pre-pipeline halt check.
+description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. Validates .sublime-skills/config.yml, ensures git state is clean, and confirms the working branch is dedicated to the feature. This skill is the single home for every pre-pipeline halt check.
 ---
 
 # Preflight Checks
 
 ## Overview
 
-Verify the repo is in a fit state to start an SDD pipeline run: the `.sdd/config.yml` is present and valid, the working tree is clean, and we're on an appropriate branch (default branch about to fork, or a recognized SDD feature branch about to resume). **This skill is abort-only for problem states** — it never cleans up dirty files, never auto-switches branches, never modifies user data. It does take exactly two state-modifying actions when conditions allow: creating a new feature branch from `main`/`master`, and optionally creating a worktree.
+Verify the repo is in a fit state to start an SDD pipeline run: the `.sublime-skills/config.yml` is present and valid, the working tree is clean, and we're on an appropriate branch (default branch about to fork, or a recognized SDD feature branch about to resume). **This skill is abort-only for problem states** — it never cleans up dirty files, never auto-switches branches, never modifies user data. It does take exactly two state-modifying actions when conditions allow: creating a new feature branch from `main`/`master`, and optionally creating a worktree.
 
 **Core principle:** Don't try to clean up the user's mess. Ask them to do it. Failing fast on a dirty state is safer than guessing at user intent.
 
@@ -19,16 +19,16 @@ This skill is also **the single home for every pre-pipeline halt check.** The co
 
 ### What this skill ALWAYS ensures (or aborts trying)
 
-1. `.sdd/config.yml` is present and passes `validate-config.sh`
+1. `.sublime-skills/config.yml` is present and passes `validate-config.sh`
 2. The working tree is clean (`git status --porcelain` is empty)
 3. The current branch is either the default branch (about to fork) or a recognized SDD feature branch (about to resume); not `HEAD` detached with any active state file
-4. After this skill returns, the coordinator can safely begin spec/plan work and trust every path in `.sdd/config.yml`
+4. After this skill returns, the coordinator can safely begin spec/plan work and trust every path in `.sublime-skills/config.yml`
 
 ### What this skill aborts on (fail-fast cases)
 
 | Abort case | Reason code | Trigger |
 |---|---|---|
-| Config missing | `config_missing` | `.sdd/config.yml` doesn't exist (`validate-config.sh` exit 2) |
+| Config missing | `config_missing` | `.sublime-skills/config.yml` doesn't exist (`validate-config.sh` exit 2) |
 | Config invalid | `config_invalid` | `validate-config.sh` exit 1 (malformed YAML, orphan path, unknown key, etc.) |
 | Dirty working tree | `dirty_working_tree` | Any output from `git status --porcelain` |
 | Detached HEAD with active state | `detached_head_with_state` | `git branch --show-current` is empty AND `inspecting-state` reported ≥1 active state file |
@@ -40,7 +40,7 @@ This skill is also **the single home for every pre-pipeline halt check.** The co
 ### What this skill does itself (state-modifying actions)
 
 1. **Creates a feature branch** from `main`/`master` when starting fresh, AFTER user confirms the name. Uses `git checkout -b <name>`.
-2. **Creates a worktree** only if `.sdd/config.yml → preflight.use_worktree: true`. Uses `git worktree add`.
+2. **Creates a worktree** only if `.sublime-skills/config.yml → preflight.use_worktree: true`. Uses `git worktree add`.
 3. **Adds `.worktrees/` to `.gitignore` and commits** that change, only if worktree was requested and `.worktrees/` wasn't already gitignored.
 
 ### What this skill never does
@@ -71,14 +71,14 @@ The coordinator MUST track each of these as a todo item and complete them in ord
 3. If `git branch --show-current` is empty (detached HEAD) AND the inspecting-state report lists ≥1 active state file: **ABORT** per the Detached HEAD Protocol below
 4. If dirty (any output from `git status --porcelain`): **ABORT** per the Dirty Files Protocol below
 5. Apply the Branch Protocol below — abort or proceed based on which branch we're on
-6. **If `.sdd/config.yml → preflight.use_worktree: true` AND we're on the base branch (fresh start case):** apply the Worktree Pre-Branch Setup below (commit `.worktrees/` to `.gitignore` on the base branch FIRST). This must happen BEFORE creating the feature branch — otherwise the gitignore commit lands on the feature branch and clutters every PR.
+6. **If `.sublime-skills/config.yml → preflight.use_worktree: true` AND we're on the base branch (fresh start case):** apply the Worktree Pre-Branch Setup below (commit `.worktrees/` to `.gitignore` on the base branch FIRST). This must happen BEFORE creating the feature branch — otherwise the gitignore commit lands on the feature branch and clutters every PR.
 7. Create a new feature branch if starting fresh, or reuse the existing one if resuming
 8. If `use_worktree: true`, apply the Worktree Protocol below to create the worktree
 9. Report ready — return preflight outcomes (branch name, original branch, worktree path) to the coordinator. The coordinator holds these in-memory and persists them when `writing-specs` initializes the state file in Stage 2.
 
 ## Config Validation Protocol
 
-Run the validator first, before any git inspection. The pipeline reads every path (spec_dir, adr_dir, handoff_dir, context files, memory file) from `.sdd/config.yml`; running without a valid config is unsupported, not a degraded mode.
+Run the validator first, before any git inspection. The pipeline reads every path (spec_dir, adr_dir, handoff_dir, context files, memory file) from `.sublime-skills/config.yml`; running without a valid config is unsupported, not a degraded mode.
 
 ```bash
 ./spec-driven-development/scripts/validate-config.sh
@@ -93,7 +93,7 @@ Run the validator first, before any git inspection. The pipeline reads every pat
 **Halt message template (any non-zero exit):**
 
 ```
-ABORTING preflight: `.sdd/config.yml` is missing or invalid.
+ABORTING preflight: `.sublime-skills/config.yml` is missing or invalid.
 
 <validator output verbatim>
 
@@ -194,13 +194,13 @@ Same as the "feature-like branch + no matching state file" case above → ABORT 
 
 ### Branch naming defaults
 
-Overridable via `.sdd/config.yml → preflight.branch_pattern`:
+Overridable via `.sublime-skills/config.yml → preflight.branch_pattern`:
 - `feat/<short-name>` for new features (default)
 - `fix/<short-name>` if the user describes the work as a bug fix during `discovering-requirements` (renamed at that point if needed)
 
 ## Worktree Protocol
 
-Skip this entire section if `.sdd/config.yml → preflight.use_worktree` is unset or false (the default). Worktrees are opt-in.
+Skip this entire section if `.sublime-skills/config.yml → preflight.use_worktree` is unset or false (the default). Worktrees are opt-in.
 
 Read this value with the helper:
 
@@ -273,8 +273,8 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 
 | Mistake | Fix |
 |---|---|
-| Skipping the config validation step | Mandatory and FIRST — every path the rest of preflight reads comes from `.sdd/config.yml`. |
-| Trying to repair `.sdd/config.yml` inline when it fails validation | Don't — abort with `config_invalid` and direct the user to `bootstrapping-project`. |
+| Skipping the config validation step | Mandatory and FIRST — every path the rest of preflight reads comes from `.sublime-skills/config.yml`. |
+| Trying to repair `.sublime-skills/config.yml` inline when it fails validation | Don't — abort with `config_invalid` and direct the user to `bootstrapping-project`. |
 | Trying to commit/stash/discard dirty files | Don't — abort. The user handles their own mess. |
 | Trying to "auto-switch" off an inappropriate branch | Don't — abort. The user picks the right starting branch. |
 | Trying to write a state file from this skill | The state file doesn't exist yet — only `writing-specs` initializes it. Return outcomes to the coordinator. |
@@ -287,7 +287,7 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 ## Red Flags
 
 - About to skip the config validation step → STOP; it's Step 1 of the Checklist, not optional
-- About to edit `.sdd/config.yml` to make the validator pass → STOP; abort and direct user to `bootstrapping-project`
+- About to edit `.sublime-skills/config.yml` to make the validator pass → STOP; abort and direct user to `bootstrapping-project`
 - About to run `git commit`, `git stash`, `git clean`, or `git restore` to "clean up" dirty files → STOP; abort instead
 - About to `git checkout <existing branch>` to "fix" an inappropriate starting branch → STOP; abort instead
 - About to try `Read`/`Write` on a state.json file → STOP; state file is initialized in Stage 2 (writing-specs), not here

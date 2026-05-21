@@ -1,6 +1,6 @@
 ---
 name: bootstrapping-project
-description: Use to set up a project for spec-driven development - walks the user through each convention file (constitution, architecture, glossary, domain, design) by loading the matching discovering-<topic> inline skill for each, then scaffolds .sdd/config.yml and the supporting directories. User-invoked, not part of the SDD pipeline.
+description: Use to set up a project for spec-driven development - walks the user through each convention file (constitution, architecture, glossary, domain, design) by loading the matching discovering-<topic> inline skill for each, then scaffolds .sublime-skills/config.yml and the supporting directories. User-invoked, not part of the SDD pipeline.
 ---
 
 # Bootstrapping Project
@@ -39,10 +39,10 @@ Proceed through these in order:
 1. Detect existing setup via discovery script
 2. For each convention file (constitution → architecture → glossary → domain → design): detect → ask → load the matching `discovering-<topic>` skill inline → record outcome
 3. Create supporting directories (`docs/adr/`, `docs/specs/`, `docs/handoff/`) with stub READMEs
-4. Copy config scaffold to `.sdd/config.yml`
+4. Copy config scaffold to `.sublime-skills/config.yml`
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
 6. Run `validate-config.sh`; fix-and-retry on FAIL (cap 3 attempts)
-7. Ensure `.sdd/local.yml` is gitignored
+7. Ensure `.sublime-skills/local.yml` is gitignored
 8. Single commit
 9. Report and direct user to `sdd-coordinator`
 
@@ -64,7 +64,7 @@ Before starting the per-file loop, build the progress todo list with the harness
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
 6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
-7. Copy config scaffold to `.sdd/config.yml`
+7. Copy config scaffold to `.sublime-skills/config.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
 10. `.gitignore` housekeeping
@@ -202,15 +202,15 @@ If any of these READMEs already exist with the same content, skip them. If they 
 ## Step 4: Copy Config Scaffold
 
 ```bash
-mkdir -p .sdd
-cp ./project-bootstrap/scaffolds/config.yml .sdd/config.yml
+mkdir -p .sublime-skills
+cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
 ```
 
 This is a verbatim copy. **Do NOT regenerate the YAML.** The scaffold is the single source of truth for the config's shape and defaults.
 
 ## Step 5: Edit Config to Reflect Reality
 
-For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): set the corresponding `context.<name>_path` in `.sdd/config.yml` to `null` via the Edit tool.
+For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): set the corresponding `context.<name>_path` in `.sublime-skills/config.yml` to `null` via the Edit tool.
 
 For each convention file **created/extended/replaced**: if the final path differs from the scaffold default, update the corresponding key to the actual path.
 
@@ -231,13 +231,13 @@ Do NOT touch any keys the user didn't ask about (preflight, grill, memory_file, 
 ## Step 6: Validate
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh .sdd/config.yml
+./spec-driven-development/scripts/validate-config.sh .sublime-skills/config.yml
 ```
 
 | Exit code | Action |
 |---|---|
 | `0` (PASS) | Proceed to Step 7 |
-| `1` (FAIL) | Read the findings from stderr; fix each issue in `.sdd/config.yml` (or fix the underlying file/directory if it's an orphan path); re-run the validator. **Cap: 3 attempts.** After 3 failed attempts, halt and surface to user with the remaining findings. |
+| `1` (FAIL) | Read the findings from stderr; fix each issue in `.sublime-skills/config.yml` (or fix the underlying file/directory if it's an orphan path); re-run the validator. **Cap: 3 attempts.** After 3 failed attempts, halt and surface to user with the remaining findings. |
 | `2` (config not found) | This shouldn't happen — Step 4 just copied it. Halt and surface as a serious error. |
 | `3` (usage error) | Halt and surface — coordinator bug. |
 
@@ -245,18 +245,18 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` Housekeeping
 
-If `.sdd/local.yml` is NOT already in `.gitignore`, append it:
+If `.sublime-skills/local.yml` is NOT already in `.gitignore`, append it:
 
 ```bash
 # Check first
-grep -qE '^\.sdd/local\.yml$' .gitignore 2>/dev/null || {
+grep -qE '^\.sublime-skills/local\.yml$' .gitignore 2>/dev/null || {
   echo "" >> .gitignore
-  echo "# SDD per-developer overrides (committed config lives at .sdd/config.yml)" >> .gitignore
-  echo ".sdd/local.yml" >> .gitignore
+  echo "# SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)" >> .gitignore
+  echo ".sublime-skills/local.yml" >> .gitignore
 }
 ```
 
-`.sdd/config.yml` itself is committed (it's project-wide config).
+`.sublime-skills/config.yml` itself is committed (it's project-wide config).
 
 Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline; no gitignore entry needed.
 
@@ -265,7 +265,7 @@ Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SD
 ```bash
 git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         docs/adr/ docs/specs/ docs/handoff/ \
-        .sdd/config.yml [.gitignore]
+        .sublime-skills/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
 ```
 
@@ -291,7 +291,7 @@ Directories:
 - docs/handoff/ (with README)
 
 Config:
-- .sdd/config.yml created and validated (PASS)
+- .sublime-skills/config.yml created and validated (PASS)
 - Skipped files have their context.<name>_path set to null
 
 Next steps:
@@ -301,7 +301,7 @@ Next steps:
 
 ## Re-Running on an Existing Project
 
-If `.sdd/config.yml` already exists when this skill starts, treat it as a re-run:
+If `.sublime-skills/config.yml` already exists when this skill starts, treat it as a re-run:
 
 - The per-file loop still walks each convention file — but now Detect will find the configured path (not the default), and the discussion is more about Extend/Replace than Create.
 - Step 4 (copy scaffold) is skipped if the config exists — the user already has one. Step 5 (edit to reflect reality) still runs: any newly-created file in this re-run gets its `<name>_path` set; any newly-skipped file gets nulled.

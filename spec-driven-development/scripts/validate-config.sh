@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Validates .sdd/config.yml structurally and semantically.
+# Validates .sublime-skills/config.yml structurally and semantically.
 #
 # Usage:
 #   ./spec-driven-development/scripts/validate-config.sh [config-path]
 #
-# Default config-path: <repo-root>/.sdd/config.yml
+# Default config-path: <repo-root>/.sublime-skills/config.yml
 #
 # Exit codes:
 #   0 — PASS  (config is structurally valid; all referenced files exist or are null)
@@ -40,7 +40,7 @@ if [ $# -gt 1 ]; then
 fi
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-CONFIG="${1:-$REPO_ROOT/.sdd/config.yml}"
+CONFIG="${1:-$REPO_ROOT/.sublime-skills/config.yml}"
 
 if [ ! -f "$CONFIG" ]; then
   echo "FAIL: config file not found at $CONFIG" >&2

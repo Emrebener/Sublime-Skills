@@ -44,7 +44,7 @@ Run the project's primary test command one more time as a sanity check.
 
 **Resolution order for the test command:**
 
-1. **Config override** (preferred): if `.sdd/config.yml` has `finishing.test_command` set, use exactly that command. This is the right answer for Makefile-driven projects, `nox`/`tox` setups, Maven/Gradle, monorepos with custom test runners, or any project that doesn't fit the auto-detect patterns.
+1. **Config override** (preferred): if `.sublime-skills/config.yml` has `finishing.test_command` set, use exactly that command. This is the right answer for Makefile-driven projects, `nox`/`tox` setups, Maven/Gradle, monorepos with custom test runners, or any project that doesn't fit the auto-detect patterns.
 
    ```yaml
    finishing:
@@ -66,7 +66,7 @@ Run the project's primary test command one more time as a sanity check.
 
    Use `grep -q "^test:" Makefile 2>/dev/null` to verify a `test` target exists before picking `make test`.
 
-3. **None match**: ask the user what command to run. Offer to save their answer as `.sdd/config.yml → finishing.test_command` for future runs.
+3. **None match**: ask the user what command to run. Offer to save their answer as `.sublime-skills/config.yml → finishing.test_command` for future runs.
 
 **Do NOT run multiple test commands** even in polyglot repos. The config override is the right answer when one repo needs more than one runner (a Makefile target that fans out is typical).
 
@@ -84,11 +84,11 @@ BRANCH=$(git branch --show-current)
 - `GIT_DIR != GIT_COMMON`, on a named branch → linked worktree (named)
 - `GIT_DIR != GIT_COMMON`, detached HEAD → linked worktree (detached) — uncommon
 
-Determine `BASE_BRANCH` (the merge target). Default `main`; check `.sdd/config.yml` → `finishing.merge_target`. Confirm with user if uncertain.
+Determine `BASE_BRANCH` (the merge target). Default `main`; check `.sublime-skills/config.yml` → `finishing.merge_target`. Confirm with user if uncertain.
 
 ## Step 3: Determine Mode
 
-Read `.sdd/config.yml` → `finishing.mode`. Use the scalar helper for convenience:
+Read `.sublime-skills/config.yml` → `finishing.mode`. Use the scalar helper for convenience:
 
 ```bash
 MODE=$(./spec-driven-development/scripts/get-config-value.sh finishing mode)

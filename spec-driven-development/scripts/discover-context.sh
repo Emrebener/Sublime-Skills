@@ -5,7 +5,7 @@
 # Usage:
 #   ./spec-driven-development/scripts/discover-context.sh
 #
-# Source of truth: .sdd/config.yml at the repo root.
+# Source of truth: .sublime-skills/config.yml at the repo root.
 # - context.<name>_path values name the project's convention files
 # - paths.spec_dir and paths.adr_dir resolve the spec and ADR directories
 # The script reads ONLY from config — there is no fallback search. If config
@@ -21,15 +21,15 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT" 2>/dev/null || { echo '{"error": "not in a git repo or readable cwd"}'; exit 1; }
 
 CONFIG=""
-if [ -f ".sdd/config.yml" ]; then
-  CONFIG=".sdd/config.yml"
+if [ -f ".sublime-skills/config.yml" ]; then
+  CONFIG=".sublime-skills/config.yml"
 fi
 
 # Minimal YAML extractor for scalar values under a top-level block. Limited
 # to flat `block: \n  key: value` structures — does NOT handle nested
 # objects beyond one level, lists, anchors, multi-line block scalars
 # (| or >), or references. Sufficient for the singular scalar paths in
-# .sdd/config.yml's `paths:` and `context:` blocks.
+# .sublime-skills/config.yml's `paths:` and `context:` blocks.
 #
 # Usage: yaml_block_key <config_file> <block> <key>
 yaml_block_key() {

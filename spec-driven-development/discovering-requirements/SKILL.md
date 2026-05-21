@@ -46,7 +46,7 @@ Read these if present:
 - All `adrs` — prior decisions you should respect, not re-litigate
 - `readme` — fallback for high-level project understanding
 
-The discovery script already resolves `context.<name>_path` values from `.sdd/config.yml` and verifies the files exist before returning them, so the output JSON's `constitution` / `architecture` / `glossary` / etc. fields can be consumed directly. A `null` field means the project didn't configure (or doesn't have) that artifact.
+The discovery script already resolves `context.<name>_path` values from `.sublime-skills/config.yml` and verifies the files exist before returning them, so the output JSON's `constitution` / `architecture` / `glossary` / etc. fields can be consumed directly. A `null` field means the project didn't configure (or doesn't have) that artifact.
 
 **Skip files that don't exist.** Context is optional — features can be specced without any of these.
 

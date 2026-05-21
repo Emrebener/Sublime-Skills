@@ -59,17 +59,17 @@ by `sdd-coordinator`, which is the only entry point the user invokes —
 every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
 skill families), resumable across sessions via a per-feature state file
-at `docs/specs/NNN-name/state.json`, and configurable via `.sdd/config.yml`
+at `docs/specs/NNN-name/state.json`, and configurable via `.sublime-skills/config.yml`
 (path overrides, finishing mode, harness tool names). Specs and plans
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `docs/handoff/YYYY-MM-DD-<title>.md`.
 
 Shared scripts at `spec-driven-development/scripts/`:
 - `discover-context.sh` — reads project convention file paths from
-  `.sdd/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
+  `.sublime-skills/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
   `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can
   load relevant context from a single source of truth.
-- `validate-config.sh` — validates `.sdd/config.yml` end-to-end (YAML
+- `validate-config.sh` — validates `.sublime-skills/config.yml` end-to-end (YAML
   shape, required keys, context-path resolution, enum values). Used by
   `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks`
   (Stage 0 of the SDD pipeline) to halt if the config is missing or
@@ -270,7 +270,7 @@ Final stage. Verifies tests pass one more time, detects environment
 (normal repo vs worktree vs detached HEAD), presents 4 options
 (merge-local / PR / keep-as-is / discard — discard requires typed
 confirmation) or short-circuits to a single mode based on
-`.sdd/config.yml`. Executes the choice, cleans up worktrees that
+`.sublime-skills/config.yml`. Executes the choice, cleans up worktrees that
 preflight created (provenance-checked via state file), and deletes the
 state file (the spec, plan, ADRs, handoff doc, and git history are the
 durable record).
@@ -340,7 +340,7 @@ load the matching `discovering-<topic>` skill inline (via the Skill
 tool) → the skill handles its own scan, conversation, and atomic write.
 Then creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub
 READMEs; copies the canonical config scaffold at
-`project-bootstrap/scaffolds/config.yml` to `.sdd/config.yml`; sets
+`project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
 `context.<name>_path` to `null` for skipped files; runs
 `validate-config.sh` in a fix-and-retry loop until PASS; commits.
 

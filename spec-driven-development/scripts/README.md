@@ -18,7 +18,7 @@ Outputs JSON. Example:
 ```json
 {
   "repo_root": "/abs/path/to/repo",
-  "config": ".sdd/config.yml",
+  "config": ".sublime-skills/config.yml",
   "constitution": "docs/constitution.md",
   "architecture": "docs/ARCHITECTURE.md",
   "glossary": "docs/GLOSSARY.md",
@@ -32,9 +32,9 @@ Outputs JSON. Example:
 }
 ```
 
-### Source of truth: `.sdd/config.yml`
+### Source of truth: `.sublime-skills/config.yml`
 
-The script reads every path from `.sdd/config.yml` — there is **no auto-fallback search**. If config is missing or a key is null/unset, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
+The script reads every path from `.sublime-skills/config.yml` — there is **no auto-fallback search**. If config is missing or a key is null/unset, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
 
 | JSON field | Config key | Notes |
 |---|---|---|
@@ -51,11 +51,11 @@ The script reads every path from `.sdd/config.yml` — there is **no auto-fallba
 
 ### YAML extractor limitations
 
-The script uses a minimal awk-based YAML extractor — handles flat `block: \n  key: value` only. No lists, nested objects beyond one level, anchors, or multi-line block scalars. Sufficient for the singular scalar paths in `.sdd/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
+The script uses a minimal awk-based YAML extractor — handles flat `block: \n  key: value` only. No lists, nested objects beyond one level, anchors, or multi-line block scalars. Sufficient for the singular scalar paths in `.sublime-skills/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
 
 ### Bootstrapping
 
-A project without `.sdd/config.yml` is unbootstrapped — `discover-context.sh` will return null for almost everything. Run `bootstrapping-project` (in the `project-bootstrap` skill family) to scaffold the config; it copies the canonical scaffold at `project-bootstrap/scaffolds/config.yml` verbatim, then walks the user through each convention file.
+A project without `.sublime-skills/config.yml` is unbootstrapped — `discover-context.sh` will return null for almost everything. Run `bootstrapping-project` (in the `project-bootstrap` skill family) to scaffold the config; it copies the canonical scaffold at `project-bootstrap/scaffolds/config.yml` verbatim, then walks the user through each convention file.
 
 ## Validation Scripts
 
@@ -103,7 +103,7 @@ are most often unredacted secrets — re-run redaction before retrying.
 ./spec-driven-development/scripts/validate-config.sh [config-path]
 ```
 
-Validates `.sdd/config.yml` end-to-end. Default path: `<repo-root>/.sdd/config.yml`.
+Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`.
 
 Checks: YAML parses; all six top-level blocks present (`paths`, `context`,
 `preflight`, `grill`, `memory_file`, `finishing`); required scalar keys per
@@ -122,7 +122,7 @@ available.
 
 ## `get-config-value.sh`
 
-Reads a single scalar value from `.sdd/config.yml`. Intended for skills that
+Reads a single scalar value from `.sublime-skills/config.yml`. Intended for skills that
 need one or two config values and don't want to inline YAML parsing.
 
 ```bash

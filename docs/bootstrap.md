@@ -1,6 +1,6 @@
 # Project Bootstrap
 
-A one-time, opinionated setup for spec-driven development on a fresh project. The bootstrap walks you through the five convention files (constitution, architecture, glossary, domain model, design system), scaffolds the `.sdd/` config, creates the supporting directories, validates everything, and commits the result. After it runs, the project is ready for the SDD pipeline.
+A one-time, opinionated setup for spec-driven development on a fresh project. The bootstrap walks you through the five convention files (constitution, architecture, glossary, domain model, design system), scaffolds the `.sublime-skills/` config, creates the supporting directories, validates everything, and commits the result. After it runs, the project is ready for the SDD pipeline.
 
 The bootstrap is a **separate skill family** from SDD — it lives at `project-bootstrap/`, not `spec-driven-development/`. You invoke it manually; the SDD coordinator never invokes it. Its job is preparing the ground; SDD's job is building on it.
 
@@ -15,10 +15,10 @@ You invoke `bootstrapping-project`. It:
 1. Runs `discover-context.sh` to see what's already there
 2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
 3. Creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs
-4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sdd/config.yml`
+4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
-7. Adds `.sdd/local.yml` to `.gitignore` if not already there
+7. Adds `.sublime-skills/local.yml` to `.gitignore` if not already there
 8. Commits everything in one commit
 
 The whole thing is **safe to re-run**. Subsequent runs let you extend convention files you previously skipped, refine ones you created, or replace stale ones — without overwriting anything you didn't approve.
@@ -33,10 +33,10 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 | 1.5 | Build progress todo list | Coordinator uses harness todo tool | No |
 | 2 | Per-file loop (×5) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
 | 3 | Create `docs/adr/`, `docs/specs/`, `docs/handoff/` | Coordinator (`mkdir` + stub READMEs) | Yes |
-| 4 | Copy config scaffold | Coordinator (`cp` from scaffolds/) | Yes (`.sdd/config.yml`) |
-| 5 | Edit config to reflect skipped files | Coordinator (Edit tool) | Yes (modifies `.sdd/config.yml`) |
+| 4 | Copy config scaffold | Coordinator (`cp` from scaffolds/) | Yes (`.sublime-skills/config.yml`) |
+| 5 | Edit config to reflect skipped files | Coordinator (Edit tool) | Yes (modifies `.sublime-skills/config.yml`) |
 | 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
-| 7 | `.gitignore` housekeeping | Coordinator (append `.sdd/local.yml` entry if missing) | Possibly (`.gitignore`) |
+| 7 | `.gitignore` housekeeping | Coordinator (append `.sublime-skills/local.yml` entry if missing) | Possibly (`.gitignore`) |
 | 8 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
 | 9 | Report | Coordinator (final summary message) | No |
 
@@ -48,7 +48,7 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 
 `bootstrapping-project` is the coordinator. Its job is the surrounding workflow (detection, mode choice, config, commit) — not the per-artifact discussion. Each discovering-X skill owns that.
 
-When invoked, the coordinator announces itself ("I'm using the bootstrapping-project skill to set up SDD for this project") and proceeds to Step 1. If `.sdd/config.yml` already exists, the coordinator treats this as a re-run (see [Re-running bootstrap](#re-running-bootstrap)).
+When invoked, the coordinator announces itself ("I'm using the bootstrapping-project skill to set up SDD for this project") and proceeds to Step 1. If `.sublime-skills/config.yml` already exists, the coordinator treats this as a re-run (see [Re-running bootstrap](#re-running-bootstrap)).
 
 ---
 
@@ -75,7 +75,7 @@ Before the per-file loop, the coordinator builds a visible todo list via the har
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
 6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
-7. Copy config scaffold to `.sdd/config.yml`
+7. Copy config scaffold to `.sublime-skills/config.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
 10. `.gitignore` housekeeping
@@ -224,7 +224,7 @@ For each file, four choices. Here's how to pick.
 - The file exists and you're happy with it. Leave it alone.
 - You're going to write/edit the file by hand and don't want the skill's involvement.
 
-When you Skip, the coordinator nulls the corresponding `context.<name>_path` in `.sdd/config.yml`. The SDD pipeline gracefully handles `null` — it just doesn't read the file. You can fill it in later by re-running the bootstrap.
+When you Skip, the coordinator nulls the corresponding `context.<name>_path` in `.sublime-skills/config.yml`. The SDD pipeline gracefully handles `null` — it just doesn't read the file. You can fill it in later by re-running the bootstrap.
 
 ### When to choose **Create**
 
@@ -289,21 +289,21 @@ If a README already exists with the same content, it's skipped. If a README exis
 ## Step 4: Copy config scaffold
 
 ```bash
-mkdir -p .sdd
-cp ./project-bootstrap/scaffolds/config.yml .sdd/config.yml
+mkdir -p .sublime-skills
+cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
 ```
 
-This is a **verbatim copy.** The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sdd/config.yml` (after the bootstrap, in Step 5 or later).
+This is a **verbatim copy.** The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml` (after the bootstrap, in Step 5 or later).
 
 The scaffold contains the full config schema with all defaults — see [state-and-config.md § Full schema with defaults](sdd/state-and-config.md#full-schema-with-defaults).
 
-If `.sdd/config.yml` already exists (re-run case), Step 4 is skipped. The user already has a config; the bootstrap respects it.
+If `.sublime-skills/config.yml` already exists (re-run case), Step 4 is skipped. The user already has a config; the bootstrap respects it.
 
 ---
 
 ## Step 5: Edit config to reflect reality
 
-For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): the coordinator sets the corresponding `context.<name>_path` in `.sdd/config.yml` to `null` via the Edit tool.
+For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): the coordinator sets the corresponding `context.<name>_path` in `.sublime-skills/config.yml` to `null` via the Edit tool.
 
 For each convention file **created/extended/replaced** at a non-default path: the coordinator updates the corresponding key to the actual path.
 
@@ -326,13 +326,13 @@ to:
 ## Step 6: Validate
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh .sdd/config.yml
+./spec-driven-development/scripts/validate-config.sh .sublime-skills/config.yml
 ```
 
 | Exit code | Meaning | Coordinator action |
 |---|---|---|
 | `0` | PASS — config is valid | Proceed to Step 7 |
-| `1` | FAIL — at least one issue | Read findings from stderr; fix each (edit `.sdd/config.yml` or fix the underlying path); re-run. Cap: 3 attempts. After 3, halt and surface to user. |
+| `1` | FAIL — at least one issue | Read findings from stderr; fix each (edit `.sublime-skills/config.yml` or fix the underlying path); re-run. Cap: 3 attempts. After 3, halt and surface to user. |
 | `2` | Config file not found | Shouldn't happen — Step 4 just copied it. Halt as a serious error. |
 | `3` | Usage error | Halt — coordinator bug. |
 
@@ -348,16 +348,16 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` housekeeping
 
-If `.sdd/local.yml` is NOT already in `.gitignore`, the coordinator appends:
+If `.sublime-skills/local.yml` is NOT already in `.gitignore`, the coordinator appends:
 
 ```
-# SDD per-developer overrides (committed config lives at .sdd/config.yml)
-.sdd/local.yml
+# SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)
+.sublime-skills/local.yml
 ```
 
-`.sdd/config.yml` itself **is** committed — it's project-wide config that everyone needs.
+`.sublime-skills/config.yml` itself **is** committed — it's project-wide config that everyone needs.
 
-`.sdd/local.yml` is for per-developer overrides (e.g., one team member uses worktrees, others don't; one wants `finishing.mode: pr`, others `merge-local`). The coordinator doesn't create this file; it just ensures the gitignore is ready for when a developer does create one.
+`.sublime-skills/local.yml` is for per-developer overrides (e.g., one team member uses worktrees, others don't; one wants `finishing.mode: pr`, others `merge-local`). The coordinator doesn't create this file; it just ensures the gitignore is ready for when a developer does create one.
 
 Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline. No gitignore entry needed.
 
@@ -368,7 +368,7 @@ Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SD
 ```bash
 git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         docs/adr/ docs/specs/ docs/handoff/ \
-        .sdd/config.yml [.gitignore]
+        .sublime-skills/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
 ```
 
@@ -400,7 +400,7 @@ Directories:
 - docs/handoff/ (with README)
 
 Config:
-- .sdd/config.yml created and validated (PASS)
+- .sublime-skills/config.yml created and validated (PASS)
 - Skipped files have their context.<name>_path set to null
 
 Next steps:
@@ -416,7 +416,7 @@ The bootstrap is safe to invoke repeatedly. It never destroys user-authored cont
 
 On a re-run:
 
-- **Detect (Step 1)** picks up the existing `.sdd/config.yml` and uses its `context.<name>_path` values (not the defaults). Files at non-default paths are detected at their actual locations.
+- **Detect (Step 1)** picks up the existing `.sublime-skills/config.yml` and uses its `context.<name>_path` values (not the defaults). Files at non-default paths are detected at their actual locations.
 - **Per-file loop (Step 2)** still walks each convention file, but for files that exist, the dialog is Skip / Extend / Replace (no Create option). For files that were previously skipped (path is `null` in config), the ask resets to Create / Skip.
 - **Copy scaffold (Step 4)** is skipped — the user already has a config. The coordinator does NOT regenerate or overwrite it.
 - **Edit config (Step 5)** still runs. Any newly-created file in this re-run gets its `<name>_path` set; any newly-skipped file gets nulled.
@@ -429,14 +429,14 @@ Common re-run scenarios:
 |---|---|
 | You skipped a file and now want it | Create that file; Skip the others |
 | The codebase changed significantly | Extend (or Replace) the affected files; Skip the others |
-| You moved a convention file to a non-default path | Edit `.sdd/config.yml` first, then re-run; the bootstrap picks up the new path |
+| You moved a convention file to a non-default path | Edit `.sublime-skills/config.yml` first, then re-run; the bootstrap picks up the new path |
 | You want to add the DESIGN.md slot that the team's UI work now justifies | Create design; Skip the others |
 
 ---
 
 ## Bootstrap output → SDD pipeline integration
 
-The bootstrap's job ends where SDD's begins. Once `.sdd/config.yml` is valid and committed, you can invoke `sdd-coordinator` and start features.
+The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` is valid and committed, you can invoke `sdd-coordinator` and start features.
 
 The SDD pipeline reads the bootstrap's output at several points:
 
@@ -457,7 +457,7 @@ Bootstrap is not always worth running.
 
 - You're prototyping a throwaway repo and won't use SDD on it.
 - Your project is so small (single file, ~50 lines) that a constitution / architecture / glossary / domain model would all be longer than the code.
-- You only need SDD's plan-and-implement features without the convention-file scaffolding. In that case, manually create `.sdd/config.yml` with all `context.*_path` set to `null` and you're done.
+- You only need SDD's plan-and-implement features without the convention-file scaffolding. In that case, manually create `.sublime-skills/config.yml` with all `context.*_path` set to `null` and you're done.
 
 **Do bootstrap when:**
 

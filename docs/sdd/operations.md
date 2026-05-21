@@ -454,7 +454,7 @@ If two handoffs are generated on the same date with the same short name (rare), 
 ### Branch names
 
 - Pattern: `feat/<short-name>` for features, `fix/<short-name>` for bug fixes
-- Configurable via `.sdd/config.yml` → `preflight.branch_pattern`
+- Configurable via `.sublime-skills/config.yml` → `preflight.branch_pattern`
 
 The short name matches the spec directory's short name (after the spec is created in Stage 2). At Stage 0 (preflight), the user may give a working name that gets refined later — that's OK.
 

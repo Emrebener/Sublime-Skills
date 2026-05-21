@@ -128,7 +128,7 @@ Two reviewers, with two different prompt templates, with explicit "stay in your 
 
 Two alternatives we considered:
 - **Gitignored state:** state file is local-only, doesn't get committed.
-- **External state:** state in a `.sdd-state/` directory or a database.
+- **External state:** state in a `.sublime-skills-state/` directory or a database.
 
 We chose committed state because:
 
@@ -250,7 +250,7 @@ The `testing-implementation` skill repeats this rule in five different places. T
 
 `finishing-sdd` has 4 options (merge / PR / keep / discard). Users typically have a strong preference: they always create a PR, or they always merge locally, or they always leave the branch. Interactive prompts on every run get tedious.
 
-The config (`.sdd/config.yml` → `finishing.mode`) lets users short-circuit:
+The config (`.sublime-skills/config.yml` → `finishing.mode`) lets users short-circuit:
 - `prompt` (default) — interactive
 - `leave` — always leave the branch
 - `merge-local` — always merge into base

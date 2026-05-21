@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reads a single scalar value from .sdd/config.yml at <block>.<key>.
+# Reads a single scalar value from .sublime-skills/config.yml at <block>.<key>.
 #
 # Usage:
 #   ./scripts/get-config-value.sh <block> <key> [config-path]
@@ -34,7 +34,7 @@ CONFIG="${3:-}"
 
 if [ -z "$CONFIG" ]; then
   REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  CONFIG="$REPO_ROOT/.sdd/config.yml"
+  CONFIG="$REPO_ROOT/.sublime-skills/config.yml"
 fi
 
 if [ ! -f "$CONFIG" ]; then

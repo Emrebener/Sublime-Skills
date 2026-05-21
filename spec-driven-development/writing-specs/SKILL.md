@@ -30,7 +30,7 @@ Render the agreed understanding from the discovery stage into a structured spec 
 
 ## Step 1: Resolve Feature Directory
 
-Default storage layout (overridable via `.sdd/config.yml` → `paths.spec_dir`):
+Default storage layout (overridable via `.sublime-skills/config.yml` → `paths.spec_dir`):
 
 ```
 docs/specs/NNN-<short-name>/

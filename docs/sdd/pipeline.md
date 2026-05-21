@@ -61,7 +61,7 @@ After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 
 ## Stage 0 — Preflight
 
 **Skill:** `preflight-checks` (inline)
-**Output:** validated `.sdd/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start), optional worktree.
+**Output:** validated `.sublime-skills/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start), optional worktree.
 
 Stage 0 is the **single home for every pre-pipeline halt check**. It runs in this order:
 
@@ -77,8 +77,8 @@ The decision matrix (after config + dirty/detached checks pass):
 
 | Condition | Result |
 |---|---|
-| `.sdd/config.yml` missing | **ABORT** with `config_missing` — direct user to `bootstrapping-project` |
-| `.sdd/config.yml` invalid (`validate-config.sh` exit 1) | **ABORT** with `config_invalid` — surface validator output verbatim |
+| `.sublime-skills/config.yml` missing | **ABORT** with `config_missing` — direct user to `bootstrapping-project` |
+| `.sublime-skills/config.yml` invalid (`validate-config.sh` exit 1) | **ABORT** with `config_invalid` — surface validator output verbatim |
 | Detached HEAD + active state file present | **ABORT** with `detached_head_with_state` — too ambiguous to route |
 | Dirty working tree | **ABORT** — tell user to commit/stash/discard manually, then re-invoke |
 | Clean tree + on `main` or `master` | Create new feature branch `feat/<short-name>` (or `fix/...` for bug fixes), proceed |
@@ -89,7 +89,7 @@ The decision matrix (after config + dirty/detached checks pass):
 
 There is no auto-commit, no stash, no checkout, no inline config repair. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
 
-If a worktree is configured (`.sdd/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 16.
+If a worktree is configured (`.sublime-skills/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 16.
 
 **State file does not exist yet.** Preflight outputs (branch, worktree path, original branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
 
@@ -622,7 +622,7 @@ Three outcomes:
 
 2. **Detect environment** (normal repo / linked worktree / detached HEAD).
 
-3. **Determine mode** from `.sdd/config.yml` → `finishing.mode`:
+3. **Determine mode** from `.sublime-skills/config.yml` → `finishing.mode`:
    - `prompt` (default): interactive 4-option menu
    - `leave`: skip menu; leave branch as-is
    - `merge-local`: skip menu; merge into base branch

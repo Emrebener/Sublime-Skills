@@ -1,6 +1,6 @@
 # State and Configuration
 
-This document covers two things that aren't artifacts in the user-facing sense but are critical to the pipeline working: the per-feature **state file** that tracks pipeline progress and enables resumption, and the per-repo `.sdd/config.yml` **configuration file** that lets users override defaults.
+This document covers two things that aren't artifacts in the user-facing sense but are critical to the pipeline working: the per-feature **state file** that tracks pipeline progress and enables resumption, and the per-repo `.sublime-skills/config.yml` **configuration file** that lets users override defaults.
 
 ---
 
@@ -139,15 +139,15 @@ Provided git history is intact, cross-machine resume works without ceremony.
 
 ---
 
-## Config file (`.sdd/config.yml`)
+## Config file (`.sublime-skills/config.yml`)
 
 ### What it is
 
-A YAML file at `.sdd/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
+A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
 **The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `scripts/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
-The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sdd/config.yml`.
+The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
 
 ### Full schema with defaults
 
@@ -252,9 +252,9 @@ finishing:
 
 Each skill that depends on config reads it explicitly. The pattern is:
 
-1. Read `.sdd/config.yml` (the discovery script and `get-config-value.sh` both consult it; skills that need list-typed or multi-line values parse the YAML themselves).
+1. Read `.sublime-skills/config.yml` (the discovery script and `get-config-value.sh` both consult it; skills that need list-typed or multi-line values parse the YAML themselves).
 2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent, that's the answer.
-3. If `.sdd/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
+3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
 
 The coordinator caches the config once at session start (after `inspecting-state`) and passes relevant values into each skill dispatch.
 

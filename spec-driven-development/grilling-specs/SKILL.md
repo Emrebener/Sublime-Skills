@@ -74,7 +74,7 @@ Drop questions where:
 - A reasonable default would be obvious to any implementer
 - It's a plan-level detail (file paths, function names) — those belong in the plan stage
 
-**Cap:** default 10. Override via `.sdd/config.yml` → `grill.question_cap`. Read it via the scalar helper:
+**Cap:** default 10. Override via `.sublime-skills/config.yml` → `grill.question_cap`. Read it via the scalar helper:
 
 ```bash
 CAP=$(./spec-driven-development/scripts/get-config-value.sh grill question_cap)

@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sdd/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -34,9 +34,9 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 - `discovering-constitution` / `discovering-architecture` / `discovering-glossary` / `discovering-domain-model` / `discovering-design` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched)
 
 **Shared scripts:**
-- `discover-context.sh` — find project convention files; reads paths from `.sdd/config.yml`
-- `get-config-value.sh` — read a single scalar value from `.sdd/config.yml`
-- `validate-config.sh` — validate `.sdd/config.yml` structure + path resolution (used by both bootstrap and SDD coordinator)
+- `discover-context.sh` — find project convention files; reads paths from `.sublime-skills/config.yml`
+- `get-config-value.sh` — read a single scalar value from `.sublime-skills/config.yml`
+- `validate-config.sh` — validate `.sublime-skills/config.yml` structure + path resolution (used by both bootstrap and SDD coordinator)
 - `validate-spec.sh` — schema-check a spec.md (incl. duplicate FR/SC ID detection)
 - `validate-plan.sh` — schema-check a plan.md (incl. duplicate T### detection)
 - `validate-handoff.sh` — schema-check a handoff doc (incl. unredacted-secret patterns)
@@ -53,7 +53,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 **Loaded:** by the user (via the Skill tool) at the start of every SDD session
 **Stage:** drives all 16 stages
 
-**Purpose:** The single entry point. Reads `.sdd/config.yml`, runs `inspecting-state`, decides whether to start fresh or resume, then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
+**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, runs `inspecting-state`, decides whether to start fresh or resume, then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
 
 **Key rules:**
 - ALWAYS runs `inspecting-state` first on every invocation
@@ -62,7 +62,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 - Never tests the feature itself when `testing-implementation` reports MCP_UNAVAILABLE
 - State updates are atomic and happen at stage boundaries only
 
-**Reads:** `.sdd/config.yml`, output of `inspecting-state`, every artifact the pipeline produces
+**Reads:** `.sublime-skills/config.yml`, output of `inspecting-state`, every artifact the pipeline produces
 **Writes:** state file (atomic), commits at stage transitions, ADR status flips on approval
 
 **Common mistakes the skill warns against:**
@@ -136,7 +136,7 @@ The "Branch match with current" field per run lets the coordinator route correct
 
 **Key rules:**
 - No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout` to escape an inappropriate branch. Just abort.
-- Branch naming default: `feat/<short-name>` (or `fix/<short-name>` for bug fixes). Overridable via `.sdd/config.yml` → `preflight.branch_pattern`.
+- Branch naming default: `feat/<short-name>` (or `fix/<short-name>` for bug fixes). Overridable via `.sublime-skills/config.yml` → `preflight.branch_pattern`.
 
 **Reads:** git state
 **Writes:** at most one new branch via `git checkout -b`; possibly a worktree
@@ -710,7 +710,7 @@ Two-pass scan: keep going until no new redactions surface.
 **Inputs the dispatcher provides:** `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS`, `MEMORY_FILE_PATH` (resolved from config or auto-detect; null = skip), `CHARACTER_LIMIT` (soft cap; default 40000), `EXISTING_CONTENT` (current file text).
 
 **Path resolution** (in coordinator before dispatch):
-1. `.sdd/config.yml → memory_file.path` if set (absolute or repo-relative)
+1. `.sublime-skills/config.yml → memory_file.path` if set (absolute or repo-relative)
 2. Auto-detect at repo root: `CLAUDE.md` → `AGENTS.md` → `GEMINI.md` → `.agents.md`; first match wins
 3. None found → skip (no failure)
 
@@ -761,7 +761,7 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 
 **Pre-finish verification:** run the project test suite one more time. If failures: halt; user must resolve or explicitly override.
 
-**Mode selection** (`.sdd/config.yml` → `finishing.mode`):
+**Mode selection** (`.sublime-skills/config.yml` → `finishing.mode`):
 - `prompt` (default): interactive menu
 - `leave`: no menu; leave branch as-is
 - `merge-local`: no menu; merge into base
@@ -796,20 +796,20 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 **Loaded:** manually by the user (NOT by `sdd-coordinator`)
 **Stage:** N/A — one-time per-project setup; safe to re-run
 
-**Purpose:** Walk the user through each convention file with deep per-file project analysis, then scaffold `.sdd/config.yml` and the supporting directories.
+**Purpose:** Walk the user through each convention file with deep per-file project analysis, then scaffold `.sublime-skills/config.yml` and the supporting directories.
 
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
 2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline via the Skill tool. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
 3. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs.
-4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sdd/config.yml`.
+4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
 6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
-7. Ensure `.sdd/local.yml` is gitignored.
+7. Ensure `.sublime-skills/local.yml` is gitignored.
 8. Single commit `chore: initialize SDD project context`.
 
 **Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
-**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs|handoff/README.md` stubs; `.sdd/config.yml`; possibly `.gitignore` entry; one commit.
+**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs|handoff/README.md` stubs; `.sublime-skills/config.yml`; possibly `.gitignore` entry; one commit.
 
 ### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
 
@@ -850,7 +850,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 **Location:** `spec-driven-development/scripts/discover-context.sh`
 **Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config (or `null` when a path is unset or the file doesn't exist on disk).
 
-**Source of truth:** `.sdd/config.yml`. There is **no auto-fallback search** — every path is read straight from config. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
+**Source of truth:** `.sublime-skills/config.yml`. There is **no auto-fallback search** — every path is read straight from config. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
 
 | JSON field | Config key | Notes |
 |---|---|---|
@@ -864,7 +864,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 | `readme` | (hardcoded `README.md`) | one universal location |
 | `adrs` | — | all `.md` files at `<adr_dir>/` |
 | `active_states` | — | all `state.json` at `<spec_dir>/*/state.json` |
-| `config` | — | path to `.sdd/config.yml` if present |
+| `config` | — | path to `.sublime-skills/config.yml` if present |
 
 **YAML extractor:** minimal awk-based, handles flat `block: \n  key: value` only. Sufficient for the singular scalars in `paths:` and `context:`. List-typed or multi-line config values (e.g., `finishing.pr_body_template`) are parsed by individual skills that need them.
 
@@ -873,7 +873,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ```json
 {
   "repo_root": "/abs/path",
-  "config": ".sdd/config.yml" | null,
+  "config": ".sublime-skills/config.yml" | null,
   "constitution": "docs/constitution.md" | null,
   "architecture": "docs/ARCHITECTURE.md" | null,
   "glossary": "docs/GLOSSARY.md" | null,
@@ -890,9 +890,9 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ### validate-config.sh
 
 **Location:** `spec-driven-development/scripts/validate-config.sh`
-**Purpose:** Validate `.sdd/config.yml` structurally and semantically. Used by `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
+**Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically. Used by `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
 
-**Usage:** `./scripts/validate-config.sh [config-path]` (default: `<repo-root>/.sdd/config.yml`)
+**Usage:** `./scripts/validate-config.sh [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
 
 **Checks:**
 - YAML parses (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner)
@@ -915,7 +915,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ### get-config-value.sh
 
 **Location:** `spec-driven-development/scripts/get-config-value.sh`
-**Purpose:** Read a single scalar value from `.sdd/config.yml`. Intended for skills that need one or two config values and don't want to inline YAML parsing.
+**Purpose:** Read a single scalar value from `.sublime-skills/config.yml`. Intended for skills that need one or two config values and don't want to inline YAML parsing.
 
 **Usage:** `./scripts/get-config-value.sh <block> <key> [config-path]`
 
