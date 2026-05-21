@@ -16,11 +16,11 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 ## Hard Gates
 
 - ALWAYS read state first on every invocation (Step 1 below)
-- Do NOT proceed without a valid `.sdd/config.yml` — halt and direct user to `bootstrapping-project` (Step 2 below)
+- Do NOT perform halt checks (config validation, git workspace, branch state, detached HEAD) inline — that's `preflight-checks`'s job. Stage 0 owns every pre-pipeline halt.
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
 - ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the pipeline. Build the initial list right after the resume-check (Step 3 below): one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
+- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the pipeline. Build the initial list right after the resume-check (Step 2 below), in Step 3: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
@@ -55,35 +55,9 @@ This is the very first thing to do, every time the coordinator is invoked. Skipp
 
 Load `inspecting-state` via the Skill tool. It runs `scripts/discover-context.sh`, reads every active state file, validates against `scripts/state-schema.json`, and reports current branch + per-state branch match + pre-state interruption signals. **You do not perform state detection inline.**
 
-### Step 2: Load Config
+### Step 2: Decide Based on the Report
 
-`.sdd/config.yml` is **required and must be valid** — the framework reads every path from it (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.). It is not optional.
-
-Run the validator before loading:
-
-```bash
-./spec-driven-development/scripts/validate-config.sh
-```
-
-| Exit code | Meaning | Action |
-|---|---|---|
-| `0` | PASS | Continue — load the config for use throughout the run |
-| `1` | FAIL (config has issues) | HALT — surface the validator's findings to the user; tell them to run `bootstrapping-project` to fix |
-| `2` | Config file missing | HALT — tell the user the project hasn't been bootstrapped; direct to `bootstrapping-project` |
-
-**Halt message template (any non-zero exit):**
-
-> "`.sdd/config.yml` is missing or invalid:
->
-> <validator output verbatim>
->
-> Run the `bootstrapping-project` skill to scaffold (or fix) the config, then re-invoke this coordinator."
-
-Do not attempt to proceed with defaults; do not run any pipeline stage. Returning the user to bootstrap is the correct outcome.
-
-Once the validator passes, load the config. For scalar lookups, use `scripts/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing). For lists / multi-line strings, parse YAML directly.
-
-### Step 3: Decide Based on the Report
+Resume vs fresh-start routing — purely interactive decisions, no halts. Halts on bad config / dirty workspace / detached HEAD / etc. happen later, inside Stage 0 (`preflight-checks`).
 
 | Report says | Coordinator action |
 |---|---|
@@ -98,9 +72,11 @@ Once the validator passes, load the config. For scalar lookups, use `scripts/get
 **Routing rules:**
 - The coordinator NEVER `git checkout`s to switch branches on its own. If user picks "switch and resume," instruct them to switch and re-invoke (or with explicit consent run the checkout this session).
 - "Match" = exact string equality between `git branch --show-current` and `state.branch`.
-- Detached HEAD with any active state → ABORT (too ambiguous to route).
+- Detached HEAD with active state is handled by `preflight-checks` — don't second-guess it here.
 
-### Step 4: Build the Todo List
+After routing, pass the inspecting-state report to `preflight-checks` (Stage 0) so it can apply its own checks against the decision (e.g., confirming the resume branch matches).
+
+### Step 3: Build the Todo List
 
 After the resume routing decision and BEFORE running any stage, build the progress todo list using the harness's todo/task tool. One todo per stage you're about to run:
 
@@ -161,7 +137,11 @@ If a stage fails (subagent returns Issues Found, validator fails, etc.): handle 
 
 ### Stage 0 — Preflight
 
-Load `preflight-checks`. Follow it. State file does NOT yet exist; hold preflight outcomes (branch, worktree path, original branch) in-memory for `writing-specs` to persist in Stage 2.
+Load `preflight-checks`. Pass it the `inspecting-state` report from Step 1. It validates `.sdd/config.yml` first (HALT-on-fail with reason `config_missing` or `config_invalid`), then runs all remaining pre-pipeline halt checks (dirty workspace, detached HEAD with state, protected/ambiguous branch), then handles branch creation and optional worktree. State file does NOT yet exist; hold preflight outcomes (branch, worktree path, original branch) in-memory for `writing-specs` to persist in Stage 2.
+
+After preflight returns ready, the config is known-valid and you can use `scripts/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
+
+On any abort (`config_missing` / `config_invalid` / `dirty_working_tree` / `detached_head_with_state` / `protected_branch` / `ambiguous_branch` / `worktree_creation_failed` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
 
 ### Stage 1 — Discovering Requirements
 

@@ -17,8 +17,8 @@
 #   - Final summary line on stdout: `validate-config: PASS` or `validate-config: FAIL (N issues)`.
 #
 # Used by:
-#   - project-bootstrap/bootstrapping-project (fix-and-retry loop)
-#   - spec-driven-development/sdd-coordinator (Step 2 halt check)
+#   - project-bootstrap/bootstrapping-project (Step 6 fix-and-retry loop)
+#   - spec-driven-development/preflight-checks (Stage 0; Step 1 of its Checklist; HALT-on-fail)
 #   - future audit skill
 #
 # Implementation notes:

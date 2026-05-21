@@ -145,7 +145,7 @@ Provided git history is intact, cross-machine resume works without ceremony.
 
 A YAML file at `.sdd/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
-**The config is required, not optional, and must be valid.** The coordinator runs `scripts/validate-config.sh` at Step 2 and halts on any non-zero exit (missing file, malformed YAML, orphan context path). The framework reads every path from this file (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `scripts/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
 The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sdd/config.yml`.
 

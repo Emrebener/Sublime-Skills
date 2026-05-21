@@ -34,39 +34,52 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-Every invocation of `sdd-coordinator` begins with the same two actions, regardless of whether this is a fresh run or a resume:
+Every invocation of `sdd-coordinator` begins with the same three actions, regardless of whether this is a fresh run or a resume. Each step has one dedicated job — **state lookup**, then **routing**, then **todo list**. All halt checks (config validation, dirty workspace, detached HEAD, branch state) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
 
-1. **Load `.sdd/config.yml`** — **required and validated**. The coordinator runs `scripts/validate-config.sh` first. If it returns non-zero (missing file, malformed YAML, orphan context path, etc.), HALT and direct the user to run `bootstrapping-project` (in the `project-bootstrap/` family) to scaffold or fix the config. Surface the validator's findings to the user verbatim — they're more actionable than a generic "missing config" message. The framework reads every path from this file; running without a valid config isn't a degraded experience, it's an unsupported state. Once the validator passes, cache the values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) for use throughout the rest of the run. For scalar lookups, the coordinator can shell out to `scripts/get-config-value.sh <block> <key>`.
+1. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (resolved from `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere. No halts; just a report.
 
-2. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (resolved from `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere.
+2. **Decide routing based on the report** — interactive decisions only (resume vs fresh start, which active run to resume, repair vs discard malformed state). The coordinator does NOT halt here on bad config / dirty workspace / detached HEAD — those land in Stage 0.
 
-The coordinator's decision tree depends on BOTH the report AND the current branch's relationship to the active state(s):
+   | Report says | Coordinator does |
+   |---|---|
+   | 0 active runs + on `main`/`master` + clean tree | Confirm fresh-start intent, then proceed to Stage 0 |
+   | 0 active runs + pre-state interruption flagged | Ask user: resume from Stage 1, start fresh, or abandon. Never silently pick. |
+   | 1 active run + current branch matches `state.branch` | Confirm `"Resuming feature X at stage Y"`. On yes, jump to the appropriate stage. |
+   | 1 active run + current branch does NOT match `state.branch` | **Do NOT silently resume.** Ask: switch to the state's branch and resume, start a new feature on this branch (state file stays), or abort. Never auto-checkout branches. |
+   | 2+ active runs + current branch matches one | Offer to resume the matching one, or pick a different one, or start fresh on this branch. |
+   | 2+ active runs + current branch matches none | List them with their branches; ask which to resume or start fresh on the current branch. |
+   | Malformed state file | Show the issues. Offer: repair (user-guided), discard, or abort. |
 
-| Report says | Coordinator does |
-|---|---|
-| 0 active runs + on `main`/`master` + clean tree | Confirm fresh-start intent, then proceed to Stage 0 |
-| 0 active runs + pre-state interruption flagged | Ask user: resume from Stage 1, start fresh, or abandon. Never silently pick. |
-| 1 active run + current branch matches `state.branch` | Confirm `"Resuming feature X at stage Y"`. On yes, jump to the appropriate stage. |
-| 1 active run + current branch does NOT match `state.branch` | **Do NOT silently resume.** Ask: switch to the state's branch and resume, start a new feature on this branch (state file stays), or abort. Never auto-checkout branches. |
-| 2+ active runs + current branch matches one | Offer to resume the matching one, or pick a different one, or start fresh on this branch. |
-| 2+ active runs + current branch matches none | List them with their branches; ask which to resume or start fresh on the current branch. |
-| Malformed state file | Show the issues. Offer: repair (user-guided), discard, or abort. |
+   **Rules across all routing:** the coordinator NEVER runs `git checkout` to switch branches on its own — if the user picks "switch and resume," it instructs them to switch and re-invoke (or, with explicit consent in this session, runs the checkout). Detached HEAD with active state aborts inside Stage 0 (`preflight-checks`), not here.
 
-**Rules across all routing:** the coordinator NEVER runs `git checkout` to switch branches on its own — if the user picks "switch and resume," it instructs them to switch and re-invoke (or, with explicit consent in this session, runs the checkout). Detached HEAD with any active state aborts (too ambiguous to route).
+3. **Build the progress todo list** for the user's view.
 
-After this entry routing, the coordinator proceeds into the pipeline.
+After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), dirty workspace, detached HEAD with active state, protected branch, ambiguous branch — plus branch creation and optional worktree setup. After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) via `scripts/get-config-value.sh` for use throughout the rest of the run.
 
 ---
 
 ## Stage 0 — Preflight
 
 **Skill:** `preflight-checks` (inline)
-**Output:** verifies a clean working tree, ensures we're on an appropriate branch.
+**Output:** validated `.sdd/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start), optional worktree.
 
-The skill checks `git status --porcelain` and `git branch --show-current`. The decision matrix is:
+Stage 0 is the **single home for every pre-pipeline halt check**. It runs in this order:
+
+1. `validate-config.sh` — config presence and validity
+2. `git status --porcelain` + `git branch --show-current` — workspace + branch state
+3. Detached HEAD with active state file — abort if both true
+4. Dirty working tree — abort if any output
+5. Branch routing — based on which branch we're on (decision matrix below)
+6. Branch creation (fresh start) or reuse (resume)
+7. Optional worktree creation (only if `preflight.use_worktree: true`)
+
+The decision matrix (after config + dirty/detached checks pass):
 
 | Condition | Result |
 |---|---|
+| `.sdd/config.yml` missing | **ABORT** with `config_missing` — direct user to `bootstrapping-project` |
+| `.sdd/config.yml` invalid (`validate-config.sh` exit 1) | **ABORT** with `config_invalid` — surface validator output verbatim |
+| Detached HEAD + active state file present | **ABORT** with `detached_head_with_state` — too ambiguous to route |
 | Dirty working tree | **ABORT** — tell user to commit/stash/discard manually, then re-invoke |
 | Clean tree + on `main` or `master` | Create new feature branch `feat/<short-name>` (or `fix/...` for bug fixes), proceed |
 | Clean tree + on a feature-like branch + matching state file exists | Resume on that branch |
@@ -74,7 +87,7 @@ The skill checks `git status --porcelain` and `git branch --show-current`. The d
 | Clean tree + on `develop`/`release/*`/`hotfix/*` | **ABORT** — protected branches; user switches first |
 | Clean tree + on any other unrecognized branch | **ABORT** — user switches first |
 
-There is no auto-commit, no stash, no checkout. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
+There is no auto-commit, no stash, no checkout, no inline config repair. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
 
 If a worktree is configured (`.sdd/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 16.
 

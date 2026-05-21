@@ -440,7 +440,7 @@ The bootstrap's job ends where SDD's begins. Once `.sdd/config.yml` is valid and
 
 The SDD pipeline reads the bootstrap's output at several points:
 
-- **`sdd-coordinator` entry**: loads `.sdd/config.yml` and runs `validate-config.sh` first. If validation fails (orphan path, unknown key, missing required field), the coordinator halts and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
+- **`sdd-coordinator` entry**: invokes `inspecting-state`, decides resume vs fresh-start routing, then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
 - **`discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
 - **`reviewing-specs` and `reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`writing-specs` and `writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.

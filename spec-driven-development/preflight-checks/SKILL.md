@@ -1,15 +1,17 @@
 ---
 name: preflight-checks
-description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. Ensures git state is clean and the working branch is dedicated to the feature.
+description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. Validates .sdd/config.yml, ensures git state is clean, and confirms the working branch is dedicated to the feature. This skill is the single home for every pre-pipeline halt check.
 ---
 
 # Preflight Checks
 
 ## Overview
 
-Verify the repo is in a fit state to start an SDD pipeline run: clean working tree, on an appropriate branch. **This skill is abort-only for problem states** — it never cleans up dirty files, never auto-switches branches, never modifies user data. It does take exactly two state-modifying actions when conditions allow: creating a new feature branch from `main`/`master`, and optionally creating a worktree.
+Verify the repo is in a fit state to start an SDD pipeline run: the `.sdd/config.yml` is present and valid, the working tree is clean, and we're on an appropriate branch (default branch about to fork, or a recognized SDD feature branch about to resume). **This skill is abort-only for problem states** — it never cleans up dirty files, never auto-switches branches, never modifies user data. It does take exactly two state-modifying actions when conditions allow: creating a new feature branch from `main`/`master`, and optionally creating a worktree.
 
 **Core principle:** Don't try to clean up the user's mess. Ask them to do it. Failing fast on a dirty state is safer than guessing at user intent.
+
+This skill is also **the single home for every pre-pipeline halt check.** The coordinator does NOT run config validation or git-state checks on its own — it runs `inspecting-state` (for the report), then loads this skill, then routes based on the report once this skill returns ready.
 
 **Announce at start:** "I'm using the preflight-checks skill to verify the repo state."
 
@@ -17,15 +19,19 @@ Verify the repo is in a fit state to start an SDD pipeline run: clean working tr
 
 ### What this skill ALWAYS ensures (or aborts trying)
 
-1. The working tree is clean (`git status --porcelain` is empty)
-2. The current branch is either the default branch (about to fork) or a recognized SDD feature branch (about to resume)
-3. After this skill returns, the coordinator can safely begin spec/plan work
+1. `.sdd/config.yml` is present and passes `validate-config.sh`
+2. The working tree is clean (`git status --porcelain` is empty)
+3. The current branch is either the default branch (about to fork) or a recognized SDD feature branch (about to resume); not `HEAD` detached with any active state file
+4. After this skill returns, the coordinator can safely begin spec/plan work and trust every path in `.sdd/config.yml`
 
 ### What this skill aborts on (fail-fast cases)
 
 | Abort case | Reason code | Trigger |
 |---|---|---|
+| Config missing | `config_missing` | `.sdd/config.yml` doesn't exist (`validate-config.sh` exit 2) |
+| Config invalid | `config_invalid` | `validate-config.sh` exit 1 (malformed YAML, orphan path, unknown key, etc.) |
 | Dirty working tree | `dirty_working_tree` | Any output from `git status --porcelain` |
+| Detached HEAD with active state | `detached_head_with_state` | `git branch --show-current` is empty AND `inspecting-state` reported ≥1 active state file |
 | Protected branch | `protected_branch` | On `develop`, `release/*`, `hotfix/*` |
 | Ambiguous branch | `ambiguous_branch` | On a non-default, non-protected branch with no matching SDD state file |
 | Worktree creation failure | `worktree_creation_failed` | `git worktree add` fails (only when `use_worktree: true`) |
@@ -60,13 +66,65 @@ This skill enforces the branch contract regardless of which case the coordinator
 
 The coordinator MUST track each of these as a todo item and complete them in order:
 
-1. Run `git status --porcelain` and `git branch --show-current`
-2. If dirty (any output from `git status --porcelain`): **ABORT** per the Dirty Files Protocol below
-3. Apply the Branch Protocol below — abort or proceed based on which branch we're on
-4. **If `.sdd/config.yml → preflight.use_worktree: true` AND we're on the base branch (fresh start case):** apply the Worktree Pre-Branch Setup below (commit `.worktrees/` to `.gitignore` on the base branch FIRST). This must happen BEFORE creating the feature branch — otherwise the gitignore commit lands on the feature branch and clutters every PR.
-5. Create a new feature branch if starting fresh, or reuse the existing one if resuming
-6. If `use_worktree: true`, apply the Worktree Protocol below to create the worktree
-7. Report ready — return preflight outcomes (branch name, original branch, worktree path) to the coordinator. The coordinator holds these in-memory and persists them when `writing-specs` initializes the state file in Stage 2.
+1. Run `validate-config.sh`. If exit code is non-zero: **ABORT** per the Config Validation Protocol below. Config must be valid before any other check — every path the rest of preflight (and the pipeline) reads comes from it.
+2. Run `git status --porcelain` and `git branch --show-current`
+3. If `git branch --show-current` is empty (detached HEAD) AND the inspecting-state report lists ≥1 active state file: **ABORT** per the Detached HEAD Protocol below
+4. If dirty (any output from `git status --porcelain`): **ABORT** per the Dirty Files Protocol below
+5. Apply the Branch Protocol below — abort or proceed based on which branch we're on
+6. **If `.sdd/config.yml → preflight.use_worktree: true` AND we're on the base branch (fresh start case):** apply the Worktree Pre-Branch Setup below (commit `.worktrees/` to `.gitignore` on the base branch FIRST). This must happen BEFORE creating the feature branch — otherwise the gitignore commit lands on the feature branch and clutters every PR.
+7. Create a new feature branch if starting fresh, or reuse the existing one if resuming
+8. If `use_worktree: true`, apply the Worktree Protocol below to create the worktree
+9. Report ready — return preflight outcomes (branch name, original branch, worktree path) to the coordinator. The coordinator holds these in-memory and persists them when `writing-specs` initializes the state file in Stage 2.
+
+## Config Validation Protocol
+
+Run the validator first, before any git inspection. The pipeline reads every path (spec_dir, adr_dir, handoff_dir, context files, memory file) from `.sdd/config.yml`; running without a valid config is unsupported, not a degraded mode.
+
+```bash
+./spec-driven-development/scripts/validate-config.sh
+```
+
+| Exit code | Meaning | Action |
+|---|---|---|
+| `0` | PASS | Continue to Step 2 (git status / branch check) |
+| `1` | FAIL — config has issues | **ABORT** with `config_invalid`. Show the validator's stderr verbatim. |
+| `2` | Config file missing | **ABORT** with `config_missing`. The project hasn't been bootstrapped for SDD. |
+
+**Halt message template (any non-zero exit):**
+
+```
+ABORTING preflight: `.sdd/config.yml` is missing or invalid.
+
+<validator output verbatim>
+
+Run the `bootstrapping-project` skill (in the `project-bootstrap/` family)
+to scaffold or fix the config, then re-invoke the SDD coordinator.
+```
+
+Do not attempt to proceed with defaults; do not try to repair config inline. Returning the user to bootstrap is the correct outcome.
+
+Return status `aborted_at_preflight` with the matching reason code (`config_invalid` or `config_missing`). The coordinator surfaces this and exits.
+
+## Detached HEAD Protocol
+
+If `git branch --show-current` returns an empty string, the working tree is in detached-HEAD state.
+
+- **Detached HEAD with NO active state files**: this is too ambiguous to route, but it's not catastrophic — the coordinator's higher-level routing decides whether to bail. Don't abort here unilaterally; just note "detached HEAD, no active states" in your report. The coordinator's routing logic decides.
+- **Detached HEAD with ≥1 active state file** (from the `inspecting-state` report the coordinator passed in): **ABORT** with `detached_head_with_state`. The user is in too unclear a state to safely resume — there's no branch to match against `state.branch`, no clean fresh-start path either.
+
+**Halt message template:**
+
+```
+ABORTING preflight: detached HEAD with active SDD state file(s) present.
+
+Active state file(s):
+  <list of state_path + state.branch from inspecting-state's report>
+
+SDD requires a named branch to route resume vs fresh-start decisions safely.
+Please switch to a branch (`git checkout <branch>`) and re-invoke the coordinator.
+```
+
+Return status `aborted_at_preflight` with reason `detached_head_with_state`.
 
 ## Dirty Files Protocol
 
@@ -205,7 +263,7 @@ Return to the coordinator with one of these reason codes:
 ```
 Preflight aborted.
 - Status: aborted_at_preflight
-- Reason: dirty_working_tree | ambiguous_branch | protected_branch | worktree_creation_failed | user_declined
+- Reason: config_missing | config_invalid | dirty_working_tree | detached_head_with_state | ambiguous_branch | protected_branch | worktree_creation_failed | user_declined
 - Message: <the message that was shown to the user>
 ```
 
@@ -215,6 +273,8 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 
 | Mistake | Fix |
 |---|---|
+| Skipping the config validation step | Mandatory and FIRST — every path the rest of preflight reads comes from `.sdd/config.yml`. |
+| Trying to repair `.sdd/config.yml` inline when it fails validation | Don't — abort with `config_invalid` and direct the user to `bootstrapping-project`. |
 | Trying to commit/stash/discard dirty files | Don't — abort. The user handles their own mess. |
 | Trying to "auto-switch" off an inappropriate branch | Don't — abort. The user picks the right starting branch. |
 | Trying to write a state file from this skill | The state file doesn't exist yet — only `writing-specs` initializes it. Return outcomes to the coordinator. |
@@ -226,6 +286,8 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 
 ## Red Flags
 
+- About to skip the config validation step → STOP; it's Step 1 of the Checklist, not optional
+- About to edit `.sdd/config.yml` to make the validator pass → STOP; abort and direct user to `bootstrapping-project`
 - About to run `git commit`, `git stash`, `git clean`, or `git restore` to "clean up" dirty files → STOP; abort instead
 - About to `git checkout <existing branch>` to "fix" an inappropriate starting branch → STOP; abort instead
 - About to try `Read`/`Write` on a state.json file → STOP; state file is initialized in Stage 2 (writing-specs), not here
