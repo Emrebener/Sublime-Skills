@@ -46,7 +46,7 @@ The alternative would be one giant coordinator skill that contains all phase log
 - **Coupling:** changes to phase logic require editing the coordinator, increasing risk of unintended side effects.
 - **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `writing-specs`, `reviewing-specs`) can be invoked outside the pipeline if needed. The user can run `inspecting-state` directly.
 
-The trade-off is more skill files to maintain (21 skills + 5 shared scripts + 2 schema files = 28 files) and the coordinator loading skills just-in-time. We judged this worth it.
+The trade-off is more skill files to maintain (21 skills + 6 shared scripts + 2 schema files = 29 files) and the coordinator loading skills just-in-time. We judged this worth it.
 
 **Concrete benefit:** the coordinator's SKILL.md is ~450 lines. The combined skills are ~5000 lines, but at any given moment only the active phase-skill is loaded. The coordinator stays a state machine + dispatcher.
 

@@ -328,6 +328,9 @@ discovering-X skills. Lives under
 [`project-bootstrap/`](project-bootstrap/), separate from the SDD family.
 Invoked manually by the user, not by the SDD coordinator.
 
+For the full bootstrap walkthrough (steps, decision tree, re-run semantics,
+troubleshooting), see [`docs/bootstrap.md`](docs/bootstrap.md).
+
 #### [bootstrapping-project](project-bootstrap/bootstrapping-project/)
 
 The coordinator. Walks the user through each convention file: detect
