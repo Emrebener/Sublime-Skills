@@ -61,7 +61,8 @@ State.json is **committed alongside the relevant artifact**:
 - Stage 8: committed with `plan.md` in `plan(NNN): initial draft`
 - Stage 12: committed at end of implementation in `chore(NNN): mark implementation complete`
 - Stage 14: committed with handoff doc in `docs(NNN): handoff document`
-- Stage 15: deletion is committed (or amended into final commit, per project preference)
+- Stage 15: committed with memory file in `docs(memory): update from NNN-short-name` (only if memory file was updated; usually no commit)
+- Stage 16: deletion is committed (or amended into final commit, per project preference)
 
 No standalone "update state" commits — state always rides along with content.
 
@@ -142,85 +143,94 @@ Provided git history is intact, cross-machine resume works without ceremony.
 
 ### What it is
 
-A YAML file at `.sdd/config.yml` in the repo root. Optional — the pipeline works fine without it, using built-in defaults. Present when:
-- `initializing-project-context` was run (creates it with defaults)
-- The user created or edited it manually
+A YAML file at `.sdd/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
+
+**The config is required, not optional, and must be valid.** The coordinator runs `scripts/validate-config.sh` at Step 2 and halts on any non-zero exit (missing file, malformed YAML, orphan context path). The framework reads every path from this file (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+
+The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sdd/config.yml`.
 
 ### Full schema with defaults
 
+Mirror of the scaffold file. Each key is explicit — there is **no** auto-fallback search; the discovery script and skills consult config for every path.
+
 ```yaml
-# .sdd/config.yml — SDD project configuration
-
 # ── Paths ────────────────────────────────────────────────────────────
-# Where the pipeline writes its artifacts. Defaults shown.
-#
-# handoff_dir may be either repo-relative (default, will be committed alongside
-# the run) OR an absolute path (e.g., /home/user/sdd-handoffs/ or ~/notes/sdd/)
-# to write handoffs OUTSIDE the repo. Absolute paths are not committed; the
-# coordinator records the path in state.json and informs the user.
+# handoff_dir may be either repo-relative (default; committed alongside the
+# run) OR absolute / ~ -expanded (e.g. /home/user/sdd-handoffs/) to write
+# handoffs OUTSIDE the repo. Absolute paths are not committed; the
+# coordinator records the resolved path in state.json.
 paths:
-  spec_dir: docs/specs          # spec.md and plan.md live under spec_dir/NNN-name/
+  spec_dir: docs/specs          # spec.md, plan.md, state.json live under spec_dir/NNN-name/
   adr_dir: docs/adr             # ADRs as NNNN-kebab.md
-  handoff_dir: docs/handoff     # handoffs as YYYY-MM-DD-kebab.md (or abs path)
+  handoff_dir: docs/handoff     # handoffs as YYYY-MM-DD-kebab.md (or absolute path)
 
-# ── Context file overrides ──────────────────────────────────────────
-# Where to look for project convention files. Skills check these BEFORE
-# the defaults in discover-context.sh. Empty list = use defaults.
+# ── Context files ───────────────────────────────────────────────────
+# Single explicit path per artifact. null means "this project doesn't
+# have one." There is no auto-fallback to other locations — if you move
+# a file, update this block.
 context:
-  constitution_paths: []        # e.g., [docs/principles.md]
-  architecture_paths: []        # e.g., [docs/internal/ARCH.md]
-  context_paths: []
-  glossary_paths: []
-  domain_paths: []
-  context_map_paths: []
+  constitution_path: docs/constitution.md
+  architecture_path: docs/ARCHITECTURE.md
+  glossary_path: docs/GLOSSARY.md
+  domain_path: docs/DOMAIN.md
 
 # ── Preflight (Stage 0) ─────────────────────────────────────────────
 preflight:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used when user starts fresh from main/master.
+  # Used when starting fresh from main/master. Bug-fix runs use
+  # `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
-  # If true, work happens in .worktrees/<branch-name> instead of in-place.
+  # If true, work happens in .worktrees/<sanitized-branch>/ rather than
+  # the main checkout. Lets you continue unrelated work in the main
+  # checkout while an SDD run is in progress.
   use_worktree: false
 
 # ── Grill (Stage 5) ─────────────────────────────────────────────────
 grill:
-  # Max questions per grill session. Hard ceiling is 20 even with override.
+  # Soft cap on questions per grill session. Hard ceiling is 20 even
+  # with an override.
   question_cap: 10
 
-# ── Handoff (Stage 14) ──────────────────────────────────────────────
-handoff:
-  # If false, Stage 14 is skipped and handoff is added to stages_skipped.
-  enabled: true
+# ── Memory file maintenance (Stage 15) ──────────────────────────────
+# Stage 15 itself is user-prompted at runtime; this block only configures
+# which file is maintained and the size budget. There is no `enabled`
+# toggle — the user decides per-run.
+memory_file:
+  # Explicit path. null = auto-detect at repo root in order:
+  # CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md (first match wins).
+  # If nothing matches, Stage 15 auto-skips without prompting.
+  path: null
 
-# ── Finishing (Stage 15) ────────────────────────────────────────────
+  # Soft cap on memory file size (characters). Skill warns at 90% of
+  # this value and refuses to push past 100% (must prune first).
+  character_limit: 40000
+
+# ── Finishing (Stage 16) ────────────────────────────────────────────
 finishing:
-  # prompt: interactive 4-option menu (default)
-  # leave: skip menu; leave branch as-is
-  # merge-local: skip menu; merge into merge_target
-  # pr: skip menu; push + create PR using pr_command
-  # auto: PR if remote+pr_command, else merge-local, else leave
+  # prompt       — interactive 4-option menu (default)
+  # leave        — skip menu; leave branch as-is
+  # merge-local  — skip menu; merge into merge_target
+  # pr           — skip menu; push + create PR via pr_command
+  # auto         — PR if remote+pr_command, else merge-local, else leave
   mode: prompt
 
   # Base branch for merge / PR target.
   merge_target: main
 
-  # Delete the feature branch after merge.
+  # Delete the feature branch after a local merge.
   delete_branch_after_merge: true
 
   # Explicit test command for finishing-sdd's pre-merge sanity check.
-  # null = auto-detect (Makefile → npm → cargo → pytest → go → mvn → gradle, first match wins).
-  # Set explicitly for Makefile-driven repos, nox/tox, monorepos, or anything that
-  # doesn't fit the auto-detect priority list.
+  # null = auto-detect (Makefile → npm → cargo → pytest → go → mvn → gradle).
+  # Set explicitly for Makefile-driven repos, nox/tox, monorepos, etc.
   test_command: null
 
-  # PR command template. Default uses gh.
-  # Placeholders: {title}, {body_file}.
+  # PR command template. Placeholders: {title}, {body_file}.
   pr_command: "gh pr create --title '{title}' --body-file {body_file}"
 
-  # PR body template. Used by finishing-sdd to compose the PR body.
-  # Placeholders: {summary} (from spec Goal), {test_plan} (from acceptance scenarios),
-  # {spec_link}, {plan_link}.
+  # PR body template. Placeholders: {summary} (from spec Goal),
+  # {test_plan} (from acceptance scenarios), {spec_link}, {plan_link}.
   pr_body_template: |
     ## Summary
     {summary}
@@ -235,24 +245,19 @@ finishing:
     {plan_link}
 ```
 
+**Stages 14 (handoff) and 15 (memory file) are user-prompted at runtime**, not config-toggled. The pattern matches Stage 13 (testing): the coordinator asks `yes/no` per run. If you want to skip both every time, just answer `no` when prompted — but most users will want to make the choice per feature.
+
 ### How skills consume config
 
-Each skill that's affected by config reads it explicitly. The pattern is:
+Each skill that depends on config reads it explicitly. The pattern is:
 
-1. Check if `.sdd/config.yml` exists.
-2. If yes, parse it (skills do this themselves; the shared `discover-context.sh` doesn't parse YAML).
-3. For each relevant key, prefer the config value over the default.
+1. Read `.sdd/config.yml` (the discovery script and `get-config-value.sh` both consult it; skills that need list-typed or multi-line values parse the YAML themselves).
+2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent, that's the answer.
+3. If `.sdd/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
 
 The coordinator caches the config once at session start (after `inspecting-state`) and passes relevant values into each skill dispatch.
 
 ### Common overrides
-
-**Disable handoff for fast-iteration features:**
-
-```yaml
-handoff:
-  enabled: false
-```
 
 **Always create a PR, no interactive menu:**
 
@@ -287,6 +292,16 @@ paths:
   handoff_dir: docs/handoffs
 ```
 
+**Memory file maintenance (CLAUDE.md / AGENTS.md / etc.):**
+
+```yaml
+memory_file:
+  path: "CLAUDE.md"        # or AGENTS.md, GEMINI.md, .agents.md, or absolute path
+  character_limit: 40000   # the widely-recommended soft cap for Claude Code
+```
+
+`path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 15 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
+
 **Explicit test command (Makefile, nox, monorepo, etc.):**
 
 ```yaml
@@ -310,15 +325,16 @@ paths:
 
 When `handoff_dir` resolves outside the repo's working tree, the handoff file is written but NOT staged or committed. The path is recorded in `state.json` so other tooling can find it. The state-file commit at Stage 14 only includes `state.json`, not the handoff itself.
 
-**Custom context file locations (monorepo with nested ARCHITECTURE.md):**
+**Custom context file locations:**
 
 ```yaml
 context:
-  architecture_paths:
-    - docs/internal/ARCH.md
-    - services/billing/ARCH.md
-    - services/checkout/ARCH.md
+  constitution_path: docs/principles.md
+  architecture_path: docs/internal/ARCH.md
+  glossary_path: null               # this project doesn't have one
 ```
+
+Each key is a single explicit path or `null`. The SDD pipeline expects a single canonical pointer per artifact, not a list. If your project keeps a convention file at a non-default path (e.g., `docs/internal/ARCH.md`), point the corresponding `<name>_path` at it.
 
 ### Hard ceilings (not overridable)
 
@@ -357,7 +373,7 @@ The state file is **written** as the pipeline progresses. It doesn't reference t
 If the config changes mid-pipeline (rare but possible):
 - The change takes effect on the next stage boundary
 - Already-completed stages aren't re-run
-- Stages that depend on config (e.g., handoff if `handoff.enabled` changes) honor the new value
+- Stages that depend on config (e.g., `paths.handoff_dir` or `memory_file.path`) honor the new value
 
 If a config field is renamed or removed in a future SDD version:
 - Old config files keep working (unrecognized keys are ignored)

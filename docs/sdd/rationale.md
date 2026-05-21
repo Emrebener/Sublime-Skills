@@ -4,7 +4,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ## Contents
 
-- [Why a 16-stage pipeline](#why-a-16-stage-pipeline)
+- [Why a 17-stage pipeline](#why-a-16-stage-pipeline)
 - [Why thin coordinator + many skills](#why-thin-coordinator--many-skills)
 - [Why no external skill dependencies](#why-no-external-skill-dependencies)
 - [Why abort-only preflight](#why-abort-only-preflight)
@@ -23,16 +23,16 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ---
 
-## Why a 16-stage pipeline
+## Why a 17-stage pipeline
 
-A 16-stage pipeline sounds heavy. For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
+A 17-stage pipeline sounds heavy (Stages 0-16). For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
 
 - AI agents tend to skip stages they shouldn't (especially review stages) when given the option
 - Inconsistent application means inconsistent quality across features
 - "Trivial" changes that turn out to be non-trivial don't get the rigor they need
 - Optional stages compound: if every stage is optional, the pipeline degenerates to a chat
 
-The pipeline as designed has **3 user-gated optional stages** (2nd spec-review, grill, feature testing) and **1 config-skippable stage** (handoff). Everything else is mandatory. The user can disable handoff per-project; everything else requires editing the coordinator skill itself.
+The pipeline as designed has **5 user-gated optional stages** (2nd spec-review, grill, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 13, 14, 15). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
 
 **Why this is OK in practice:** for genuinely small changes (a typo fix, a config bump), you wouldn't invoke SDD at all. SDD is for features that warrant structured development. The pipeline is calibrated for that scale.
 
@@ -150,7 +150,7 @@ Reasons:
 - **ADRs cover the same ground at finer grain.** Most "principles" are really "decisions" with broader scope.
 - **Solo / small team scale.** Constitution is most useful when multiple developers need consistent guidance. For solo or small-team use, ADRs accumulate naturally.
 - **Less governance ceremony.** Constitution requires authoring, versioning, propagation. ADRs are written one at a time.
-- **`initializing-project-context` does offer constitution authoring.** It's an opt-in artifact. Users who want it can add it; the pipeline reads it when present.
+- **`bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `proposing-constitution` analyzer subagent). Users who want it can add it; the pipeline reads it when present.
 
 The pipeline reads constitution.md if it exists (in stages where alignment matters). It's just not required, and we don't have a separate `maintaining-constitution` skill — yet.
 
@@ -160,7 +160,7 @@ If a project starts repeating the same guidance in every spec, that's the signal
 
 ## Why a handoff document
 
-The handoff doc is generated at Stage 14 (default on, config-skippable). It's a redacted, summary-style document at `docs/handoff/YYYY-MM-DD-<title>.md`.
+The handoff doc is generated at Stage 14 (user-prompted, default yes). It's a redacted, summary-style document at `docs/handoff/YYYY-MM-DD-<title>.md`.
 
 Why have it:
 
@@ -305,7 +305,7 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 
 | Aspect | Brainstorming | SDD |
 |---|---|---|
-| Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 16-stage pipeline with explicit stage boundaries |
+| Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 17-stage pipeline with explicit stage boundaries |
 | ADR step | None | Stage 6, dedicated skill |
 | Optional grill | None | Stage 5, dedicated skill |
 | 2nd review | None | Optional Stages 4 + 10 |

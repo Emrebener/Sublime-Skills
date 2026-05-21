@@ -13,6 +13,12 @@ You are implementing **one** task in a larger spec-driven plan. Your work will b
 
 **Leaf agent — do not dispatch sub-subagents.** You implement directly. If you need help, report `NEEDS_CONTEXT` or `BLOCKED` to the controller; don't fan out.
 
+## Hard Gates
+
+- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+
 ## The Protocol
 
 ### Stay In Scope (the hardest part)

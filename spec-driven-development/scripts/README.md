@@ -20,13 +20,10 @@ Outputs JSON. Example:
   "repo_root": "/abs/path/to/repo",
   "config": ".sdd/config.yml",
   "constitution": "docs/constitution.md",
-  "architecture": "ARCHITECTURE.md",
-  "context": null,
+  "architecture": "docs/ARCHITECTURE.md",
   "glossary": "docs/GLOSSARY.md",
   "domain": null,
-  "context_map": null,
   "readme": "README.md",
-  "is_monorepo": false,
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
   "adrs": ["docs/adr/0001-jwt-sessions.md", "docs/adr/0002-postgresql.md"],
@@ -34,36 +31,29 @@ Outputs JSON. Example:
 }
 ```
 
-A `null` value means the file does not exist at any default location. `spec_dir` and `adr_dir` reflect the resolved paths after honoring any `.sdd/config.yml → paths.*` overrides; the `adrs` and `active_states` arrays are searches against those resolved directories.
+### Source of truth: `.sdd/config.yml`
 
-### Default search paths (first match wins)
+The script reads every path from `.sdd/config.yml` — there is **no auto-fallback search**. If config is missing or a key is null/unset, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
 
-| Field | Paths checked |
-|---|---|
-| `constitution` | `docs/constitution.md`, `constitution.md` |
-| `architecture` | `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`, `docs/architecture.md` |
-| `context` | `CONTEXT.md`, `docs/CONTEXT.md` |
-| `glossary` | `GLOSSARY.md`, `docs/GLOSSARY.md`, `docs/glossary.md` |
-| `domain` | `DOMAIN.md`, `docs/DOMAIN.md` |
-| `context_map` | `CONTEXT-MAP.md`, `docs/CONTEXT-MAP.md` |
-| `readme` | `README.md` |
-| `adrs` | All `.md` files directly under `<adr_dir>/` (default `docs/adr/`) |
-| `active_states` | All `state.json` files at `<spec_dir>/*/state.json` (default `docs/specs/*/state.json`) |
+| JSON field | Config key | Notes |
+|---|---|---|
+| `constitution` | `context.constitution_path` | scalar path or null |
+| `architecture` | `context.architecture_path` | scalar path or null |
+| `glossary` | `context.glossary_path` | scalar path or null |
+| `domain` | `context.domain_path` | scalar path or null |
+| `spec_dir` | `paths.spec_dir` | also drives `active_states` lookups |
+| `adr_dir` | `paths.adr_dir` | also drives the `adrs` array |
+| `readme` | (hardcoded `README.md`) | the one universal location; not configurable |
+| `adrs` | — | all `.md` files directly under `<adr_dir>/` |
+| `active_states` | — | all `state.json` files at `<spec_dir>/*/state.json` |
 
-### Overrides
+### YAML extractor limitations
 
-The script reads two path overrides from `.sdd/config.yml → paths.*`:
+The script uses a minimal awk-based YAML extractor — handles flat `block: \n  key: value` only. No lists, nested objects beyond one level, anchors, or multi-line block scalars. Sufficient for the singular scalar paths in `.sdd/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
 
-```yaml
-paths:
-  spec_dir: docs/features   # affects `spec_dir` and `active_states`
-  adr_dir: docs/decisions   # affects `adr_dir` and `adrs`
-  handoff_dir: ...           # NOT read here; consumed by generating-handoff directly
-```
+### Bootstrapping
 
-The script uses a minimal awk-based YAML extractor for these specific keys only. Anything more complex (nested structures, lists, anchors) is parsed by the skills themselves. Override resolution: config value → script default.
-
-Convention-file overrides (`context.constitution_paths`, `context.architecture_paths`, etc.) are honored by individual skills that read the config directly — this script reports only the default-search-path matches.
+A project without `.sdd/config.yml` is unbootstrapped — `discover-context.sh` will return null for almost everything. Run `bootstrapping-project` (in the `project-bootstrap` skill family) to scaffold the config; it copies the canonical scaffold at `project-bootstrap/scaffolds/config.yml` verbatim, then walks the user through each convention file.
 
 ## Validation Scripts
 
@@ -105,6 +95,29 @@ tokens, JWTs, private keys, URLs with credentials, sensitive env-var
 assignments), placeholder patterns, soft length guard. Critical failures here
 are most often unredacted secrets — re-run redaction before retrying.
 
+### `validate-config.sh`
+
+```bash
+./spec-driven-development/scripts/validate-config.sh [config-path]
+```
+
+Validates `.sdd/config.yml` end-to-end. Default path: `<repo-root>/.sdd/config.yml`.
+
+Checks: YAML parses; all six top-level blocks present (`paths`, `context`,
+`preflight`, `grill`, `memory_file`, `finishing`); required scalar keys per
+block; every `context.<name>_path` is null OR points to an existing file
+(orphan paths fail); `finishing.mode` enum membership; numeric and type sanity
+on remaining fields; rejection of unknown `context.*_path` keys (catches stale
+schema).
+
+Exit codes: `0` PASS, `1` FAIL (findings on stderr, `FAIL:`/`WARN:` prefixed),
+`2` config file not found, `3` usage error.
+
+Used by `bootstrapping-project` (fix-and-retry loop after scaffold copy) and
+the SDD coordinator's Step 2 halt check. Prefers `python3` + PyYAML for full
+YAML parsing; falls back to an awk-based shallow scanner when those aren't
+available.
+
 ## `get-config-value.sh`
 
 Reads a single scalar value from `.sdd/config.yml`. Intended for skills that
@@ -135,9 +148,9 @@ Exit codes:
 - For anything more complex, skills should use a proper YAML parser
   (`yq`, `python -c "import yaml"`, etc.)
 
-For lists like `context.constitution_paths: [...]`, the skill must parse the
-YAML itself. This helper covers the common case (single scalar lookup) — it's
-not a general-purpose YAML library.
+For list-typed or multi-line config values (e.g., `finishing.pr_body_template`),
+the skill must parse the YAML itself. This helper covers the common case
+(single scalar lookup) — it's not a general-purpose YAML library.
 
 ## State File Schema
 

@@ -17,6 +17,12 @@ Identify and capture architecturally significant decisions from a spec as Archit
 
 **Announce at start:** "I'm using the maintaining-adrs skill to capture architectural decisions."
 
+## Hard Gates
+
+- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+
 ## What You Get From the Coordinator
 
 The dispatch prompt includes:

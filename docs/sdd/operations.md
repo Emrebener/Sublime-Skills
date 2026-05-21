@@ -18,7 +18,7 @@ This document covers operational mechanics: how subagents are dispatched, what t
 
 ## Subagent dispatch
 
-The coordinator dispatches subagents at six different points in the pipeline. Each dispatch is governed by the same general principles:
+The coordinator dispatches subagents at seven different points in the pipeline (plus the per-task dispatch loop in Stage 12 and the per-failure dispatch loop in Stage 13). Each dispatch is governed by the same general principles:
 
 ### Dispatch principles
 
@@ -42,6 +42,7 @@ The coordinator dispatches subagents at six different points in the pipeline. Ea
 | 13 | Feature tester | `spec-driven-development/testing-implementation/tester-prompt.md` (calls `testing-feature`) |
 | 13 (fix loop) | Fixer | `spec-driven-development/testing-implementation/fixer-prompt.md` (calls `fixing-test-failures`) |
 | 14 | Handoff generator | Inline in `sdd-coordinator` (calls `generating-handoff`) |
+| 15 | Memory file maintainer | Inline in `sdd-coordinator` (calls `maintaining-memory-file`) |
 
 ### Standard dispatch shape
 
@@ -255,7 +256,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that ends with a commit (Stages 2, 5, 6, 7, 8, 12, 14, 15, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that ends with a commit (Stages 2, 5, 6, 7, 8, 12, 14, 15, 16, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 

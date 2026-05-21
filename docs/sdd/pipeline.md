@@ -1,6 +1,6 @@
 # The SDD Pipeline
 
-The pipeline is a strict 16-stage sequence with three optional stages that the user gates explicitly. The coordinator (`sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
+The pipeline is a strict 17-stage sequence (Stages 0-16) with several optional stages the user gates explicitly. The coordinator (`sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
 
 This document explains each stage in detail: what runs, what it produces, how failure is handled, and what the next stage expects.
 
@@ -24,8 +24,9 @@ This document explains each stage in detail: what runs, what it produces, how fa
 | 11 | User plan approval | Inline (coordinator) | No | Updates `state.json` |
 | 12 | Implementation | Per-task subagents | No | Code files, tests, `state.json` |
 | 13 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
-| 14 | Handoff generation | Subagent via `generating-handoff` | Default yes, config-skippable | `docs/handoff/YYYY-MM-DD-*.md` |
-| 15 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json`, cleans worktree |
+| 14 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
+| 15 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
+| 16 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json`, cleans worktree |
 
 Subagent stages run with no inherited conversation context; the coordinator builds their prompts from scratch.
 
@@ -35,9 +36,9 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 Every invocation of `sdd-coordinator` begins with the same two actions, regardless of whether this is a fresh run or a resume:
 
-1. **Load `.sdd/config.yml`** if it exists. Cache the values (paths, preflight options, grill cap, handoff toggle, finishing mode + test command, etc.) for use throughout the rest of the run. For scalar lookups, the coordinator can shell out to `scripts/get-config-value.sh <block> <key>`.
+1. **Load `.sdd/config.yml`** — **required and validated**. The coordinator runs `scripts/validate-config.sh` first. If it returns non-zero (missing file, malformed YAML, orphan context path, etc.), HALT and direct the user to run `bootstrapping-project` (in the `project-bootstrap/` family) to scaffold or fix the config. Surface the validator's findings to the user verbatim — they're more actionable than a generic "missing config" message. The framework reads every path from this file; running without a valid config isn't a degraded experience, it's an unsupported state. Once the validator passes, cache the values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) for use throughout the rest of the run. For scalar lookups, the coordinator can shell out to `scripts/get-config-value.sh <block> <key>`.
 
-2. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (honoring `paths.spec_dir` config), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere.
+2. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (resolved from `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere.
 
 The coordinator's decision tree depends on BOTH the report AND the current branch's relationship to the active state(s):
 
@@ -75,7 +76,7 @@ The skill checks `git status --porcelain` and `git branch --show-current`. The d
 
 There is no auto-commit, no stash, no checkout. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
 
-If a worktree is configured (`.sdd/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 15.
+If a worktree is configured (`.sdd/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 16.
 
 **State file does not exist yet.** Preflight outputs (branch, worktree path, original branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
 
@@ -499,14 +500,18 @@ On `yes`:
 
 ---
 
-## Stage 14 — Generate handoff
+## Stage 14 — Generate handoff (optional, user-gated)
 
 **Subagent:** `general-purpose` agent loaded with `generating-handoff` skill
 **Output:** `docs/handoff/YYYY-MM-DD-<short-title>.md`
 
-The coordinator checks `.sdd/config.yml` → `handoff.enabled`. Default is `true`. If false, add `handoff` to `stages_skipped` and advance.
+The coordinator asks:
 
-Otherwise, resolve `HANDOFF_DIR`:
+> "Generate a handoff document for this run? (yes/no, default yes — recommended when someone else may pick this up, or you'll iterate on it later in a fresh session)"
+
+On `no`: `handoff` added to `stages_skipped`. Advance to Stage 15.
+
+On `yes`, resolve `HANDOFF_DIR`:
 - Default: `docs/handoff` (repo-relative; handoff will be committed)
 - Override: `paths.handoff_dir` in config. May be a repo-relative path OR an absolute path (e.g., `/home/user/sdd-handoffs/`, `~/notes/sdd/`). If absolute (or resolves outside the repo), set `OUTSIDE_REPO=true` — the handoff file will NOT be staged or committed, only the path recorded in state.json.
 
@@ -555,7 +560,47 @@ Record the handoff path in state file under `handoff_path` (absolute path if out
 
 ---
 
-## Stage 15 — Finishing
+## Stage 15 — Maintain memory file (optional, user-gated)
+
+**Subagent:** `general-purpose` agent loaded with `maintaining-memory-file` skill
+**Output:** possibly an updated agent memory file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents.md`); often, no update
+
+Most features don't change project-level truth. This stage exists because when they DO, keeping the memory file in sync is a real, valuable chore that's tedious to do manually — and a stale memory file actively misleads future agents.
+
+The coordinator resolves `MEMORY_FILE_PATH` first:
+1. `memory_file.path` in config if set
+2. Otherwise auto-detect at repo root in order: `CLAUDE.md` → `AGENTS.md` → `GEMINI.md` → `.agents.md`; first match wins
+3. If neither config nor auto-detect finds a path: auto-skip (`memory_file` → `stages_skipped`); **no prompt** — there's nothing to maintain.
+
+If a path was resolved, the coordinator asks:
+
+> "Check memory file `<MEMORY_FILE_PATH>` for updates from this run? (yes/no, default yes — most runs result in 'no update needed', so this is cheap to say yes to)"
+
+On `no`: `memory_file` added to `stages_skipped`. Advance to Stage 16.
+
+On `yes`, dispatch the subagent with `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT` (from config, default 40000), and `EXISTING_CONTENT` (current file text, or empty if it doesn't exist yet).
+
+The subagent reads spec + plan + ADRs and decides whether anything in this run changes what's true at the project level. **"No update needed" is the most common and correct outcome** — it should not feel obligated to write just because a feature shipped. When it does write:
+
+- One-line rules over prose. Bullet lists over paragraphs.
+- Lead with the verb / rule ("MUST validate inputs via the schema layer")
+- Cite the ADR/spec when relevant
+- No timestamps, no narrative, no transient content
+- Respect the character cap — at 90% it warns; over 100% it refuses (must prune first)
+
+Three outcomes:
+
+| Status | Coordinator action |
+|---|---|
+| `updated` | Commit memory file + state.json. If `MEMORY_FILE_PATH` is outside repo: commit only state.json and inform user. Set `memory_file_updated: true`. |
+| `no update needed` | No commit; advance. Set `memory_file_updated: false`. |
+| `skipped` | No memory file configured/detected. Add `memory_file` to `stages_skipped`. |
+
+**Why this isn't part of handoff generation:** the handoff doc captures THIS feature's context (transient); memory file captures the PROJECT's stable truth. Different goals, different content rules, different update cadence. Conflating them produces a bloated memory file.
+
+---
+
+## Stage 16 — Finishing
 
 **Skill:** `finishing-sdd` (inline)
 **Output:** closes the run; merge / PR / keep / discard; deletes state file (unless "keep")

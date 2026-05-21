@@ -215,7 +215,7 @@ Implementation complete.
 - Branch: <branch-name>
 ```
 
-The coordinator moves to Stage 13 (optional testing) or directly to Stage 14 (finishing) based on user choice.
+The coordinator moves to Stage 13 (optional testing) or directly to Stage 14 (handoff generation) based on user choice. Finishing is now Stage 16.
 
 ## Continuous Execution
 

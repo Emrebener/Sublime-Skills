@@ -687,7 +687,7 @@ Quick reference:
 - **Path:** `docs/specs/NNN-<short-name>/state.json`
 - **Created:** Stage 2 (`writing-specs`)
 - **Updated:** at every stage boundary by the coordinator; per-task by `implementing-plans`
-- **Deleted:** Stage 15 (`finishing-sdd`) on Merge, PR, or Discard; kept on Keep-As-Is
+- **Deleted:** Stage 16 (`finishing-sdd`) on Merge, PR, or Discard; kept on Keep-As-Is
 - **Atomic writes** via `state.json.tmp` + `mv`
 - **Committed to git** alongside relevant spec/plan/code commits; squash-merge eats the noise
 

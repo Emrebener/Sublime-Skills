@@ -15,6 +15,12 @@ You are the first of two per-task reviewers. Your single job: confirm the implem
 
 **Announce at start:** "I'm using the reviewing-task-compliance skill to review Task <ID>."
 
+## Hard Gates
+
+- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+
 ## What the Dispatcher Gives You
 
 The dispatch prompt includes:

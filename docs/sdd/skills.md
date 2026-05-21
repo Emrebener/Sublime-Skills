@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 21 skills coordinated by `sdd-coordinator`, plus 5 shared scripts (`discover-context.sh`, `get-config-value.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of the family.
+The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 5-skill set used to set up `.sdd/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -26,14 +26,17 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`, plus 5 shared scri
 - `testing-feature` — Stage 13 (loaded by tester subagent)
 - `fixing-test-failures` — Stage 13 (loaded by fixer subagent)
 - `generating-handoff` — Stage 14 (subagent)
-- `finishing-sdd` — Stage 15
+- `maintaining-memory-file` — Stage 15 (subagent)
+- `finishing-sdd` — Stage 16
 
-**Bootstrap (outside pipeline):**
-- `initializing-project-context` — one-time project setup
+**Bootstrap (outside the SDD family — see `project-bootstrap/` directory):**
+- `bootstrapping-project` — one-time project setup coordinator
+- `proposing-constitution` / `proposing-architecture` / `proposing-glossary` / `proposing-domain-model` — per-artifact subagent analyzers
 
 **Shared scripts:**
-- `discover-context.sh` — find project convention files; reads `paths.spec_dir` / `paths.adr_dir` overrides
+- `discover-context.sh` — find project convention files; reads paths from `.sdd/config.yml`
 - `get-config-value.sh` — read a single scalar value from `.sdd/config.yml`
+- `validate-config.sh` — validate `.sdd/config.yml` structure + path resolution (used by both bootstrap and SDD coordinator)
 - `validate-spec.sh` — schema-check a spec.md (incl. duplicate FR/SC ID detection)
 - `validate-plan.sh` — schema-check a plan.md (incl. duplicate T### detection)
 - `validate-handoff.sh` — schema-check a handoff doc (incl. unredacted-secret patterns)
@@ -656,7 +659,7 @@ Preflight aborted.
 
 **Type:** Subagent skill
 **Loaded:** by the dispatched subagent at Stage 14
-**Stage:** 14 (default on; config-skippable)
+**Stage:** 14 (user-prompted, default yes)
 
 **Purpose:** Produce a self-contained handoff document at `docs/handoff/YYYY-MM-DD-<short-title>.md` that lets a fresh agent (or human) continue work without re-reading everything.
 
@@ -696,11 +699,63 @@ Two-pass scan: keep going until no new redactions surface.
 
 ---
 
+## maintaining-memory-file
+
+**Type:** Subagent skill
+**Loaded:** by the dispatched subagent at Stage 15
+**Stage:** 15 (user-prompted, default yes; auto-skipped without prompt when no memory file is configured/detected)
+
+**Purpose:** Decide whether the project's agent memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md`) needs updating based on what this run produced, and if so, update it. Most runs do NOT warrant an update — that's normal.
+
+**Inputs the dispatcher provides:** `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS`, `MEMORY_FILE_PATH` (resolved from config or auto-detect; null = skip), `CHARACTER_LIMIT` (soft cap; default 40000), `EXISTING_CONTENT` (current file text).
+
+**Path resolution** (in coordinator before dispatch):
+1. `.sdd/config.yml → memory_file.path` if set (absolute or repo-relative)
+2. Auto-detect at repo root: `CLAUDE.md` → `AGENTS.md` → `GEMINI.md` → `.agents.md`; first match wins
+3. None found → skip (no failure)
+
+**Decision filter — every candidate update must pass ALL of these:**
+
+| Filter | Pass = keep |
+|---|---|
+| Would a future agent get this wrong without the line? | yes |
+| Stable (won't change next month)? | yes |
+| Not already obvious from reading the code? | yes |
+| Not already in the memory file? | yes |
+| Line shorter than the paragraph that would explain it? | yes |
+
+**Default to drop.** Memory files atrophy from accretion.
+
+**Character budget:**
+- Under 90% of cap → safe
+- 90-100% → write but warn
+- Over 100% → REFUSE; tighten existing content first or omit additions
+
+**Format rules:**
+- One line per rule; bullets over prose
+- Lead with the verb / rule ("MUST validate inputs via the schema layer")
+- Cite ADR/spec for traceability
+- No timestamps; no "we recently added X"; no narrative
+- Respect existing file structure if it exists; don't reorganize
+
+**Hard rules:** leaf skill (no sub-subagent dispatch); only modify the memory file (never spec/plan/ADRs/state); never duplicate content from other docs (link instead).
+
+**Output statuses:**
+| Status | Meaning |
+|---|---|
+| `updated` | File was written; coordinator commits |
+| `no update needed` | Most common outcome; no commit; advance |
+| `skipped` | No memory file configured/detected; `memory_file` added to `stages_skipped` |
+
+The skill's SKILL.md includes a Best Practices section on what memory files are for (project conventions, NEVER/MUST rules, canonical vocabulary, pointers), what they're NOT for (changelogs, TODOs, narrative, transient state), healthy size ranges, update cadence, pruning advice, and common anti-patterns to avoid.
+
+---
+
 ## finishing-sdd
 
 **Type:** Phase skill (inline; user-interactive)
-**Loaded:** by the coordinator at Stage 15
-**Stage:** 15
+**Loaded:** by the coordinator at Stage 16
+**Stage:** 16
 
 **Purpose:** Close out the SDD run. Verify tests, present 4 options (merge / PR / keep / discard), execute the choice, clean up.
 
@@ -731,27 +786,47 @@ Two-pass scan: keep going until no new redactions surface.
 
 ---
 
-## initializing-project-context
+## project-bootstrap family (outside the SDD pipeline)
 
-**Type:** Bootstrap skill (outside pipeline)
-**Loaded:** manually by the user
-**Stage:** N/A (one-time setup)
+Lives in `project-bootstrap/`. Separate skill family from SDD because the purpose (one-time project setup) is distinct from the SDD pipeline's per-feature workflow.
 
-**Purpose:** Walk the user through opt-in setup of project conventions and config. Each artifact is independent.
+### bootstrapping-project
 
-**Opt-in menu:**
-1. `docs/constitution.md` (guided principle authoring)
-2. `ARCHITECTURE.md` (guided system summary, modules, runtime topology, data stores)
-3. `GLOSSARY.md` (10-30 domain terms with definitions)
-4. `DOMAIN.md` (3-15 core entities with attributes, relationships, lifecycle)
-5. `CONTEXT-MAP.md` (monorepo only — bounded contexts and dependencies)
-6. `.sdd/config.yml` (with sensible defaults)
-7. `docs/adr/`, `docs/specs/`, `docs/handoff/` directories with README stubs
+**Type:** Coordinator (inline; user-interactive)
+**Loaded:** manually by the user (NOT by `sdd-coordinator`)
+**Stage:** N/A — one-time per-project setup; safe to re-run
 
-**Re-running on existing project:** detects existing artifacts, offers to extend/edit rather than overwrite.
+**Purpose:** Walk the user through each convention file with deep per-file project analysis, then scaffold `.sdd/config.yml` and the supporting directories.
 
-**Reads:** existing project files (`discover-context.sh` output)
-**Writes:** any opted-in artifacts
+**Workflow:**
+1. Run `discover-context.sh` to see what already exists.
+2. For each of constitution → architecture → glossary → domain: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → dispatch the matching `proposing-X` subagent → discuss findings + proposed content with the user → write the file. Cap fix-iterations at 3 per file.
+3. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs.
+4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sdd/config.yml`.
+5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
+6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
+7. Ensure `.sdd/local.yml` is gitignored.
+8. Single commit `chore: initialize SDD project context`.
+
+**Reads:** existing project files (via `discover-context.sh` + per-subagent reads); EXISTING_CONTENT for extend/replace modes.
+**Writes:** opted-in convention files; `docs/adr|specs|handoff/README.md` stubs; `.sdd/config.yml`; possibly `.gitignore` entry; one commit.
+
+### proposing-constitution / proposing-architecture / proposing-glossary / proposing-domain-model
+
+**Type:** Subagent skills (read-only)
+**Loaded:** by dispatched subagents from `bootstrapping-project`
+**Stage:** N/A
+
+**Purpose:** Deep, focused analysis of the project for one specific convention file. Each subagent reads broadly (per-skill targets), returns findings + a proposed markdown draft. They do NOT write files, interact with the user, or dispatch further subagents.
+
+| Skill | Reads | Produces |
+|---|---|---|
+| `proposing-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
+| `proposing-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
+| `proposing-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | 10-30 alphabetical terms, each ≤2 sentences |
+| `proposing-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
+
+All four support `create` / `extend` / `replace` modes from the dispatcher. Each enforces hard caps (no diagrams, length limits, codebase-evidence requirements).
 
 ---
 
@@ -760,24 +835,24 @@ Two-pass scan: keep going until no new redactions surface.
 ### discover-context.sh
 
 **Location:** `spec-driven-development/scripts/discover-context.sh`
-**Purpose:** Find project convention files and active SDD state. Output is JSON listing paths of files that exist (or `null` if absent).
+**Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config (or `null` when a path is unset or the file doesn't exist on disk).
 
-**Default search paths (first match wins):**
+**Source of truth:** `.sdd/config.yml`. There is **no auto-fallback search** — every path is read straight from config. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
 
-| Key | Paths |
-|---|---|
-| `constitution` | `docs/constitution.md`, `constitution.md` |
-| `architecture` | `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`, `docs/architecture.md` |
-| `context` | `CONTEXT.md`, `docs/CONTEXT.md` |
-| `glossary` | `GLOSSARY.md`, `docs/GLOSSARY.md`, `docs/glossary.md` |
-| `domain` | `DOMAIN.md`, `docs/DOMAIN.md` |
-| `context_map` | `CONTEXT-MAP.md`, `docs/CONTEXT-MAP.md` |
-| `readme` | `README.md` |
-| `adrs` | All `.md` files at `<adr_dir>/` (resolved from config; default `docs/adr/`) |
-| `active_states` | All `state.json` files at `<spec_dir>/*/state.json` (resolved from config; default `docs/specs/*/state.json`) |
-| `config` | `.sdd/config.yml` |
+| JSON field | Config key | Notes |
+|---|---|---|
+| `constitution` | `context.constitution_path` | scalar; null = not used |
+| `architecture` | `context.architecture_path` | scalar; null = not used |
+| `glossary` | `context.glossary_path` | scalar; null = not used |
+| `domain` | `context.domain_path` | scalar; null = not used |
+| `spec_dir` | `paths.spec_dir` | also drives `active_states` |
+| `adr_dir` | `paths.adr_dir` | also drives `adrs` |
+| `readme` | (hardcoded `README.md`) | one universal location |
+| `adrs` | — | all `.md` files at `<adr_dir>/` |
+| `active_states` | — | all `state.json` at `<spec_dir>/*/state.json` |
+| `config` | — | path to `.sdd/config.yml` if present |
 
-**Overrides:** the script reads `paths.spec_dir` and `paths.adr_dir` from `.sdd/config.yml` via a minimal awk-based extractor (handles flat `block: \n  key: value` only — no lists, no nested objects, no multi-line scalars). The resolved values appear in the output as `spec_dir` and `adr_dir`. Other config sections (`context.*_paths` lists, `pr_body_template` multi-line strings, etc.) are parsed by individual skills that need them.
+**YAML extractor:** minimal awk-based, handles flat `block: \n  key: value` only. Sufficient for the singular scalars in `paths:` and `context:`. List-typed or multi-line config values (e.g., `finishing.pr_body_template`) are parsed by individual skills that need them.
 
 **Output JSON shape:**
 
@@ -786,19 +861,41 @@ Two-pass scan: keep going until no new redactions surface.
   "repo_root": "/abs/path",
   "config": ".sdd/config.yml" | null,
   "constitution": "docs/constitution.md" | null,
-  "architecture": "ARCHITECTURE.md" | null,
-  "context": null,
+  "architecture": "docs/ARCHITECTURE.md" | null,
   "glossary": "docs/GLOSSARY.md" | null,
   "domain": null,
-  "context_map": null,
   "readme": "README.md",
-  "is_monorepo": false,
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
   "adrs": ["docs/adr/0001-...", ...],
   "active_states": ["docs/specs/003-user-auth/state.json", ...]
 }
 ```
+
+### validate-config.sh
+
+**Location:** `spec-driven-development/scripts/validate-config.sh`
+**Purpose:** Validate `.sdd/config.yml` structurally and semantically. Used by `bootstrapping-project`'s fix-and-retry loop and by the SDD coordinator's Step 2 halt check.
+
+**Usage:** `./scripts/validate-config.sh [config-path]` (default: `<repo-root>/.sdd/config.yml`)
+
+**Checks:**
+- YAML parses (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner)
+- All six top-level blocks present: `paths`, `context`, `preflight`, `grill`, `memory_file`, `finishing`
+- Required scalar keys per block
+- Each `context.<name>_path` is null OR points to an existing file (orphan paths fail)
+- `finishing.mode` ∈ `{prompt, leave, merge-local, pr, auto}`
+- Numeric sanity (`grill.question_cap` 1-20; `memory_file.character_limit` ≥ 1000)
+- Type sanity (booleans, strings, null-or-string)
+- Rejects unknown `context.*_path` keys (catches stale schema after upgrades)
+
+**Exit codes:**
+- `0` — PASS
+- `1` — FAIL (one or more issues; findings on stderr with `FAIL:` / `WARN:` prefixes)
+- `2` — config file not found
+- `3` — usage error
+
+**Output:** findings on stderr; final summary line on stdout (`validate-config: PASS` or `validate-config: FAIL (N issues)`).
 
 ### get-config-value.sh
 
@@ -811,7 +908,7 @@ Examples:
 - `./scripts/get-config-value.sh finishing test_command` → `"make test"`
 - `./scripts/get-config-value.sh preflight use_worktree` → `"true"`
 - `./scripts/get-config-value.sh grill question_cap` → `"15"`
-- `./scripts/get-config-value.sh handoff enabled` → `"false"`
+- `./scripts/get-config-value.sh memory_file character_limit` → `"40000"`
 
 **Exit codes:**
 - `0` — value found (printed to stdout, no trailing newline)
@@ -918,10 +1015,18 @@ sdd-coordinator (entry; user-invoked)
 │
 ├── dispatch → generating-handoff (Stage 14; subagent; uses validate-handoff.sh)
 │
-└── finishing-sdd               (Stage 15)
+├── dispatch → maintaining-memory-file (Stage 15; subagent)
+│
+└── finishing-sdd               (Stage 16)
 
 
-initializing-project-context (outside pipeline; user-invoked manually)
+project-bootstrap family (outside SDD pipeline; user-invoked manually)
+├── bootstrapping-project (coordinator)
+│       ↓ dispatches one of:
+├── proposing-constitution    (subagent, read-only)
+├── proposing-architecture    (subagent, read-only)
+├── proposing-glossary        (subagent, read-only)
+└── proposing-domain-model    (subagent, read-only)
 ```
 
 ---

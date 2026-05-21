@@ -54,7 +54,7 @@ The canonical schema is `spec-driven-development/scripts/state-schema.md` (human
 
 **Required fields:** `feature_id`, `short_name`, `started_at`, `updated_at`, `branch`, `spec_path`, `current_stage`, `stages_completed`, `stages_skipped`, `preflight` (with `original_branch`), `tasks`.
 
-**Optional fields, present after specific stages advance:** `plan_path` (after Stage 8), `adr_results` (after Stage 6, may be `[]`), `test_status` and `fix_iterations` (after Stage 13), `final_review_completed` (after Stage 12 final review), `handoff_path` (after Stage 14), `reviewer_pushbacks` (any stage; `[]` initial), `spec_auto_review_iterations` and `plan_auto_review_iterations` (after the relevant review stages).
+**Optional fields, present after specific stages advance:** `plan_path` (after Stage 8), `adr_results` (after Stage 6, may be `[]`), `test_status` and `fix_iterations` (after Stage 13), `final_review_completed` (after Stage 12 final review), `handoff_path` (after Stage 14), `memory_file_updated` and `memory_file_path` (after Stage 15), `reviewer_pushbacks` (any stage; `[]` initial), `spec_auto_review_iterations` and `plan_auto_review_iterations` (after the relevant review stages).
 
 **Validation checks to perform:**
 

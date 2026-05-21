@@ -38,6 +38,8 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 | `fix_iterations` | integer | Stage 13 | How many test-fix iterations ran (0-3). |
 | `final_review_completed` | boolean | After Stage 12 final review | Set `true` by `implementing-plans` when the cross-cutting final code-quality review passes. |
 | `handoff_path` | string | Stage 14 | Path to the generated handoff doc. Repo-relative if inside the repo, absolute if `paths.handoff_dir` resolves outside. |
+| `memory_file_updated` | boolean | Stage 15 | `true` if the memory file was updated this run; `false` if no update was needed or the stage was skipped. |
+| `memory_file_path` | string | Stage 15 (only if updated) | Path to the memory file that was updated. May be repo-relative or absolute. |
 | `reviewer_pushbacks` | array of objects | Any stage where the coordinator pushed back | `[{ "stage": string, "finding": string, "reason": string }, ...]`. Empty array `[]` is the initial value. |
 | `spec_auto_review_iterations` | integer | Stage 3 (and 4 if run) | Fix-loop iterations consumed (0-2). Hard cap at 2. |
 | `plan_auto_review_iterations` | integer | Stage 9 (and 10 if run) | Fix-loop iterations consumed (0-2). Hard cap at 2. |
@@ -60,6 +62,7 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 | `test_status`, `fix_iterations` | `testing-implementation` | Written when Stage 13 completes. |
 | `final_review_completed` | `implementing-plans` | Set to `true` after Stage 12's final review approves. |
 | `handoff_path` | Coordinator | Set after Stage 14 from the `generating-handoff` subagent's report. |
+| `memory_file_updated`, `memory_file_path` | Coordinator | Set after Stage 15 from the `maintaining-memory-file` subagent's report. |
 | `reviewer_pushbacks` | `receiving-review-findings` | Appended whenever the coordinator pushes back instead of fixing. |
 | `spec_auto_review_iterations`, `plan_auto_review_iterations` | `receiving-review-findings` | Incremented per fix-loop iteration. |
 
@@ -82,7 +85,8 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 | 12 | `implementing` | `implementation_complete` | — |
 | 13 | `testing` | `testing_complete` | `testing` |
 | 14 | `handoff` | `handoff_generated` | `handoff` |
-| 15 | `finishing` | `finished` | — |
+| 15 | `memory_file` | `memory_file_maintained` | `memory_file` |
+| 16 | `finishing` | `finished` | — |
 
 ## Atomic write pattern (required)
 

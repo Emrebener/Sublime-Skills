@@ -51,23 +51,28 @@ and safe-search level. The SearXNG endpoint is configured via the
 ### Spec-driven development
 
 A 21-skill family for running structured, spec-driven feature development
-end-to-end. The pipeline: **preflight → discover → spec → reviews → ADRs
-→ plan → reviews → per-task implementation → optional feature testing →
-handoff doc → finish**. Coordinated by `sdd-coordinator`, which is the
-only entry point the user invokes — every other skill is loaded by the
-coordinator or dispatched as a subagent. Designed to be self-contained
-(no dependencies on external skill families), resumable across sessions
-via a per-feature state file at `docs/specs/NNN-name/state.json`, and
-configurable via `.sdd/config.yml` (path overrides, finishing mode,
-harness tool names, handoff toggle). Specs and plans live at
-`docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs at
-`docs/handoff/YYYY-MM-DD-<title>.md`.
+end-to-end (plus a separate 5-skill `project-bootstrap/` family for
+one-time project setup — see below). The pipeline: **preflight → discover
+→ spec → reviews → ADRs → plan → reviews → per-task implementation →
+optional feature testing → handoff doc → memory file → finish**. Coordinated
+by `sdd-coordinator`, which is the only entry point the user invokes —
+every other skill is loaded by the coordinator or dispatched as a
+subagent. Designed to be self-contained (no dependencies on external
+skill families), resumable across sessions via a per-feature state file
+at `docs/specs/NNN-name/state.json`, and configurable via `.sdd/config.yml`
+(path overrides, finishing mode, harness tool names). Specs and plans
+live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
+at `docs/handoff/YYYY-MM-DD-<title>.md`.
 
 Shared scripts at `spec-driven-development/scripts/`:
-- `discover-context.sh` — finds project convention files
-  (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`, `DOMAIN.md`,
-  `CONTEXT-MAP.md`, prior ADRs) so skills can load relevant context
-  without each duplicating the detection logic.
+- `discover-context.sh` — reads project convention file paths from
+  `.sdd/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
+  `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can
+  load relevant context from a single source of truth.
+- `validate-config.sh` — validates `.sdd/config.yml` end-to-end (YAML
+  shape, required keys, context-path resolution, enum values). Used by
+  `bootstrapping-project`'s fix-and-retry loop and by `sdd-coordinator`'s
+  Step 2 halt check.
 - `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
   schema-check the artifacts each writer skill produces. Catch gross
   format violations (missing sections, placeholders, forbidden diagram
@@ -281,6 +286,22 @@ sensitive env-var assignments before writing. Schema-validated via
 `validate-handoff.sh`. Optimized for the "iterating on PR feedback in a
 fresh session" use case.
 
+#### [maintaining-memory-file](spec-driven-development/maintaining-memory-file/)
+
+Subagent skill. After each SDD run, decides whether the project's agent
+memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md` — auto-
+detected or config-pinned) needs updating based on what was produced.
+**"No update needed" is the most common outcome** — most features don't
+change project-level truth. When an update IS warranted (a new ADR that
+introduces a project-wide rule, a new convention, a hard constraint),
+the skill writes one-line rules into the appropriate section,
+respecting a configurable character cap (default 40000). Strict filters
+keep memory files from accreting cruft: no timestamps, no narrative, no
+duplicates of code-self-evident truths, no entries that need a paragraph
+to explain. Includes a substantial Best Practices section on what
+memory files are for, what they're NOT for, healthy size ranges, update
+cadence, pruning, and anti-patterns to avoid.
+
 #### [receiving-review-findings](spec-driven-development/receiving-review-findings/)
 
 Inline skill loaded by the coordinator whenever a reviewer subagent
@@ -300,15 +321,35 @@ action on every invocation (replaces what used to be the coordinator's
 inline resume-detection logic — cleaner separation). Also directly
 invokable by the user to check status without entering the pipeline.
 
-#### [initializing-project-context](spec-driven-development/initializing-project-context/)
+### project-bootstrap (separate family)
 
-One-time project bootstrap — invoked manually by the user, not by the
-pipeline. Opt-in menu for setting up: project constitution (with guided
-principle-by-principle authoring), `ARCHITECTURE.md` overview,
-`GLOSSARY.md`, `DOMAIN.md`, `CONTEXT-MAP.md` (for monorepos),
-`.sdd/config.yml`, and `docs/adr/` + `docs/specs/` + `docs/handoff/`
-directories with README stubs. Each artifact is independent. Detects
-existing setup and offers to extend/edit rather than overwrite.
+One-time project setup — a coordinator plus four read-only subagent
+analyzer skills. Lives under [`project-bootstrap/`](project-bootstrap/),
+separate from the SDD family. Invoked manually by the user, not by the
+SDD coordinator.
+
+#### [bootstrapping-project](project-bootstrap/bootstrapping-project/)
+
+The coordinator. Walks the user through each convention file: detect
+existing → ask `Skip / Extend / Replace` (or Create if missing) →
+dispatch the matching analyzer subagent → discuss findings + proposed
+content with the user → write the file. Then creates `docs/adr/`,
+`docs/specs/`, `docs/handoff/` with stub READMEs; copies the canonical
+config scaffold at `project-bootstrap/scaffolds/config.yml` to
+`.sdd/config.yml`; sets `context.<name>_path` to `null` for skipped
+files; runs `validate-config.sh` in a fix-and-retry loop until PASS;
+commits.
+
+#### [proposing-constitution](project-bootstrap/proposing-constitution/), [proposing-architecture](project-bootstrap/proposing-architecture/), [proposing-glossary](project-bootstrap/proposing-glossary/), [proposing-domain-model](project-bootstrap/proposing-domain-model/)
+
+Per-artifact analyzer subagents — read-only, dispatched by
+`bootstrapping-project`. Each does deep project analysis (per-skill
+targets: linter configs and source patterns for the constitution; build
+files and infra config for the architecture; source identifiers and
+comments for the glossary; schemas and model files for the domain
+model). Returns structured findings plus a proposed markdown draft to
+the coordinator. They do NOT write files, interact with the user, or
+dispatch further subagents.
 
 ## Setup
 

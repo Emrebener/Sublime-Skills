@@ -1,6 +1,6 @@
 # Spec-Driven Development (SDD) — Documentation
 
-A reliable, resumable, AI-friendly workflow for taking a feature idea from rough description to merged code, with a 16-stage pipeline driven by 21 coordinated skills (sdd-coordinator + 20 phase/subagent skills + helpers).
+A reliable, resumable, AI-friendly workflow for taking a feature idea from rough description to merged code, with a 17-stage pipeline driven by 22 coordinated skills (sdd-coordinator + 21 phase/subagent skills + helpers).
 
 This document set is the canonical reference. The skill files under `spec-driven-development/<skill>/SKILL.md` are the operational specs that the AI executes; these docs are the human-readable explanations of how everything fits together.
 
@@ -32,7 +32,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 
 ## Table of contents
 
-1. **[pipeline.md](pipeline.md)** — every stage of the 16-stage pipeline explained in detail. Inputs, outputs, mechanism (inline vs subagent), failure handling.
+1. **[pipeline.md](pipeline.md)** — every stage of the 17-stage pipeline explained in detail. Inputs, outputs, mechanism (inline vs subagent), failure handling.
 2. **[skills.md](skills.md)** — reference for all 21 skills, the 5 shared scripts, and the canonical state schema. What each one does, when it's invoked, what it reads, what it writes.
 3. **[artifacts.md](artifacts.md)** — full format specifications for every artifact: spec, plan, ADRs, handoff document. With templates and worked examples.
 4. **[state-and-config.md](state-and-config.md)** — state file schema (every field, who owns it), resume protocol, the `.sdd/config.yml` schema with all defaults and overrides.
@@ -43,11 +43,11 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 
 ## Quickstart
 
-**First-time setup on a project:** invoke `initializing-project-context` manually. It walks you through opt-in setup of:
+**First-time setup on a project:** invoke `bootstrapping-project` (in the `project-bootstrap/` family) manually. It walks you through each convention file with deep per-file project analysis (via dedicated subagents) and scaffolds:
 - `docs/constitution.md` (optional project-wide principles)
-- `ARCHITECTURE.md`, `GLOSSARY.md`, `DOMAIN.md` (optional scaffolds)
-- `.sdd/config.yml` (with defaults you can edit)
-- `docs/adr/`, `docs/specs/`, `docs/handoff/` directories
+- `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md` (optional scaffolds)
+- `.sdd/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
+- `docs/adr/`, `docs/specs/`, `docs/handoff/` directories with README stubs
 
 **Starting a feature:** make sure you're on `main` (or `master`) with a clean working tree, then invoke `sdd-coordinator`. It will:
 1. Run preflight checks (will abort if dirty or on a wrong branch — clean up first)
@@ -76,7 +76,6 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 │   ├── ARCHITECTURE.md                    # optional, repo-level
 │   ├── GLOSSARY.md                        # optional
 │   ├── DOMAIN.md                          # optional
-│   ├── CONTEXT-MAP.md                     # optional, monorepo-only
 │   ├── adr/
 │   │   ├── README.md
 │   │   ├── 0001-<title>.md
@@ -86,7 +85,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 │   │   └── 001-<short-name>/
 │   │       ├── spec.md                    # written in Stage 2
 │   │       ├── plan.md                    # written in Stage 8
-│   │       └── state.json                 # written in Stage 2, deleted in Stage 15
+│   │       └── state.json                 # written in Stage 2, deleted in Stage 16
 │   ├── handoff/
 │   │   ├── README.md
 │   │   └── 2026-05-20-<title>.md          # written in Stage 14

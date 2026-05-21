@@ -15,11 +15,14 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 
 ## Hard Gates
 
-- ALWAYS read the state file first on every invocation, before doing anything else
-- Do NOT skip mandatory stages (preflight, discovering, writing-specs, auto spec-review, ADR maintenance, user spec approval, writing-plans, auto plan-review, user plan approval, implementation, finishing)
-- Optional stages (2nd spec-review, grill, 2nd plan-review, feature testing) are user-gated — always ask, default no
+- ALWAYS read state first on every invocation (Step 1 below)
+- Do NOT proceed without a valid `.sdd/config.yml` — halt and direct user to `bootstrapping-project` (Step 2 below)
+- Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
+- Optional stages are user-gated — always ask, default per the table
+- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
+- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the pipeline. Build the initial list right after the resume-check (Step 3 below): one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
-- Do NOT attempt to test the feature yourself, even if `testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
+- Do NOT attempt to test the feature yourself if `testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
 
 ## The Pipeline
@@ -29,102 +32,101 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 0 | Preflight | Inline via `preflight-checks` | No |
 | 1 | Discovering requirements | Inline via `discovering-requirements` | No |
 | 2 | Writing the spec | Inline via `writing-specs` | No |
-| 3 | Auto spec-review | Subagent uses `reviewing-specs`; findings processed via `receiving-review-findings` | No |
-| 4 | Optional 2nd spec-review | Subagent uses `reviewing-specs`; findings processed via `receiving-review-findings` | **Yes — ask user** |
-| 5 | Optional grill | Inline via `grilling-specs` | **Yes — ask user** |
+| 3 | Auto spec-review | Subagent uses `reviewing-specs`; findings via `receiving-review-findings` | No |
+| 4 | Optional 2nd spec-review | Subagent uses `reviewing-specs`; findings via `receiving-review-findings` | **Yes — ask user, default no** |
+| 5 | Optional grill | Inline via `grilling-specs` | **Yes — ask user, default no** |
 | 6 | ADR maintenance | Subagent uses `maintaining-adrs` | No |
 | 7 | User spec approval + commit | Inline | No |
 | 8 | Writing the plan | Inline via `writing-plans` | No |
-| 9 | Auto plan-review | Subagent uses `reviewing-plans`; findings processed via `receiving-review-findings` | No |
-| 10 | Optional 2nd plan-review | Subagent uses `reviewing-plans`; findings processed via `receiving-review-findings` | **Yes — ask user** |
+| 9 | Auto plan-review | Subagent uses `reviewing-plans`; findings via `receiving-review-findings` | No |
+| 10 | Optional 2nd plan-review | Subagent uses `reviewing-plans`; findings via `receiving-review-findings` | **Yes — ask user, default no** |
 | 11 | User plan approval + commit | Inline | No |
 | 12 | Implementation | Inline via `implementing-plans` (dispatches per-task subagents) | No |
-| 13 | Optional feature testing | Inline via `testing-implementation` (dispatches tester subagent) | **Yes — ask user** |
-| 14 | Generate handoff | Subagent uses `generating-handoff` | Default yes; skippable via `.sdd/config.yml` → `handoff.enabled: false` |
-| 15 | Finishing + cleanup | Inline via `finishing-sdd` | No |
+| 13 | Optional feature testing | Inline via `testing-implementation` (dispatches tester subagent) | **Yes — ask user, default yes** |
+| 14 | Generate handoff | Subagent uses `generating-handoff` | **Yes — ask user, default yes** |
+| 15 | Maintain memory file | Subagent uses `maintaining-memory-file` | **Yes — ask user, default yes** (auto-skipped if no memory file is configured/detected) |
+| 16 | Finishing + cleanup | Inline via `finishing-sdd` | No |
 
 ## On Every Invocation: Resume Check (BEFORE anything else)
 
 This is the very first thing to do, every time the coordinator is invoked. Skipping it is the worst failure mode this skill has.
 
-### Step 1: Run the inspecting-state Skill
+### Step 1: Run inspecting-state
 
-Load `inspecting-state` via the Skill tool and let it produce the report. **You do not perform state detection inline** — `inspecting-state` is the single source of truth for "what state exists right now". It runs `scripts/discover-context.sh`, reads every active state file, validates schemas, and reports pre-state-file interruption signals.
+Load `inspecting-state` via the Skill tool. It runs `scripts/discover-context.sh`, reads every active state file, validates against `scripts/state-schema.json`, and reports current branch + per-state branch match + pre-state interruption signals. **You do not perform state detection inline.**
 
 ### Step 2: Load Config
 
-Read `.sdd/config.yml` if present. Cache the values for later stages (paths, preflight options, grill cap, handoff toggle, finishing mode and test command, etc.).
+`.sdd/config.yml` is **required and must be valid** — the framework reads every path from it (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.). It is not optional.
 
-**For scalar config values**, prefer the helper:
+Run the validator before loading:
 
 ```bash
-./spec-driven-development/scripts/get-config-value.sh <block> <key>
+./spec-driven-development/scripts/validate-config.sh
 ```
 
-Returns the value on stdout (exit 0), or exit 2 if the config file is missing or the key isn't set. Examples:
-- `get-config-value.sh handoff enabled` → returns `"true"` / `"false"` / empty
-- `get-config-value.sh paths handoff_dir` → returns the path
-- `get-config-value.sh finishing mode` → returns `prompt|leave|merge-local|pr|auto`
+| Exit code | Meaning | Action |
+|---|---|---|
+| `0` | PASS | Continue — load the config for use throughout the run |
+| `1` | FAIL (config has issues) | HALT — surface the validator's findings to the user; tell them to run `bootstrapping-project` to fix |
+| `2` | Config file missing | HALT — tell the user the project hasn't been bootstrapped; direct to `bootstrapping-project` |
 
-For non-scalar values (lists like `context.constitution_paths`, multi-line strings like `pr_body_template`), parse `.sdd/config.yml` directly. See `scripts/README.md` for the helper's limits.
+**Halt message template (any non-zero exit):**
+
+> "`.sdd/config.yml` is missing or invalid:
+>
+> <validator output verbatim>
+>
+> Run the `bootstrapping-project` skill to scaffold (or fix) the config, then re-invoke this coordinator."
+
+Do not attempt to proceed with defaults; do not run any pipeline stage. Returning the user to bootstrap is the correct outcome.
+
+Once the validator passes, load the config. For scalar lookups, use `scripts/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing). For lists / multi-line strings, parse YAML directly.
 
 ### Step 3: Decide Based on the Report
 
-The report includes both the active state files AND the current branch. Routing depends on both: a state file alone is not enough — the current branch determines whether resuming that state is the right next action.
-
-| inspecting-state report says | Coordinator action |
+| Report says | Coordinator action |
 |---|---|
-| 0 active runs + no pre-state signals + on default branch | Fresh start. Confirm with user: "No active SDD run found. Start a new feature?" |
-| 0 active runs + pre-state signals (non-default branch) | Preflight likely ran but spec was never written. Ask user: "Looks like preflight ran on `<branch>` but discovery wasn't completed. Options: (1) resume from Stage 1; (2) start fresh; (3) abandon (you'll clean up)." Respect user's choice; never silently pick. |
-| 1 active run, **current branch matches the run's `state.branch`** | Confirm with user: "Resuming SDD run for `<feature_id>` at stage `<current_stage>`. Resume? (yes/no)". If no, ask what they want instead. |
-| 1 active run, **current branch does NOT match the run's `state.branch`** | **DO NOT silently resume.** Ask user: "Active SDD run found for `<feature_id>` on branch `<state.branch>`, but you're currently on `<current_branch>`. Options: (1) Switch to `<state.branch>` and resume that run; (2) Start a new feature on `<current_branch>` (the existing run's state file stays put for later); (3) Abort — clarify what you intended." Never auto-switch branches; never auto-resume across branches. |
-| 2+ active runs, **current branch matches exactly one** | Tell user: "Found N active runs. Your current branch `<current_branch>` matches `<feature_id>`. Resume that one, or pick a different one? (resume/pick/fresh-on-this-branch)". |
-| 2+ active runs, **current branch matches none** | List them with their branches. Ask: "Which to resume, or start fresh on `<current_branch>`?" Never silently pick. |
-| Malformed state file | Show the user what's wrong (from the report). Offer: (a) attempt repair (ask user for guidance), (b) discard state and start fresh, (c) abort. Never silently overwrite. |
+| 0 runs + no pre-state signals + on default branch | Fresh start. Confirm: "No active SDD run found. Start a new feature?" |
+| 0 runs + pre-state signals | Preflight ran but spec wasn't written. Ask: resume from Stage 1 / start fresh / abandon. |
+| 1 run, current branch matches `state.branch` | Confirm: "Resuming `<feature_id>` at `<current_stage>`. Resume? (yes/no)". |
+| 1 run, current branch does NOT match `state.branch` | **Do NOT silently resume.** Offer: (1) switch to `<state.branch>` and resume; (2) start new feature on current branch (state stays); (3) abort. |
+| 2+ runs, current branch matches exactly one | Offer to resume the match, pick a different one, or start fresh on current branch. |
+| 2+ runs, current branch matches none | List them; ask which to resume or start fresh on current. |
+| Malformed state | Show issues. Offer: repair (user-guided), discard, or abort. Never silently overwrite. |
 
-**Rules that apply across all routing:**
+**Routing rules:**
+- The coordinator NEVER `git checkout`s to switch branches on its own. If user picks "switch and resume," instruct them to switch and re-invoke (or with explicit consent run the checkout this session).
+- "Match" = exact string equality between `git branch --show-current` and `state.branch`.
+- Detached HEAD with any active state → ABORT (too ambiguous to route).
 
-- The coordinator NEVER runs `git checkout` to switch branches on its own. If the user picks "switch and resume," the coordinator instructs the user to switch and re-invoke, OR (with explicit user consent in this session) runs the checkout. Default is "instruct user."
-- "Match" means exact string equality between `git branch --show-current` output and the state file's `branch` field.
-- If `current_branch` is empty (detached HEAD) and any active state exists: ABORT — detached HEAD is too ambiguous to route from.
+### Step 4: Build the Todo List
 
-### When Does the State File Exist?
+After the resume routing decision and BEFORE running any stage, build the progress todo list using the harness's todo/task tool. One todo per stage you're about to run:
 
-The state file is **created in Stage 2** (`writing-specs`), once the spec directory is set up. Preflight (Stage 0) and discovering-requirements (Stage 1) run BEFORE the state file exists:
+- **Fresh start:** create todos for all mandatory stages (0, 1, 2, 3, 6, 7, 8, 9, 11, 12, 16) up front. Add optional stages (4, 5, 10, 13, 14, 15) as you reach them and the user opts in — don't pre-create todos for stages that may not run.
+- **Resume:** rebuild the list from `state.stages_completed` + `state.stages_skipped` (mark those `completed`) and the remaining pipeline. The harness's todo state may or may not persist across sessions; rebuild explicitly either way.
 
-- Stage 0 outputs (branch, worktree path, original branch) are held by the coordinator in-memory
-- Stage 1 outputs (short name, decisions, approved sections) are held in-memory
-- Stage 2 (`writing-specs`) initializes the state file with all of the above
+Update discipline:
+- Mark the current stage's todo `in_progress` as you begin it
+- Mark it `completed` the moment the stage advances (after `stages_completed` is updated)
+- Never batch updates; the user is watching this list during the run
 
-This means an interruption between Stage 0 and Stage 2 has NO state file — the "non-default branch + no state" resume case above handles this.
+This is non-negotiable. A 17-stage pipeline is invisible to the user without it.
+
+### When the State File Exists
+
+Created in **Stage 2** (`writing-specs`). Stages 0-1 run before it exists; their outputs are held by the coordinator in-memory and persisted into the state file by `writing-specs`. An interruption between Stage 0 and Stage 2 has no state file — the "pre-state signals" routing handles it.
 
 ### State File Schema
 
-Path: `<spec_dir>/<feature_id>/state.json` (default `<spec_dir>` is `docs/specs`; honors `paths.spec_dir` config override).
+Canonical at `scripts/state-schema.md` (human) and `scripts/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins.
 
-**The canonical schema lives at `spec-driven-development/scripts/state-schema.md`** (human-readable) and `state-schema.json` (machine-readable JSON Schema Draft 2020-12). Both define the complete field set, types, enums, ownership, and stage-name mapping. **This skill must match that schema; if they disagree, the canonical wins and this section needs updating.**
+**You write to** `current_stage`, `stages_completed`, `stages_skipped`, `updated_at`, `adr_results`, `handoff_path` at stage boundaries (atomic: write `.tmp`, then `mv`). Other fields are owned by their respective skills — don't touch them.
 
-Quick reference (full details in the canonical):
+Stage name mapping (lookup for `current_stage` advance and `stages_completed` append):
 
-- **Required fields:** `feature_id`, `short_name`, `started_at`, `updated_at`, `branch`, `spec_path`, `current_stage`, `stages_completed`, `stages_skipped`, `preflight`, `tasks`
-- **Optional fields (present after specific stages):** `plan_path`, `adr_results`, `test_status`, `fix_iterations`, `final_review_completed`, `handoff_path`, `reviewer_pushbacks`, `spec_auto_review_iterations`, `plan_auto_review_iterations`
-
-**Field ownership (summary):**
-
-- Coordinator owns: `current_stage`, `stages_completed`, `stages_skipped`, `updated_at`, `adr_results`, `handoff_path`
-- `writing-specs` owns: `feature_id`, `short_name`, `started_at`, `branch`, `spec_path`, `preflight.*` (init only)
-- `writing-plans` owns: `plan_path` (init only)
-- `implementing-plans` owns: `tasks` map transitions, `final_review_completed`
-- `testing-implementation` owns: `test_status`, `fix_iterations`
-- `receiving-review-findings` owns: `reviewer_pushbacks`, `spec_auto_review_iterations`, `plan_auto_review_iterations`
-
-**Atomic update pattern:** write to `state.json.tmp`, then `mv state.json.tmp state.json`. State updates happen **at stage boundaries** — never mid-stage. State file gets committed alongside relevant spec/plan/code commits (no standalone "update state" commits).
-
-### Stage Name Mapping (summary)
-
-See `scripts/state-schema.md` for the full table with `stages_skipped` entries. Quick reference:
-
-| Stage # | `current_stage` value | `stages_completed` entry |
+| # | `current_stage` | `stages_completed` |
 |---|---|---|
 | 0 | `preflight` | `preflight` |
 | 1 | `discovering` | `discovering` |
@@ -141,9 +143,10 @@ See `scripts/state-schema.md` for the full table with `stages_skipped` entries. 
 | 12 | `implementing` | `implementation_complete` |
 | 13 | `testing` | `testing_complete` |
 | 14 | `handoff` | `handoff_generated` |
-| 15 | `finishing` | `finished` |
+| 15 | `memory_file` | `memory_file_maintained` |
+| 16 | `finishing` | `finished` |
 
-When resuming, set `current_stage` to the stage that needs to run next (i.e., one beyond `stages_completed`'s last entry). If the last completed stage exists in `stages_skipped` rather than `stages_completed`, advance to the next mandatory or asked-and-confirmed stage.
+When resuming, advance to the stage one beyond the last `stages_completed` entry. If the last completed stage exists in `stages_skipped` instead, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries only — never mid-stage. State file commits ride along with the relevant spec/plan/code commit (no standalone state-update commits).
 
 ## Per-Stage Driving Instructions
 
@@ -151,44 +154,30 @@ For every stage:
 
 1. Update state: `current_stage: "<stage_name>"` (atomic write)
 2. Run the stage (load skill, or dispatch subagent, per the pipeline table)
-3. On success: add the stage name to `stages_completed`, write state, commit if appropriate
-4. Advance to next stage
+3. On success: add stage name to `stages_completed`, write state, commit if appropriate
+4. Advance
 
-If a stage fails (e.g., a subagent returns "Issues Found"): handle the loop per that stage's protocol. Do not advance until the stage is genuinely complete.
+If a stage fails (subagent returns Issues Found, validator fails, etc.): handle the loop per that stage's protocol. Do not advance until the stage is genuinely complete.
 
 ### Stage 0 — Preflight
 
-Load `preflight-checks`. Follow it.
-
-**State file does NOT exist yet.** Preflight runs against a working branch name that may be temporary. Track preflight outcomes (branch, worktree path, original branch) in a temporary in-memory dict. The state file is initialized in Stage 2 (`writing-specs`) using these in-memory values.
-
-`preflight` is NOT added to `stages_completed` here (no state file). It's added by `writing-specs` when the file is initialized.
+Load `preflight-checks`. Follow it. State file does NOT yet exist; hold preflight outcomes (branch, worktree path, original branch) in-memory for `writing-specs` to persist in Stage 2.
 
 ### Stage 1 — Discovering Requirements
 
-Load `discovering-requirements`. Follow it.
-
-**State file still does NOT exist.** Track the discovery outputs (short name, approved sections, decisions captured as ADR candidates) in-memory. They're persisted into the state file in Stage 2.
-
-On success: in-memory shared understanding ready for spec writing.
+Load `discovering-requirements`. Follow it. State file still doesn't exist; hold discovery outputs (short name, approved sections, ADR-candidate decisions) in-memory.
 
 ### Stage 2 — Writing the Spec
 
-Load `writing-specs`. Pass it the in-memory preflight outcomes and discovery outputs — it initializes the state file (`docs/specs/NNN-<short-name>/state.json`) with these.
+Load `writing-specs`. Pass it the in-memory preflight + discovery outputs — it initializes the state file.
 
-**Verify the validator passed before committing.** `writing-specs` is required to include the validator's PASS line in its report. Re-run the validator yourself as a check:
+**Validator enforcement:** `writing-specs` must return the validator's PASS line verbatim. Re-run yourself:
 
 ```bash
 ./spec-driven-development/scripts/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
 ```
 
-- If the fresh run also returns PASS (exit code 0): proceed to commit
-- If the fresh run returns FAIL (exit code 1) but the writer's report claimed PASS: **the writer lied or the spec drifted.** Halt the stage; show the user the validator output; ask whether to re-run writing-specs or abort.
-- If the writer's report did NOT include a PASS line: halt the stage; the writer claims it skipped validation. Surface the writer's full report to the user.
-
-After validation passes, update the state file: set `current_stage` to `"spec_auto_review"` and append `"spec_written"` to `stages_completed`.
-
-Commit spec.md + state.json:
+If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. Commit:
 
 ```
 git add docs/specs/NNN-<short-name>/spec.md docs/specs/NNN-<short-name>/state.json
@@ -197,46 +186,21 @@ git commit -m "spec(NNN-short-name): initial draft"
 
 ### Stage 3 — Auto Spec-Review
 
-Dispatch a `general-purpose` subagent with this prompt:
+Dispatch a `general-purpose` subagent. Prompt includes: `SPEC_PATH`, `CONTEXT_FILES` (constitution + ADRs + architecture + glossary paths that exist), `REVIEW_FOCUS: first-pass`, and "Use the `reviewing-specs` skill."
 
-```
-You are reviewing a spec for the SDD pipeline.
-
-Use the `reviewing-specs` skill (via the Skill tool) to perform the review.
-
-SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
-CONTEXT_FILES:
-  - <list constitution path if exists>
-  - <list ADR paths>
-  - <list architecture/glossary/etc paths>
-REVIEW_FOCUS: first-pass
-
-Return your findings report.
-```
-
-Process the findings via `receiving-review-findings` (load it inline). That skill tells you how to evaluate, fix, push back, or escalate. Cap at 2 fix iterations before escalating to user.
-
-When the stage settles to Approved (or all findings resolved per `receiving-review-findings`'s protocol): advance to Stage 4 query.
+Process findings via `receiving-review-findings` (load it inline). It handles evaluate/fix/push-back/escalate, including the cap-2 fix-loop escalation protocol.
 
 ### Stage 4 — Optional 2nd Spec-Review (User-Gated)
 
-Ask the user:
+Ask: "Spec auto-review passed. Want a second-pass review for extra rigor? (yes/no, default no)"
 
-> "Spec auto-review passed. Want a second-pass review for extra rigor? (yes/no, default no)"
-
-If no: add `spec_second_review` to `stages_skipped`, advance to Stage 5 query.
-
-If yes: dispatch a fresh `reviewing-specs` subagent with `REVIEW_FOCUS: second-pass — focus on <user-specified focus, e.g., security implications>` (if user gave a focus) or `second-pass — independent angle`. Process findings via `receiving-review-findings`, same as Stage 3.
+If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVIEW_FOCUS: second-pass — focus on <user-specified topic or "independent angle">`. Process via `receiving-review-findings`.
 
 ### Stage 5 — Optional Grill (User-Gated)
 
-Ask the user:
+Ask: "Want a grill session to stress-test the spec? (yes/no, default no)"
 
-> "Want a grill session to stress-test the spec? It'll ask scoped questions and update the spec inline. (yes/no, default no)"
-
-If no: add `spec_grill` to `stages_skipped`, advance to Stage 6.
-
-If yes: load `grilling-specs`. Follow it. After the grill, commit the changes:
+If yes: load `grilling-specs`. Follow it. Commit after:
 
 ```
 git add docs/specs/NNN-<short-name>/spec.md
@@ -245,94 +209,45 @@ git commit -m "spec(NNN-short-name): grill session updates"
 
 ### Stage 6 — ADR Maintenance
 
-Dispatch a `general-purpose` subagent:
+Dispatch a `general-purpose` subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (from config `paths.adr_dir` or default), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `maintaining-adrs` skill."
+
+If ADRs were created or superseded, commit them and record `adr_results` in state. Zero ADRs is a valid outcome.
 
 ```
-You are maintaining ADRs for the SDD pipeline.
-
-Use the `maintaining-adrs` skill (via the Skill tool).
-
-SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
-ADR_DIR: docs/adr (or config override)
-EXISTING_ADRS:
-  - <list>
-DECISIONS_CAPTURED:
-  - <list from in-memory record of major decisions from discovery + grill>
-
-Return the result.
+git add docs/adr/<new files> [docs/adr/<modified superseded files>]
+git commit -m "docs(adr): NNNN-NNNN from spec NNN-short-name"
 ```
-
-Handle:
-- ADRs created → commit them:
-  ```
-  git add docs/adr/<new files> [docs/adr/<modified superseded files>]
-  git commit -m "docs(adr): NNN-NNNN from spec NNN-short-name"
-  ```
-- Record ADR results in state file under `adr_results`
-- 0 ADRs created → note in state file, no commit, advance
 
 ### Stage 7 — User Spec Approval
 
-Tell the user:
+Tell user:
 
-> "Spec and ADRs are ready for your review:
+> "Spec and ADRs ready:
 > - Spec: docs/specs/NNN-<short-name>/spec.md
-> - ADRs (currently `Proposed`): [list with paths]
+> - ADRs (currently `Proposed`): [list]
 >
-> Please read them and let me know one of:
-> - **Approve** — I'll flip ADRs from Proposed to Accepted and proceed to plan-writing (this is the default for spec approval)
-> - **Approve, keep ADRs as Proposed** — proceed to plan-writing but leave ADR statuses untouched (use this when ADRs need more deliberation but the spec is fine)
-> - **Request changes** — tell me what to change (spec text, ADR text, or both)"
+> One of:
+> - **Approve** — flip ADRs Proposed → Accepted, proceed (default)
+> - **Approve, keep ADRs as Proposed** — proceed but leave ADRs untouched
+> - **Request changes** — what to change"
 
-Wait for explicit approval. Three response paths:
+**On Approve:** edit each ADR's `Status: Proposed` → `Status: Accepted`, commit `docs/adr/*.md` + state.json. Advance.
 
-**On "Approve":**
-1. For each ADR in the run's `adr_results`: edit its file's status line from `Status: Proposed` to `Status: Accepted`
-2. Commit:
-   ```
-   git add docs/adr/*.md docs/specs/NNN-<short-name>/state.json
-   git commit -m "spec(NNN-short-name): approve + accept ADRs"
-   ```
-3. Advance to Stage 8
+**On Approve, keep ADRs as Proposed:** commit state.json only. Advance.
 
-**On "Approve, keep ADRs as Proposed":**
-1. Do NOT edit ADR files
-2. Commit only the state.json (advancing `current_stage`):
-   ```
-   git add docs/specs/NNN-<short-name>/state.json
-   git commit -m "spec(NNN-short-name): approve (ADRs kept as Proposed)"
-   ```
-3. Advance to Stage 8
-
-**On "Request changes":**
-
-Classify the change before applying. Ask the user (if not already clear) which kind:
+**On Request changes:** classify before applying.
 
 | Change type | Examples | Handling |
 |---|---|---|
-| **Light-touch edit** | Typo, wording, tightening a vague FR, adding a missing edge case, ADR text adjustment, splitting a story's acceptance scenarios, adjusting an SC's threshold | Apply inline. Use the `receiving-review-findings` discipline — verify against context first, then edit. Re-run `validate-spec.sh` if spec was touched. Commit the changes. Re-ask for approval. |
-| **Substantive — re-discovery needed** | Spec needs decomposition into multiple features; fundamental requirement change; whole user story added or removed; goal/users/scope substantially redefined; constitution conflict the user wants to revisit | Do NOT edit inline. Confirm with user: "This needs to go back to discovery. I'll keep the spec file (and any ADRs) for reference, reset `current_stage` to `discovering`, and re-enter Stage 1. Proceed?" On yes: update state file (`current_stage: "discovering"`, append `"spec_approval_returned"` to a new `notes` field if useful), re-invoke `discovering-requirements`. The new discovery may produce a revised spec that supersedes the current one. |
-| **Substantive — ADR overhaul** | An ADR needs to be replaced (not just edited), or new ADR-worthy decisions emerge that weren't captured | Re-dispatch `maintaining-adrs` after applying any necessary spec changes. The subagent handles supersession of old ADRs and writing new ones. Re-ask for approval. |
+| **Light-touch** | Typo, wording, tightening an FR, adding an edge case, ADR text adjustment | Apply inline via `receiving-review-findings` discipline. Re-validate. Re-ask for approval. |
+| **Substantive — re-discovery** | Decomposition needed, fundamental requirement change, whole story added/removed | Do NOT edit inline. Reset `current_stage` to `discovering`; re-invoke `discovering-requirements`. |
+| **Substantive — ADR overhaul** | An ADR needs replacing, new ADR-worthy decisions emerge | Re-dispatch `maintaining-adrs` after any spec changes. |
 
-If the user is unsure which category, default to "light-touch" and apply inline. If during inline editing it becomes clear the change is substantive, stop and reclassify — don't try to force a substantive change through inline edits.
-
-**Why the routing matters:** light-touch changes don't need a fresh review; substantive changes need to go back through earlier stages or the artifact becomes inconsistent.
-
-The default approval option flips ADRs because leaving them indefinitely `Proposed` after a shipped feature is the more confusing outcome — users typically forget and ship with stale statuses.
+If unsure, default to light-touch; if it grows substantive mid-edit, stop and reclassify.
 
 ### Stage 8 — Writing the Plan
 
-Load `writing-plans`. Follow it.
-
-**Verify the validator passed before committing.** Same enforcement pattern as Stage 2 — `writing-plans` must include the validator's PASS line in its report. Re-run yourself:
-
-```bash
-./spec-driven-development/scripts/validate-plan.sh docs/specs/NNN-<short-name>/plan.md
-```
-
-If fresh run disagrees with the writer's reported result, halt and surface.
-
-After validation passes, commit plan.md + state.json:
+Load `writing-plans`. Follow it. Same validator-enforcement pattern as Stage 2 — re-run `validate-plan.sh`; halt on disagreement. Commit:
 
 ```
 git add docs/specs/NNN-<short-name>/plan.md docs/specs/NNN-<short-name>/state.json
@@ -341,212 +256,105 @@ git commit -m "plan(NNN-short-name): initial draft"
 
 ### Stage 9 — Auto Plan-Review
 
-Dispatch a `general-purpose` subagent:
-
-```
-You are reviewing a plan for the SDD pipeline.
-
-Use the `reviewing-plans` skill (via the Skill tool).
-
-PLAN_PATH: docs/specs/NNN-<short-name>/plan.md
-SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
-CONTEXT_FILES: [list]
-REVIEW_FOCUS: first-pass
-
-Return findings.
-```
-
-Process findings via `receiving-review-findings`, same protocol as Stage 3 (cap 2 fix iterations).
+Dispatch with: `PLAN_PATH`, `SPEC_PATH`, `CONTEXT_FILES`, `REVIEW_FOCUS: first-pass`, "Use the `reviewing-plans` skill." Process findings via `receiving-review-findings`.
 
 ### Stage 10 — Optional 2nd Plan-Review (User-Gated)
 
-Same pattern as Stage 4. Process findings via `receiving-review-findings`.
+Same pattern as Stage 4.
 
 ### Stage 11 — User Plan Approval
 
-Tell user:
-
-> "Plan ready for review: docs/specs/NNN-<short-name>/plan.md
-> Approve to start implementation, or request changes."
-
-Wait for explicit approval.
+Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to start implementation, or request changes." Wait for explicit approval.
 
 ### Stage 12 — Implementation
 
-Load `implementing-plans`. Follow it. State file's `tasks` map is initialized and updated throughout.
+Load `implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is initialized/synced and updated per task.
 
-After all tasks complete and final review passes, commit state updates:
+After all tasks complete and final review passes:
 
 ```
 git add docs/specs/NNN-<short-name>/state.json
 git commit -m "chore(NNN-short-name): mark implementation complete"
 ```
 
-(Per-task commits already happened inside the loop.)
-
 ### Stage 13 — Optional Feature Testing (User-Gated)
 
-Ask:
+Ask: "Implementation complete. Run feature-level tests now? (yes/no, default yes)"
 
-> "Implementation complete. Run feature-level tests now? (yes/no, default yes — recommended for any feature with observable behavior)"
+If yes: load `testing-implementation`. It dispatches the tester subagent and handles the FAIL → fixer loop. **If the tester reports `MCP_UNAVAILABLE`, do NOT pick up Bash/Playwright/curl to test it yourself — surface the manual test plan to user.**
 
-If no: add `testing` to `stages_skipped`. Advance to Stage 14.
+### Stage 14 — Generate Handoff (User-Gated)
 
-If yes: load `testing-implementation`. Follow it. Handle the result protocols described in that skill — including the **critical rule that the coordinator does not test on its own** if `MCP_UNAVAILABLE`.
+Ask: "Generate a handoff document for this run? (yes/no, default yes — recommended when someone else may pick this up, or you'll iterate on it later in a fresh session)"
 
-### Stage 14 — Generate Handoff
+If no: add `handoff` to `stages_skipped`. Advance to Stage 15.
 
-Check config: `.sdd/config.yml` → `handoff.enabled`. Default is `true`. If false, add `handoff` to `stages_skipped` and advance to Stage 15.
+If yes, resolve `HANDOFF_DIR`: read `paths.handoff_dir` from config. If it starts with `/` or `~`, treat as absolute (expand `~`); set `OUTSIDE_REPO=true` if the resolved path falls outside `git rev-parse --show-toplevel`. Otherwise repo-relative, `OUTSIDE_REPO=false`.
 
-Otherwise, resolve `HANDOFF_DIR`:
+Dispatch a `general-purpose` subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, `OUTSIDE_REPO`, and "Use the `generating-handoff` skill."
 
-- Default: `docs/handoff` (relative to repo root)
-- Override: `.sdd/config.yml → paths.handoff_dir`
-- If the override starts with `/` or `~`, treat it as an absolute path (expand `~` to `$HOME`) and set `OUTSIDE_REPO=true`. Otherwise treat as repo-relative and set `OUTSIDE_REPO=false`.
-- Sanity check: after expansion, if the resolved path is NOT under `git rev-parse --show-toplevel`, set `OUTSIDE_REPO=true`.
+After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT commit. Otherwise:
 
-Dispatch a `general-purpose` subagent:
+- **`OUTSIDE_REPO=false`:** commit `<handoff-path>` + state.json (`docs(NNN-short-name): handoff document`)
+- **`OUTSIDE_REPO=true`:** commit state.json only (`chore(NNN-short-name): record external handoff path`); tell user where the external handoff was written.
 
-```
-You are generating the handoff document for the SDD pipeline.
+Record `handoff_path` in state file.
 
-Use the `generating-handoff` skill (via the Skill tool).
+### Stage 15 — Maintain Memory File (User-Gated)
 
-STATE_PATH: docs/specs/NNN-<short-name>/state.json
-SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
-PLAN_PATH: docs/specs/NNN-<short-name>/plan.md
-ADR_PATHS:
-  - <list ADR paths created or modified in this run, from state.adr_results>
-BRANCH: <branch name>
-BASE_SHA: <first commit on this branch — git merge-base HEAD <base-branch>>
-HEAD_SHA: <current HEAD — git rev-parse HEAD>
-HANDOFF_DIR: <resolved path — repo-relative or absolute>
-OUTSIDE_REPO: <true | false>
+Resolve `MEMORY_FILE_PATH` BEFORE asking:
+1. `memory_file.path` in config — if set, use it (absolute or repo-relative; both OK)
+2. Otherwise auto-detect by checking for these in order at repo root: `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md`. First match wins.
+3. If neither config nor auto-detect finds a path: auto-skip (no memory file to maintain). Add `memory_file` to `stages_skipped`. Do NOT prompt — there's nothing to maintain.
 
-Return the path to the generated handoff and a report.
-```
+If a path was resolved, ask: "Check memory file `<MEMORY_FILE_PATH>` for updates from this run? (yes/no, default yes — most runs result in 'no update needed', so this is cheap to say yes to)"
 
-**Verify the validator passed before committing.** The `generating-handoff` subagent's report includes a "Validation: passed" line. Re-run yourself against the now-final file to confirm:
+If no: add `memory_file` to `stages_skipped`. Advance to Stage 16.
 
-```bash
-./spec-driven-development/scripts/validate-handoff.sh <handoff-path>
-```
+If yes, resolve `CHARACTER_LIMIT` from `memory_file.character_limit` (default 40000).
 
-If FAIL (especially "potential unredacted secret matching pattern"): halt and surface to the user immediately. Do NOT commit a handoff that may contain secrets. Offer to re-dispatch the handoff subagent or have the user inspect manually.
+Read `EXISTING_CONTENT` from `MEMORY_FILE_PATH` (empty string if file doesn't exist yet but a path is configured).
 
-After validation passes:
+Dispatch a `general-purpose` subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT`, `EXISTING_CONTENT`, and "Use the `maintaining-memory-file` skill."
 
-**If `OUTSIDE_REPO=false`:**
+The subagent returns one of:
+- **updated** — memory file was written. Commit it:
+  ```
+  git add <MEMORY_FILE_PATH> docs/specs/NNN-<short-name>/state.json
+  git commit -m "docs(memory): update from NNN-short-name"
+  ```
+  (If `MEMORY_FILE_PATH` resolves outside the repo, commit only state.json and inform the user where the external file was written.)
+- **no update needed** — the most common outcome. No commit needed for the memory file; advance.
+- **skipped** — no memory file configured or detected. Add `memory_file` to `stages_skipped`; advance.
 
-```bash
-git add <handoff-path> docs/specs/NNN-<short-name>/state.json
-git commit -m "docs(NNN-short-name): handoff document"
-```
+Record outcome in state: `memory_file_updated: true | false`. If updated, also record `memory_file_path` in state for the handoff doc / debugging.
 
-**If `OUTSIDE_REPO=true`:** the handoff file is outside the repo and is NOT staged. Only the state file gets a commit:
+### Stage 16 — Finishing
 
-```bash
-git add docs/specs/NNN-<short-name>/state.json
-git commit -m "chore(NNN-short-name): record external handoff path"
-```
-
-Inform the user where the external handoff was written: `Handoff written to <absolute-path> (outside repo — not committed).`
-
-Record the handoff path in state file (always — absolute or relative):
-
-```json
-{ "handoff_path": "<path>" }
-```
-
-### Stage 15 — Finishing
-
-Load `finishing-sdd`. Follow it.
-
-After finishing: SDD run is done.
+Load `finishing-sdd`. Follow it. After finishing: SDD run is done.
 
 ## Loading Skills
 
-Use the Skill tool with the skill name. Example: `Skill(skill="writing-specs")`. If the skills are installed under a namespace (e.g., `spec-driven-development:writing-specs`), use the namespaced name.
-
-Phase-skills should be loaded only when their stage is active. Don't pre-load. The coordinator stays slim.
+Use the Skill tool with the skill name. Example: `Skill(skill="writing-specs")`. If installed under a namespace (e.g., `spec-driven-development:writing-specs`), use the namespaced name. Load phase-skills only when their stage is active — don't pre-load.
 
 ## Subagent Dispatch
 
-Use the Task / Agent tool with `subagent_type=general-purpose`. The prompt for each dispatch is described per stage above. Always:
+Use the Task / Agent tool with `subagent_type=general-purpose`. Always:
 
-- Pass full content inline (file paths + relevant text), don't make subagents re-read files unless necessary
+- Pass content inline (don't make subagents re-read large files unless necessary)
 - Tell the subagent which skill to use (via Skill tool)
 - Specify the return format expected
-- Never run multiple implementation subagents in parallel (use sequential)
+- Never run multiple implementation subagents in parallel — sequential only
 
-## Subagent Failure Protocol
+## Failure Protocols
 
-Subagent dispatches can fail in ways the dispatch contract doesn't cover — the subagent times out, crashes, returns malformed output, or returns nothing. Every stage that dispatches a subagent (Stages 3, 4, 6, 9, 10, 12 per task, 13, 14) must handle these.
+The two failure modes coordinators must handle are documented in full in `docs/sdd/operations.md`:
 
-### Failure modes and handling
+- **Commit Failure Protocol** — what to do when `git commit` returns non-zero (hook rejection, missing identity, GPG failure, nothing to commit, missing file, merge conflict). The absolute rules: never `--no-verify`, never `--no-gpg-sign`, never `--force`, never amend a published commit. Retry at most once when the cause is clear and auto-fixable (e.g., formatter modified files). Otherwise halt and surface.
 
-| Failure | Detection | Handling |
-|---|---|---|
-| Subagent timed out (harness-dependent) | The dispatch returns a timeout error or an empty result | Retry once with the same prompt. If it times out twice, surface to user with the prompt and any partial output. Do NOT keep retrying. |
-| Subagent crashed / errored | Dispatch returns a non-result error (platform error, model error, transport failure) | Read the error. If transient (rate limit, network), retry once after a brief pause. If structural (prompt too long, invalid tool use), fix the dispatch and retry. If unclear, surface to user. |
-| Subagent returned malformed output | Result doesn't match the expected format (e.g., reviewer didn't return "Approved | Issues Found") | Re-dispatch ONCE with a brief reminder of the expected format appended. If the second attempt is also malformed, surface to user with both outputs. |
-| Subagent returned empty/whitespace | Length of result < 10 chars or contains no structural markers | Same as malformed — re-dispatch once, then surface. |
-| Subagent claimed completion but skipped required work | Result missing required fields (e.g., reviewer omitted Status line; tester omitted Tools used; implementer omitted commits) | Re-dispatch ONCE with the missing-fields callout. Then surface. |
+- **Subagent Failure Protocol** — what to do when a dispatch times out, crashes, returns malformed output, or skips required fields. Max one retry per failure mode. Never substitute the coordinator's own work for the failed subagent's. Never run retries in parallel. Surface to user with four options: retry / skip (non-mandatory only) / abort / provide-result-manually.
 
-### Hard rules
-
-- **Maximum one retry per failure mode per dispatch point.** No retry loops.
-- **Never silently move on from a failed subagent.** A failed dispatch is a stage failure; halt and surface to user.
-- **Never substitute the coordinator's own work for the failed subagent's work.** If the spec reviewer subagent crashed, don't review the spec yourself — that's the whole point of dispatching it.
-- **Never run two retry attempts in parallel.** Sequential only.
-
-### What to surface to the user
-
-```
-Subagent failure at <stage> (<role>): <one-line summary of the failure>.
-
-Attempted: <what was tried and how many retries>.
-Last output (if any): <truncated to 500 chars>.
-
-Options:
-1. Retry the dispatch manually (I'll re-issue with the same prompt)
-2. Skip the dispatch and proceed (only for non-mandatory stages; review/test/handoff if you accept the risk)
-3. Abort the SDD run (state file kept; investigate later)
-4. Provide the result manually (you paste in what should have been returned; I'll use it as the dispatch result)
-```
-
-Default is option 1. Never auto-pick.
-
-## Commit Failure Protocol
-
-Every stage that ends with a commit (Stages 2, 5, 6, 7, 8, 12, 14, 15, plus per-task implementer commits) must handle commit failures. The pipeline has multiple commit points; assuming success leaks bugs.
-
-### Detect
-
-After every `git commit`, check the exit code. If non-zero, capture the stdout/stderr — it tells you what failed.
-
-### Common failure modes and handling
-
-| Failure | Detection | Handling |
-|---|---|---|
-| Pre-commit hook rejected the commit (lint/format/test) | Hook output in stderr, exit code 1 | Read the hook output. If the hook auto-modified files (e.g., formatter), re-stage and re-commit ONCE. If the hook flagged real issues (lint errors, failing tests), do NOT bypass — fix the underlying issue if it's in scope for the current stage; otherwise halt and surface to user. **Never use `--no-verify`.** |
-| Missing `user.name` or `user.email` | Error: "Please tell me who you are" | Halt. Surface to user: "Git identity is not configured. Please run `git config user.name '...'` and `git config user.email '...'`, then re-invoke." Do NOT attempt to set these yourself. |
-| GPG signing failure | "gpg failed to sign the data" | Halt. Surface to user with the gpg error. Do NOT bypass with `--no-gpg-sign`. |
-| Nothing to commit | "nothing to commit, working tree clean" | Unexpected at a commit point — likely indicates the prior `git add` matched nothing, OR the change was already committed. Investigate: run `git status` and `git log -1`. If the intended files are already in the most recent commit, treat as success and move on. Otherwise halt and report. |
-| File not found in `git add` | "pathspec '...' did not match any files" | Investigate: the writer skill may have failed silently. Verify the expected file exists at the expected path. If missing, the previous stage didn't complete properly — halt and re-run that stage. |
-| Merge conflict (finishing stage only) | Conflict markers in files; `git status` shows `UU` | Halt the merge. Tell user the merge conflicted on `<files>`. Do NOT attempt to auto-resolve. |
-
-### What never to do
-
-- **Never use `--no-verify`.** If hooks fail, the hook is telling you something. Fix the underlying issue or halt.
-- **Never use `--no-gpg-sign`.** If signing is required by repo policy, bypassing it ships unsigned commits.
-- **Never use `--force` on push.** If the remote rejects, investigate.
-- **Never silently retry the same commit multiple times** hoping it works. Read the error; act on it; retry at most once (only when the cause is clear and the fix is automatic, like formatter auto-fixes).
-- **Never amend a published commit** to "fix" a hook failure. Create a new commit.
-
-### When subagent commits fail (implementer / fixer)
-
-Subagents that commit (the implementer subagent, the fixer subagent) follow the same rules. On commit failure, they report status `BLOCKED` to the controller with the commit error output. The controller (the `implementing-plans` or `testing-implementation` skill) decides next action — typically surface to user, since hook failures are usually environment issues the controller can't fix.
+Both protocols list the exact handling for each common failure mode. When in doubt, follow operations.md.
 
 ## Common Mistakes
 
@@ -555,23 +363,23 @@ Subagents that commit (the implementer subagent, the fixer subagent) follow the 
 | Skipping the resume check at session start | Always read state file FIRST — non-negotiable |
 | Updating state mid-stage | Updates happen at stage boundaries (atomic) |
 | Letting state file get committed in its own noisy commits | Ride-along with relevant code/doc commits |
-| Bundling multiple stages without state updates | State must be current after each stage |
-| Skipping user-approval gates | Mandatory; never auto-proceed past approval stages |
-| Letting an optional stage decide itself | Always ask user; never auto-skip or auto-include |
-| Doing phase-skill work inline in the coordinator | Load the phase-skill or dispatch the subagent |
-| Coordinator running feature tests itself when MCP_UNAVAILABLE | NEVER — surface to user with manual test plan |
-| Multiple active state files but coordinator silently picks one | Always ask user which to resume |
+| Skipping user-approval gates | Mandatory; never auto-proceed |
+| Auto-skipping an optional stage | Always ask user; never auto-skip or auto-include |
+| Doing phase-skill work inline | Load the phase-skill or dispatch the subagent |
+| Coordinator running feature tests when MCP_UNAVAILABLE | NEVER — surface to user with manual test plan |
+| Silently picking one of multiple active state files | Always ask user which to resume |
+| Auto-checking out a branch on resume | Never — instruct user to switch and re-invoke |
 
 ## Red Flags
 
 - About to do work without reading state first → STOP; resume check is first
 - About to advance past a user-approval gate without typed approval → STOP
 - About to auto-skip an optional stage → STOP; user decides
-- About to start two implementer subagents in parallel → STOP; sequential
-- About to pick up Bash/Playwright/curl to test the feature when MCP_UNAVAILABLE was reported → STOP; that's not the coordinator's job
-- About to do "just one more check" between tasks during implementation → STOP; continuous execution is the rule
+- About to start two implementer subagents in parallel → STOP
+- About to test the feature yourself after MCP_UNAVAILABLE → STOP; not your job
+- About to `git checkout` to switch branches as part of resume → STOP; ask the user
 
 ## Sibling Skills
 
-- `inspecting-state` — read-only state inspection utility. Used by this coordinator as its first action on every invocation. Also directly invokable by the user to check status without entering the pipeline.
-- `initializing-project-context` — one-time per-project bootstrap (constitution, conventions, config). Invoked by user directly, not by this coordinator.
+- `inspecting-state` — read-only state utility. Used as the first action on every invocation. Also user-invokable directly to check status without entering the pipeline.
+- `bootstrapping-project` (in the `project-bootstrap` family) — one-time per-project bootstrap (constitution, conventions, config). User-invoked directly, not by this coordinator.

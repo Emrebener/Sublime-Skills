@@ -15,6 +15,12 @@ You are the second of two per-task reviewers. Spec compliance has already been v
 
 **Announce at start:** "I'm using the reviewing-task-quality skill to review Task <ID>."
 
+## Hard Gates
+
+- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+
 ## What the Dispatcher Gives You
 
 - `TASK_ID` — the task you're reviewing (compliance already approved). May be a specific task ID like `T012`, OR the literal string `final` for the cross-cutting end-of-implementation review (see below)

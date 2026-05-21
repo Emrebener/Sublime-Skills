@@ -21,8 +21,10 @@ Write a self-contained handoff document that captures everything a fresh agent o
 - Do NOT duplicate large spec/plan sections. Reference + brief summary.
 - Do NOT include secrets, API keys, passwords, tokens, or other sensitive material — redact per the Redaction section below.
 - Do NOT modify any file other than the new handoff document.
-- Do NOT dispatch sub-subagents. Leaf skill.
 - Do NOT use Mermaid, C4, PlantUML, ASCII art, or any other diagram syntax. Handoffs are prose + references — same prohibition that applies to specs and plans. The `validate-handoff.sh` script catches the labeled syntaxes (Mermaid, PlantUML, C4); ASCII art is on honor system.
+- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
 
 ## What You Get From the Coordinator
 

@@ -67,6 +67,7 @@
         "implementing",
         "testing",
         "handoff",
+        "memory_file",
         "finishing"
       ]
     },
@@ -90,6 +91,7 @@
           "implementation_complete",
           "testing_complete",
           "handoff_generated",
+          "memory_file_maintained",
           "finished"
         ]
       }
@@ -103,7 +105,8 @@
           "spec_grill",
           "plan_second_review",
           "testing",
-          "handoff"
+          "handoff",
+          "memory_file"
         ]
       }
     },
@@ -175,6 +178,12 @@
       "type": "boolean"
     },
     "handoff_path": {
+      "type": ["string", "null"]
+    },
+    "memory_file_updated": {
+      "type": "boolean"
+    },
+    "memory_file_path": {
       "type": ["string", "null"]
     },
     "reviewer_pushbacks": {

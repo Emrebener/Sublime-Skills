@@ -42,12 +42,11 @@ Run the shared discovery script and Read the relevant files. The output tells yo
 Read these if present:
 - `constitution` — non-negotiable project principles; spec must comply
 - `architecture` — overall structure; helps situate where the feature fits
-- `context` / `glossary` / `domain` — domain vocabulary you should use
-- `context_map` (if `is_monorepo: true`) — which bounded context does this feature belong to?
+- `glossary` / `domain` — domain vocabulary you should use
 - All `adrs` — prior decisions you should respect, not re-litigate
 - `readme` — fallback for high-level project understanding
 
-If the user has `.sdd/config.yml` and it defines `context.*_paths` overrides, prefer those.
+The discovery script already resolves `context.<name>_path` values from `.sdd/config.yml` and verifies the files exist before returning them, so the output JSON's `constitution` / `architecture` / `glossary` / etc. fields can be consumed directly. A `null` field means the project didn't configure (or doesn't have) that artifact.
 
 **Skip files that don't exist.** Context is optional — features can be specced without any of these.
 
@@ -57,7 +56,6 @@ Before any clarifying questions, assess whether the request is one feature or mu
 
 - Mentions multiple distinct subsystems (chat + billing + analytics + admin)
 - Describes a "platform" rather than a feature
-- Touches multiple bounded contexts in a monorepo
 - The user's description spans more than ~3 sentences of independent functionality
 
 If too big, surface immediately:
