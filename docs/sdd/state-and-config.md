@@ -248,12 +248,38 @@ finishing:
 
 **Stages 14 (handoff) and 15 (memory file) are user-prompted at runtime**, not config-toggled. The pattern matches Stage 13 (testing): the coordinator asks `yes/no` per run. If you want to skip both every time, just answer `no` when prompted — but most users will want to make the choice per feature.
 
+### Config overlay (`config-local.yml`)
+
+Alongside `config.yml`, the bootstrap also creates an empty `.sublime-skills/config-local.yml`. This is a per-developer overlay layered on top of the base config, modelled on the `appsettings.json` + `appsettings-{env}.json` pattern from .NET.
+
+**Layering rule.** When skills read a config value at `<block>.<key>`, the central reader scripts (`get-config-value.sh`, `discover-context.sh`) look in `config-local.yml` first. If the key is present there (including an explicit `null`), that value wins. Otherwise the read falls through to `config.yml`. There is no deep merge — the schema is flat (block → scalar), so per-key precedence is sufficient.
+
+**Schema.** `config-local.yml` uses the same schema as `config.yml`, but every key is optional. You override only the keys you care about. Example:
+
+```yaml
+# .sublime-skills/config-local.yml — per-developer overrides
+preflight:
+  use_worktree: true
+finishing:
+  mode: pr
+```
+
+The other keys (paths, context, grill, memory_file, the rest of preflight + finishing) fall through to `config.yml`'s values.
+
+**Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap appends `.sublime-skills/config-local.yml` to `.gitignore` in Step 7. Each developer's overlay is their own; no one else sees it.
+
+**Validation.** `validate-config.sh` reads both files, sanity-checks the overlay's block + key names (typo'd keys like `finshing:` or `mode_x:` fail), then merges the overlay into the base before running the existing structural checks. Type errors, enum errors, and orphan paths in the merged result are caught regardless of which file the offending value came from. Overlay-specific findings are prefixed with `config-local.yml:` so it's clear where to fix them.
+
+**Empty is fine.** A zero-byte `config-local.yml` is treated as "no overrides." The bootstrap creates it empty on a fresh project.
+
+**Awk fallback.** When python3 + PyYAML are unavailable, `validate-config.sh` falls back to an awk-based scanner that validates the base config only. If `config-local.yml` exists in that mode, the validator emits a `WARN` saying overlay validation was skipped.
+
 ### How skills consume config
 
 Each skill that depends on config reads it explicitly. The pattern is:
 
-1. Read `.sublime-skills/config.yml` (the discovery script and `get-config-value.sh` both consult it; skills that need list-typed or multi-line values parse the YAML themselves).
-2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent, that's the answer.
+1. Read config via the central scripts. `get-config-value.sh <block> <key>` returns a single scalar; `discover-context.sh` returns the bulk of paths as JSON. Both scripts honor `config-local.yml` overlay automatically. Skills that need list-typed or multi-line values (currently just `finishing.pr_body_template`) should also overlay manually if they parse the YAML themselves.
+2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent in both files, that's the answer.
 3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
 
 The coordinator caches the config once at session start (after `inspecting-state`) and passes relevant values into each skill dispatch.

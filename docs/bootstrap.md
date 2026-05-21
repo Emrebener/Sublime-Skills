@@ -15,10 +15,10 @@ You invoke `bootstrapping-project`. It:
 1. Runs `discover-context.sh` to see what's already there
 2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
 3. Creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs
-4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`
+4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml` and creates `.sublime-skills/config-local.yml` as an empty file (preserving any existing content on re-run)
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
-7. Adds `.sublime-skills/local.yml` to `.gitignore` if not already there
+7. Adds `.sublime-skills/config-local.yml` to `.gitignore` if not already there
 8. Commits everything in one commit
 
 The whole thing is **safe to re-run**. Subsequent runs let you extend convention files you previously skipped, refine ones you created, or replace stale ones — without overwriting anything you didn't approve.
@@ -33,10 +33,10 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 | 1.5 | Build progress todo list | Coordinator uses harness todo tool | No |
 | 2 | Per-file loop (×5) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
 | 3 | Create `docs/adr/`, `docs/specs/`, `docs/handoff/` | Coordinator (`mkdir` + stub READMEs) | Yes |
-| 4 | Copy config scaffold | Coordinator (`cp` from scaffolds/) | Yes (`.sublime-skills/config.yml`) |
+| 4 | Copy config scaffold + create local overlay | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml`) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`) |
 | 5 | Edit config to reflect skipped files | Coordinator (Edit tool) | Yes (modifies `.sublime-skills/config.yml`) |
 | 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
-| 7 | `.gitignore` housekeeping | Coordinator (append `.sublime-skills/local.yml` entry if missing) | Possibly (`.gitignore`) |
+| 7 | `.gitignore` housekeeping | Coordinator (append `.sublime-skills/config-local.yml` entry if missing) | Possibly (`.gitignore`) |
 | 8 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
 | 9 | Report | Coordinator (final summary message) | No |
 
@@ -75,7 +75,7 @@ Before the per-file loop, the coordinator builds a visible todo list via the har
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
 6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
-7. Copy config scaffold to `.sublime-skills/config.yml`
+7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
 10. `.gitignore` housekeeping
@@ -286,18 +286,23 @@ If a README already exists with the same content, it's skipped. If a README exis
 
 ---
 
-## Step 4: Copy config scaffold
+## Step 4: Copy config scaffold and create local overlay
 
 ```bash
 mkdir -p .sublime-skills
-cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
+[ -f .sublime-skills/config.yml ] || cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
+[ -f .sublime-skills/config-local.yml ] || touch .sublime-skills/config-local.yml
 ```
 
-This is a **verbatim copy.** The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml` (after the bootstrap, in Step 5 or later).
+Both lines are **idempotent**: they create the missing file and leave any existing content untouched on a re-run. Hand-edits to either file are preserved across bootstrap invocations — the bootstrap never clobbers a config the user has customized.
+
+The `cp` of the scaffold is a **verbatim copy** of `project-bootstrap/scaffolds/config.yml`. The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml` directly (after the bootstrap, in Step 5 or later).
 
 The scaffold contains the full config schema with all defaults — see [state-and-config.md § Full schema with defaults](sdd/state-and-config.md#full-schema-with-defaults).
 
-If `.sublime-skills/config.yml` already exists (re-run case), Step 4 is skipped. The user already has a config; the bootstrap respects it.
+The second line creates `.sublime-skills/config-local.yml` as a zero-byte file when it doesn't already exist. This is the per-developer overlay — see [state-and-config.md § Config overlay (config-local.yml)](sdd/state-and-config.md#config-overlay-config-localyml) for how it works. The bootstrap creates it empty; developers populate it themselves with whatever overrides they want.
+
+Step 5 (path-skipping edits) still runs unconditionally on every invocation. It uses the `Edit` tool to set specific keys in `config.yml` (e.g., `glossary_path: null` for a newly-skipped glossary) — it does not rewrite the file. So newly Skipped convention files are reflected even when the cp was a no-op.
 
 ---
 
@@ -348,16 +353,16 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` housekeeping
 
-If `.sublime-skills/local.yml` is NOT already in `.gitignore`, the coordinator appends:
+If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, the coordinator appends:
 
 ```
 # SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)
-.sublime-skills/local.yml
+.sublime-skills/config-local.yml
 ```
 
 `.sublime-skills/config.yml` itself **is** committed — it's project-wide config that everyone needs.
 
-`.sublime-skills/local.yml` is for per-developer overrides (e.g., one team member uses worktrees, others don't; one wants `finishing.mode: pr`, others `merge-local`). The coordinator doesn't create this file; it just ensures the gitignore is ready for when a developer does create one.
+`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one team member uses worktrees, others don't; one wants `finishing.mode: pr`, others `merge-local`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
 
 Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline. No gitignore entry needed.
 
@@ -418,7 +423,7 @@ On a re-run:
 
 - **Detect (Step 1)** picks up the existing `.sublime-skills/config.yml` and uses its `context.<name>_path` values (not the defaults). Files at non-default paths are detected at their actual locations.
 - **Per-file loop (Step 2)** still walks each convention file, but for files that exist, the dialog is Skip / Extend / Replace (no Create option). For files that were previously skipped (path is `null` in config), the ask resets to Create / Skip.
-- **Copy scaffold (Step 4)** is skipped — the user already has a config. The coordinator does NOT regenerate or overwrite it.
+- **Copy scaffold (Step 4)**: the `cp` of `config.yml` is skipped — the user already has a config. The coordinator does NOT regenerate or overwrite it. The `[ -f ... ] || touch` of `config-local.yml` runs unconditionally and is idempotent, so an existing local overlay is preserved verbatim.
 - **Edit config (Step 5)** still runs. Any newly-created file in this re-run gets its `<name>_path` set; any newly-skipped file gets nulled.
 - **Validate (Step 6)** always runs.
 - **Commit (Step 8)** is single, just like the first run.

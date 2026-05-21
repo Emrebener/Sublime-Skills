@@ -1,19 +1,25 @@
 #!/usr/bin/env bash
 # Validates .sublime-skills/config.yml structurally and semantically.
 #
+# If a sibling .sublime-skills/config-local.yml exists, it is overlaid onto
+# the base config per-key (overlay wins), and validation runs against the
+# merged result. Unknown blocks/keys in the overlay are flagged. An empty
+# overlay file (zero bytes or YAML null) is treated as "no overrides."
+#
 # Usage:
 #   ./spec-driven-development/scripts/validate-config.sh [config-path]
 #
 # Default config-path: <repo-root>/.sublime-skills/config.yml
 #
 # Exit codes:
-#   0 — PASS  (config is structurally valid; all referenced files exist or are null)
+#   0 — PASS  (merged config is structurally valid; all referenced files exist or are null)
 #   1 — FAIL  (one or more issues; findings on stderr)
 #   2 — config file not found
 #   3 — usage error
 #
 # Output:
 #   - One finding per line on stderr, each prefixed with `FAIL:` or `WARN:`.
+#   - Findings sourced from config-local.yml are prefixed with `config-local.yml: `.
 #   - Final summary line on stdout: `validate-config: PASS` or `validate-config: FAIL (N issues)`.
 #
 # Used by:
@@ -22,11 +28,10 @@
 #   - future audit skill
 #
 # Implementation notes:
-#   - Prefers python3+pyyaml when available for proper YAML parsing.
+#   - Prefers python3+pyyaml when available for proper YAML parsing + overlay merge.
 #   - Falls back to an awk-based scanner that catches the most common shape issues
-#     when python3 is missing. The fallback is intentionally strict about
-#     undocumented constructs (lists, anchors, multi-line block scalars besides
-#     `pr_body_template`'s `|`) — same scope as the rest of the SDD scripts.
+#     when python3 is missing. The fallback validates base config only and emits a
+#     WARN if config-local.yml exists (overlay validation requires the python path).
 
 set -u
 
@@ -81,6 +86,7 @@ import yaml
 
 config_path = sys.argv[1]
 repo_root = sys.argv[2]
+local_path = os.path.join(os.path.dirname(config_path), "config-local.yml")
 
 fail_count = 0
 
@@ -102,6 +108,61 @@ except yaml.YAMLError as e:
 if not isinstance(data, dict):
     fail("top-level config must be a mapping (block), got " + type(data).__name__)
     sys.exit(1 if fail_count else 0)
+
+# Known schema — used both for overlay key-recognition and validation.
+context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path", "design_path"]
+known_blocks = {
+    "paths": {"spec_dir", "adr_dir", "handoff_dir"},
+    "context": set(context_keys),
+    "preflight": {"branch_pattern", "use_worktree"},
+    "grill": {"question_cap"},
+    "memory_file": {"path", "character_limit"},
+    "finishing": {"mode", "merge_target", "delete_branch_after_merge", "test_command", "pr_command", "pr_body_template"},
+}
+
+# Overlay: parse config-local.yml if present, sanity-check its shape and key
+# names, then merge per-key into the base data. Validation continues against
+# the merged result, so type/enum/path checks apply to whichever value wins.
+local_data = None
+if os.path.isfile(local_path):
+    try:
+        with open(local_path, "r") as f:
+            local_data = yaml.safe_load(f)
+    except yaml.YAMLError as e:
+        fail("config-local.yml: YAML does not parse: " + str(e).replace("\n", " "))
+        local_data = None
+
+    if local_data is None:
+        # Empty file or YAML null — no overrides. Skip.
+        pass
+    elif not isinstance(local_data, dict):
+        fail("config-local.yml: top-level must be a mapping (block) or empty, got " + type(local_data).__name__)
+        local_data = None
+    else:
+        # Sanity-check overlay block + key names before merging
+        for block, content in local_data.items():
+            if block not in known_blocks:
+                fail(f"config-local.yml: unknown top-level block: {block}")
+                continue
+            if not isinstance(content, dict):
+                fail(f"config-local.yml: block `{block}` must be a mapping, got {type(content).__name__}")
+                continue
+            for key in content.keys():
+                if key not in known_blocks[block]:
+                    fail(f"config-local.yml: unknown key {block}.{key}")
+
+        # Per-key merge into base data. The base is mutated in place; later
+        # validation reads the merged values.
+        for block, content in local_data.items():
+            if block not in known_blocks or not isinstance(content, dict):
+                continue
+            existing = data.get(block)
+            if not isinstance(existing, dict):
+                data[block] = dict(content)
+            else:
+                merged = dict(existing)
+                merged.update(content)
+                data[block] = merged
 
 # Required top-level blocks
 required_blocks = ["paths", "context", "preflight", "grill", "memory_file", "finishing"]
@@ -127,7 +188,6 @@ for key in ["spec_dir", "adr_dir", "handoff_dir"]:
         fail(f"paths.{key}: must be a non-empty string, got {v!r}")
 
 # ── context block ──────────────────────────────────────────────────
-context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path", "design_path"]
 for key in context_keys:
     v = get("context", key)
     if v == "__MISSING__":
@@ -264,6 +324,14 @@ fi
 #   - Reject unknown context.*_path keys
 
 record_warn "python3+PyYAML unavailable; running shallow fallback validator (some checks skipped)"
+
+# Overlay validation requires the python path. In fallback mode we can't
+# safely parse the YAML, so warn if the overlay exists and let the user know
+# its contents aren't being checked.
+LOCAL_CONFIG="$(dirname "$CONFIG")/config-local.yml"
+if [ -f "$LOCAL_CONFIG" ]; then
+  record_warn "config-local.yml exists but cannot be validated without python3+PyYAML (overlay merge skipped; install python3 + pyyaml for full validation)"
+fi
 
 # Helper — read a scalar key from a block; emits the raw value (no quote
 # stripping). Returns empty string if block/key not found.

@@ -5,62 +5,57 @@
 # Usage:
 #   ./spec-driven-development/scripts/discover-context.sh
 #
-# Source of truth: .sublime-skills/config.yml at the repo root.
+# Source of truth: .sublime-skills/config.yml at the repo root, with
+# .sublime-skills/config-local.yml overlaid per-key when present.
 # - context.<name>_path values name the project's convention files
 # - paths.spec_dir and paths.adr_dir resolve the spec and ADR directories
-# The script reads ONLY from config — there is no fallback search. If config
-# is absent or a key is unset, the corresponding output is null.
+# The script reads ONLY from these files — there is no fallback search. If
+# both are absent or a key is unset in both, the corresponding output is null.
 #
 # For each configured context path the script verifies the file exists; if
 # it doesn't, the output is null (the path stays as a hint via state /
 # coordinator logs, but discovery does not invent a file).
+#
+# All scalar reads are delegated to the sibling get-config-value.sh script,
+# which is the single source of truth for both YAML extraction and overlay
+# (config-local.yml shadows config.yml per-key) semantics.
 
 set -u
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+GET_CONFIG="$SCRIPT_DIR/get-config-value.sh"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT" 2>/dev/null || { echo '{"error": "not in a git repo or readable cwd"}'; exit 1; }
 
 CONFIG=""
+LOCAL_CONFIG=""
 if [ -f ".sublime-skills/config.yml" ]; then
   CONFIG=".sublime-skills/config.yml"
 fi
+if [ -f ".sublime-skills/config-local.yml" ]; then
+  LOCAL_CONFIG=".sublime-skills/config-local.yml"
+fi
 
-# Minimal YAML extractor for scalar values under a top-level block. Limited
-# to flat `block: \n  key: value` structures — does NOT handle nested
-# objects beyond one level, lists, anchors, multi-line block scalars
-# (| or >), or references. Sufficient for the singular scalar paths in
-# .sublime-skills/config.yml's `paths:` and `context:` blocks.
+# Read a scalar from the layered config via the shared helper. Returns
+# empty string when the key is absent in both layers, when config is
+# missing entirely, or when the helper script is unavailable.
 #
-# Usage: yaml_block_key <config_file> <block> <key>
-yaml_block_key() {
-  local config="$1"
-  local block="$2"
-  local key="$3"
-  [ ! -f "$config" ] && return
-  awk -v block="$block" -v key="$key" '
-    $0 ~ "^" block ":[[:space:]]*$" { in_block=1; next }
-    /^[^[:space:]#]/ { in_block=0 }
-    in_block && $0 ~ "^[[:space:]]+" key ":" {
-      sub("^[[:space:]]+" key ":[[:space:]]*", "")
-      sub(/[[:space:]]*#.*$/, "")
-      gsub(/^"|"$/, "")
-      gsub(/^'\''|'\''$/, "")
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      if ($0 != "") print $0
-      exit
-    }
-  ' "$config"
+# Usage: read_scalar <block> <key>
+read_scalar() {
+  local block="$1"
+  local key="$2"
+  [ -z "$CONFIG" ] && return
+  [ -x "$GET_CONFIG" ] || return
+  "$GET_CONFIG" "$block" "$key" "$CONFIG" 2>/dev/null
 }
 
 # Read a context file path from config and verify it exists on disk.
 # Returns the path if both conditions hold; empty string otherwise.
 resolve_context_path() {
   local key="$1"
-  local raw=""
-  if [ -n "$CONFIG" ]; then
-    raw="$(yaml_block_key "$CONFIG" context "$key")"
-  fi
-  # Treat null/~ as "not set"
+  local raw="$(read_scalar context "$key")"
+  # Treat null/~/empty as "not set"
   if [ -z "$raw" ] || [ "$raw" = "null" ] || [ "$raw" = "~" ]; then
     echo ""
     return
@@ -82,13 +77,9 @@ DESIGN="$(resolve_context_path design_path)"
 README=""
 [ -f "README.md" ] && README="README.md"
 
-# Resolve spec_dir and adr_dir from config (no implicit defaults).
-SPEC_DIR=""
-ADR_DIR=""
-if [ -n "$CONFIG" ]; then
-  SPEC_DIR="$(yaml_block_key "$CONFIG" paths spec_dir)"
-  ADR_DIR="$(yaml_block_key "$CONFIG" paths adr_dir)"
-fi
+# Resolve spec_dir and adr_dir from layered config (no implicit defaults).
+SPEC_DIR="$(read_scalar paths spec_dir)"
+ADR_DIR="$(read_scalar paths adr_dir)"
 
 # All ADRs under <adr_dir>/ (sorted by filename for deterministic output).
 # If adr_dir is unset or doesn't exist, the array is empty.
@@ -141,6 +132,7 @@ cat <<EOF
 {
   "repo_root": $(json_string "$REPO_ROOT"),
   "config": $(json_string "$CONFIG"),
+  "config_local": $(json_string "$LOCAL_CONFIG"),
   "constitution": $(json_string "$CONSTITUTION"),
   "architecture": $(json_string "$ARCHITECTURE"),
   "glossary": $(json_string "$GLOSSARY"),

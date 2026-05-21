@@ -19,6 +19,7 @@ Outputs JSON. Example:
 {
   "repo_root": "/abs/path/to/repo",
   "config": ".sublime-skills/config.yml",
+  "config_local": ".sublime-skills/config-local.yml",
   "constitution": "docs/constitution.md",
   "architecture": "docs/ARCHITECTURE.md",
   "glossary": "docs/GLOSSARY.md",
@@ -32,9 +33,9 @@ Outputs JSON. Example:
 }
 ```
 
-### Source of truth: `.sublime-skills/config.yml`
+### Source of truth: `.sublime-skills/config.yml` + `config-local.yml`
 
-The script reads every path from `.sublime-skills/config.yml` — there is **no auto-fallback search**. If config is missing or a key is null/unset, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
+The script reads every path from `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search**. If both files are missing or a key is null/unset in both, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
 
 | JSON field | Config key | Notes |
 |---|---|---|
@@ -48,10 +49,11 @@ The script reads every path from `.sublime-skills/config.yml` — there is **no 
 | `readme` | (hardcoded `README.md`) | the one universal location; not configurable |
 | `adrs` | — | all `.md` files directly under `<adr_dir>/` |
 | `active_states` | — | all `state.json` files at `<spec_dir>/*/state.json` |
+| `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
 ### YAML extractor limitations
 
-The script uses a minimal awk-based YAML extractor — handles flat `block: \n  key: value` only. No lists, nested objects beyond one level, anchors, or multi-line block scalars. Sufficient for the singular scalar paths in `.sublime-skills/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
+All scalar reads (context paths and `paths.*` directories) are delegated to the sibling `get-config-value.sh`, which is the single source of truth for both YAML extraction and overlay (`config-local.yml` shadows `config.yml`) semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — no lists, no nested objects beyond one level, no anchors, no multi-line block scalars. Sufficient for the singular scalar paths in `.sublime-skills/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
 
 ### Bootstrapping
 
@@ -103,27 +105,31 @@ are most often unredacted secrets — re-run redaction before retrying.
 ./spec-driven-development/scripts/validate-config.sh [config-path]
 ```
 
-Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`.
+Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`. If a sibling `.sublime-skills/config-local.yml` exists, it's overlaid onto the base config per-key and validation runs against the merged result.
 
-Checks: YAML parses; all six top-level blocks present (`paths`, `context`,
-`preflight`, `grill`, `memory_file`, `finishing`); required scalar keys per
-block; every `context.<name>_path` is null OR points to an existing file
-(orphan paths fail); `finishing.mode` enum membership; numeric and type sanity
-on remaining fields; rejection of unknown `context.*_path` keys (catches stale
-schema).
+Checks: YAML parses (both files); all six top-level blocks present in the base
+(`paths`, `context`, `preflight`, `grill`, `memory_file`, `finishing`);
+required scalar keys per block in the merged result; every
+`context.<name>_path` is null OR points to an existing file (orphan paths
+fail); `finishing.mode` enum membership; numeric and type sanity on remaining
+fields; rejection of unknown `context.*_path` keys (catches stale schema). The
+overlay is additionally checked for unknown blocks and unknown keys; findings
+sourced from it are prefixed with `config-local.yml:`.
+
+Empty (zero-byte) `config-local.yml` is treated as "no overrides."
 
 Exit codes: `0` PASS, `1` FAIL (findings on stderr, `FAIL:`/`WARN:` prefixed),
 `2` config file not found, `3` usage error.
 
 Used by `bootstrapping-project` (fix-and-retry loop after scaffold copy) and
 the SDD coordinator's Step 2 halt check. Prefers `python3` + PyYAML for full
-YAML parsing; falls back to an awk-based shallow scanner when those aren't
-available.
+YAML parsing + overlay merge; falls back to an awk-based shallow scanner when
+those aren't available (the fallback validates base config only and emits a
+`WARN` if `config-local.yml` exists).
 
 ## `get-config-value.sh`
 
-Reads a single scalar value from `.sublime-skills/config.yml`. Intended for skills that
-need one or two config values and don't want to inline YAML parsing.
+Reads a single scalar value from the layered config. `config-local.yml` is consulted first; if the key is present there (including as `null`), that value wins. Otherwise the read falls through to `config.yml`. Intended for skills that need one or two config values and don't want to inline YAML parsing.
 
 ```bash
 ./spec-driven-development/scripts/get-config-value.sh <block> <key> [config-path]
@@ -140,7 +146,7 @@ Examples:
 
 Exit codes:
 - `0` — value found (printed to stdout, no trailing newline)
-- `2` — config file missing, or block/key not found
+- `2` — config file missing, or block/key absent in both layers
 - `3` — usage error
 
 **Limitations:**

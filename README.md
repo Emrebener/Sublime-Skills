@@ -1,12 +1,13 @@
 # Sublime-Skills
 
-A personal registry of agent skills, grouped into category directories.
-Each skill lives in its own directory with a `SKILL.md`; this file
-summarizes what each one does.
+A skill family for agent harnesses (Claude Code, Codex, Gemini CLI, etc.),
+grouped into category directories. Each skill lives in its own directory
+with a `SKILL.md`; this file summarizes what each one does. Designed to be
+adopted by individuals and teams alike.
 
 ## Skills
 
-### [architecture-review](daily-engineering/architecture-review/)
+### [architecture-review](engineering/architecture-review/)
 
 Reviews a codebase for architectural friction and proposes concrete
 refactoring opportunities — turning **shallow**, leaky modules into

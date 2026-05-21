@@ -39,10 +39,10 @@ Proceed through these in order:
 1. Detect existing setup via discovery script
 2. For each convention file (constitution → architecture → glossary → domain → design): detect → ask → load the matching `discovering-<topic>` skill inline → record outcome
 3. Create supporting directories (`docs/adr/`, `docs/specs/`, `docs/handoff/`) with stub READMEs
-4. Copy config scaffold to `.sublime-skills/config.yml`
+4. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml` (preserving any existing local overrides)
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
 6. Run `validate-config.sh`; fix-and-retry on FAIL (cap 3 attempts)
-7. Ensure `.sublime-skills/local.yml` is gitignored
+7. Ensure `.sublime-skills/config-local.yml` is gitignored
 8. Single commit
 9. Report and direct user to `sdd-coordinator`
 
@@ -64,7 +64,7 @@ Before starting the per-file loop, build the progress todo list with the harness
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
 6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
-7. Copy config scaffold to `.sublime-skills/config.yml`
+7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
 10. `.gitignore` housekeeping
@@ -199,14 +199,21 @@ safe to share or commit.
 
 If any of these READMEs already exist with the same content, skip them. If they exist with different content, ask the user before overwriting.
 
-## Step 4: Copy Config Scaffold
+## Step 4: Copy Config Scaffold and Create Local Overlay
 
 ```bash
 mkdir -p .sublime-skills
-cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
+[ -f .sublime-skills/config.yml ] || cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
+[ -f .sublime-skills/config-local.yml ] || touch .sublime-skills/config-local.yml
 ```
 
-This is a verbatim copy. **Do NOT regenerate the YAML.** The scaffold is the single source of truth for the config's shape and defaults.
+Both lines are idempotent — they create the file when it's missing, and leave any existing content alone on a re-run. This protects the user's hand-edits to either file across multiple bootstrap invocations.
+
+The `cp` of the scaffold is a verbatim copy of `project-bootstrap/scaffolds/config.yml`. **Do NOT regenerate the YAML.** The scaffold is the single source of truth for the config's shape and defaults; the bootstrap never produces config YAML from scratch.
+
+`.sublime-skills/config-local.yml` is created as a zero-byte file. It's a per-developer overlay: any key set here shadows the matching key in `config.yml` when skills read config. The file is gitignored (Step 7), so each developer can populate it without affecting teammates.
+
+Step 5 below still runs unconditionally — it edits specific keys in `config.yml` (sets `context.<name>_path` to `null` for skipped files) using the `Edit` tool, not by rewriting the file. So newly Skipped convention files are reflected even on a re-run that did not re-copy the scaffold.
 
 ## Step 5: Edit Config to Reflect Reality
 
@@ -245,14 +252,14 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` Housekeeping
 
-If `.sublime-skills/local.yml` is NOT already in `.gitignore`, append it:
+If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, append it:
 
 ```bash
 # Check first
-grep -qE '^\.sublime-skills/local\.yml$' .gitignore 2>/dev/null || {
+grep -qE '^\.sublime-skills/config-local\.yml$' .gitignore 2>/dev/null || {
   echo "" >> .gitignore
   echo "# SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)" >> .gitignore
-  echo ".sublime-skills/local.yml" >> .gitignore
+  echo ".sublime-skills/config-local.yml" >> .gitignore
 }
 ```
 
