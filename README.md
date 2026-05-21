@@ -51,7 +51,7 @@ and safe-search level. The SearXNG endpoint is configured via the
 ### Spec-driven development
 
 A 21-skill family for running structured, spec-driven feature development
-end-to-end (plus a separate 5-skill `project-bootstrap/` family for
+end-to-end (plus a separate 6-skill `project-bootstrap/` family for
 one-time project setup — see below). The pipeline: **preflight → discover
 → spec → reviews → ADRs → plan → reviews → per-task implementation →
 optional feature testing → handoff doc → memory file → finish**. Coordinated
@@ -323,33 +323,48 @@ invokable by the user to check status without entering the pipeline.
 
 ### project-bootstrap (separate family)
 
-One-time project setup — a coordinator plus four read-only subagent
-analyzer skills. Lives under [`project-bootstrap/`](project-bootstrap/),
-separate from the SDD family. Invoked manually by the user, not by the
-SDD coordinator.
+One-time project setup — a coordinator plus five inline conversational
+discovering-X skills. Lives under
+[`project-bootstrap/`](project-bootstrap/), separate from the SDD family.
+Invoked manually by the user, not by the SDD coordinator.
 
 #### [bootstrapping-project](project-bootstrap/bootstrapping-project/)
 
 The coordinator. Walks the user through each convention file: detect
 existing → ask `Skip / Extend / Replace` (or Create if missing) →
-dispatch the matching analyzer subagent → discuss findings + proposed
-content with the user → write the file. Then creates `docs/adr/`,
-`docs/specs/`, `docs/handoff/` with stub READMEs; copies the canonical
-config scaffold at `project-bootstrap/scaffolds/config.yml` to
-`.sdd/config.yml`; sets `context.<name>_path` to `null` for skipped
-files; runs `validate-config.sh` in a fix-and-retry loop until PASS;
-commits.
+load the matching `discovering-<topic>` skill inline (via the Skill
+tool) → the skill handles its own scan, conversation, and atomic write.
+Then creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub
+READMEs; copies the canonical config scaffold at
+`project-bootstrap/scaffolds/config.yml` to `.sdd/config.yml`; sets
+`context.<name>_path` to `null` for skipped files; runs
+`validate-config.sh` in a fix-and-retry loop until PASS; commits.
 
-#### [proposing-constitution](project-bootstrap/proposing-constitution/), [proposing-architecture](project-bootstrap/proposing-architecture/), [proposing-glossary](project-bootstrap/proposing-glossary/), [proposing-domain-model](project-bootstrap/proposing-domain-model/)
+#### [discovering-constitution](project-bootstrap/discovering-constitution/), [discovering-architecture](project-bootstrap/discovering-architecture/), [discovering-glossary](project-bootstrap/discovering-glossary/), [discovering-domain-model](project-bootstrap/discovering-domain-model/)
 
-Per-artifact analyzer subagents — read-only, dispatched by
-`bootstrapping-project`. Each does deep project analysis (per-skill
-targets: linter configs and source patterns for the constitution; build
-files and infra config for the architecture; source identifiers and
-comments for the glossary; schemas and model files for the domain
-model). Returns structured findings plus a proposed markdown draft to
-the coordinator. They do NOT write files, interact with the user, or
-dispatch further subagents.
+Per-artifact inline conversational skills — loaded into the coordinator's
+own context via the Skill tool (NOT dispatched as subagents). Each does
+a silent code scan (per-skill targets: linter / CI / source patterns for
+the constitution; build files and infra config for the architecture;
+source identifiers and inline comments for the glossary; schemas and
+model files for the domain model), announces findings to the user, then
+asks targeted questions about anything the code can't reveal (intent
+principles, deliberate boundaries, alias confirmations, workflow
+exceptions, lifecycle gaps). Each skill drafts, refines via a tweak
+loop (cap 3), and atomically writes its file itself.
+
+#### [discovering-design](project-bootstrap/discovering-design/)
+
+Per-artifact inline conversational skill for the visual design system.
+Unique among the five for offering an **Import** path in addition to the
+standard **Build** path — the user can supply a path to an existing
+DESIGN.md (from [styles.refero.design](https://styles.refero.design),
+Specify, Tokens Studio, or hand-authored) and the skill verifies +
+previews + atomically copies it. Build path runs a code scan (Tailwind
+config, CSS custom properties, theme/token files, component libraries)
+plus targeted user questions about theme intent, brand vibe, color role
+rules, and do's-and-don'ts. Uses one-question-at-a-time structured
+prompts with recommended options.
 
 ## Setup
 

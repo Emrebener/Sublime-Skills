@@ -127,7 +127,7 @@ for key in ["spec_dir", "adr_dir", "handoff_dir"]:
         fail(f"paths.{key}: must be a non-empty string, got {v!r}")
 
 # ── context block ──────────────────────────────────────────────────
-context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path"]
+context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path", "design_path"]
 for key in context_keys:
     v = get("context", key)
     if v == "__MISSING__":
@@ -314,14 +314,14 @@ declare_required() {
 }
 
 declare_required paths spec_dir adr_dir handoff_dir
-declare_required context constitution_path architecture_path glossary_path domain_path
+declare_required context constitution_path architecture_path glossary_path domain_path design_path
 declare_required preflight branch_pattern use_worktree
 declare_required grill question_cap
 declare_required memory_file path character_limit
 declare_required finishing mode merge_target delete_branch_after_merge test_command pr_command pr_body_template
 
 # context.*_path values: must be null or point to an existing file
-for key in constitution_path architecture_path glossary_path domain_path; do
+for key in constitution_path architecture_path glossary_path domain_path design_path; do
   v="$(read_scalar context "$key")"
   if [ -z "$v" ]; then
     continue  # already reported as missing above (or value is empty — treated as null)
@@ -360,7 +360,8 @@ unknown_keys=$(awk '
   in_block && /^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*:/ {
     match($0, /^[[:space:]]+([A-Za-z_][A-Za-z0-9_]*):/, m)
     if (m[1] != "constitution_path" && m[1] != "architecture_path" \
-        && m[1] != "glossary_path" && m[1] != "domain_path") {
+        && m[1] != "glossary_path" && m[1] != "domain_path" \
+        && m[1] != "design_path") {
       print m[1]
     }
   }
@@ -368,7 +369,7 @@ unknown_keys=$(awk '
 if [ -n "$unknown_keys" ]; then
   while IFS= read -r k; do
     [ -z "$k" ] && continue
-    record_fail "context.$k: unknown key (allowed: constitution_path, architecture_path, glossary_path, domain_path)"
+    record_fail "context.$k: unknown key (allowed: constitution_path, architecture_path, glossary_path, domain_path, design_path)"
   done <<< "$unknown_keys"
 fi
 

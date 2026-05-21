@@ -150,7 +150,7 @@ Reasons:
 - **ADRs cover the same ground at finer grain.** Most "principles" are really "decisions" with broader scope.
 - **Solo / small team scale.** Constitution is most useful when multiple developers need consistent guidance. For solo or small-team use, ADRs accumulate naturally.
 - **Less governance ceremony.** Constitution requires authoring, versioning, propagation. ADRs are written one at a time.
-- **`bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `proposing-constitution` analyzer subagent). Users who want it can add it; the pipeline reads it when present.
+- **`bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `discovering-constitution` inline skill). Users who want it can add it; the pipeline reads it when present.
 
 The pipeline reads constitution.md if it exists (in stages where alignment matters). It's just not required, and we don't have a separate `maintaining-constitution` skill — yet.
 

@@ -23,6 +23,7 @@ Outputs JSON. Example:
   "architecture": "docs/ARCHITECTURE.md",
   "glossary": "docs/GLOSSARY.md",
   "domain": null,
+  "design": "docs/DESIGN.md",
   "readme": "README.md",
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
@@ -41,6 +42,7 @@ The script reads every path from `.sdd/config.yml` — there is **no auto-fallba
 | `architecture` | `context.architecture_path` | scalar path or null |
 | `glossary` | `context.glossary_path` | scalar path or null |
 | `domain` | `context.domain_path` | scalar path or null |
+| `design` | `context.design_path` | scalar path or null |
 | `spec_dir` | `paths.spec_dir` | also drives `active_states` lookups |
 | `adr_dir` | `paths.adr_dir` | also drives the `adrs` array |
 | `readme` | (hardcoded `README.md`) | the one universal location; not configurable |

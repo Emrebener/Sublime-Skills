@@ -1,15 +1,15 @@
 ---
 name: bootstrapping-project
-description: Use to set up a project for spec-driven development - walks the user through each convention file (constitution, architecture, glossary, domain) with deep per-file project analysis via dedicated subagents, then scaffolds .sdd/config.yml and the supporting directories. User-invoked, not part of the SDD pipeline.
+description: Use to set up a project for spec-driven development - walks the user through each convention file (constitution, architecture, glossary, domain, design) by loading the matching discovering-<topic> inline skill for each, then scaffolds .sdd/config.yml and the supporting directories. User-invoked, not part of the SDD pipeline.
 ---
 
 # Bootstrapping Project
 
 ## Overview
 
-You are the coordinator for project bootstrap. You hold the workflow's shape; the deep per-artifact analysis happens in fresh subagent contexts (one subagent per convention file). After all convention files are settled, you copy the config scaffold, edit it to reflect what was actually created, validate it, and commit.
+You are the coordinator for project bootstrap. You hold the workflow's shape. The five convention files (constitution, architecture, glossary, domain, design) are each handled by a dedicated `discovering-<topic>` skill loaded inline into your context via the Skill tool. Each discovering-X skill performs its own code scan, conversation with the user, and atomic write — you don't reach inside its work, you just route to it. After all five files are settled, you copy the config scaffold, edit it to reflect what was actually created, validate it, and commit.
 
-**Core principle:** Per-artifact analysis is read-heavy; dispatch it to a fresh subagent (clean context, focused skill). User discussion and file writing happens in this coordinator.
+**Core principle:** Per-artifact discovery is a back-and-forth with the user, not a one-shot extraction. Code reveals *what*; the user reveals *why*. Each discovering-X skill orchestrates that conversation. Your job is the surrounding workflow (detection, mode choice, config, commit) — not the per-artifact discussion.
 
 **Announce at start:** "I'm using the bootstrapping-project skill to set up SDD for this project."
 
@@ -18,24 +18,26 @@ You are the coordinator for project bootstrap. You hold the workflow's shape; th
 - It does NOT run the SDD pipeline. That's `sdd-coordinator`.
 - It does NOT write specs or plans. That's pipeline work.
 - It does NOT enforce anything globally. Convention files are referenced by pipeline skills only if their `context.<name>_path` resolves to an existing file.
-- It does NOT dispatch sub-subagents. Each subagent it dispatches is a leaf — they cannot dispatch further.
+- It does NOT perform the per-file discovery itself. Each `discovering-X` skill handles its own scan, conversation, and write — you just route to the right one.
 
 ## Hard Gates
 
 - Do NOT skip the per-file detect+ask loop — every convention file gets its own decision point
 - Do NOT regenerate the config YAML from scratch — copy the scaffold verbatim, then Edit specific keys
 - Do NOT commit until `validate-config.sh` passes
-- Do NOT dispatch multiple proposer subagents in parallel — sequential, one file at a time, so the user can reason about each
+- Do NOT run discovering-X skills in parallel — load them sequentially, one file at a time, so the user can reason about each
+- Do NOT dispatch any discovering-X skill as a subagent (`Task` / `Agent` tool). All five are inline; load them via the Skill tool.
+- Do NOT bypass a discovering-X skill — even if you "know what the proposal would be," the per-file conversation is the skill's job, not yours.
 - Do NOT overwrite an existing convention file without explicit user direction (Replace mode requires affirmative user choice)
 - ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the bootstrap. Build the initial list right after Step 1 (Detect): one todo per convention file (constitution, architecture, glossary, domain) plus one each for supporting directories, config copy, config edit-to-reflect-reality, validate-config, gitignore, and the final commit. Mark `in_progress` when you start an item and `completed` immediately after — don't batch updates. Bootstrap is short but multi-step, and the user is watching this list to know which file you're working on.
+- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the bootstrap. Build the initial list right after Step 1 (Detect): one todo per convention file (constitution, architecture, glossary, domain, design) plus one each for supporting directories, config copy, config edit-to-reflect-reality, validate-config, gitignore, and the final commit. Mark `in_progress` when you start an item and `completed` immediately after — don't batch updates. Bootstrap is short but multi-step, and the user is watching this list to know which file you're working on.
 
 ## Checklist
 
 Proceed through these in order:
 
 1. Detect existing setup via discovery script
-2. For each convention file (constitution → architecture → glossary → domain): detect → ask → dispatch proposer subagent → discuss → write
+2. For each convention file (constitution → architecture → glossary → domain → design): detect → ask → load the matching `discovering-<topic>` skill inline → record outcome
 3. Create supporting directories (`docs/adr/`, `docs/specs/`, `docs/handoff/`) with stub READMEs
 4. Copy config scaffold to `.sdd/config.yml`
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
@@ -50,7 +52,7 @@ Proceed through these in order:
 ./spec-driven-development/scripts/discover-context.sh
 ```
 
-Cache the JSON output. For each convention file: the corresponding key (`constitution`, `architecture`, `glossary`, `domain`) is either a string (file exists) or `null` (no file at the configured path, or config doesn't exist yet).
+Cache the JSON output. For each convention file: the corresponding key (`constitution`, `architecture`, `glossary`, `domain`, `design`) is either a string (file exists) or `null` (no file at the configured path, or config doesn't exist yet).
 
 ## Step 1.5: Build the Todo List
 
@@ -60,18 +62,19 @@ Before starting the per-file loop, build the progress todo list with the harness
 2. Architecture (`docs/ARCHITECTURE.md`)
 3. Glossary (`docs/GLOSSARY.md`)
 4. Domain model (`docs/DOMAIN.md`)
-5. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
-6. Copy config scaffold to `.sdd/config.yml`
-7. Edit config to reflect skipped files
-8. Run `validate-config.sh` (fix-and-retry loop)
-9. `.gitignore` housekeeping
-10. Commit
+5. Design (`docs/DESIGN.md`)
+6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
+7. Copy config scaffold to `.sdd/config.yml`
+8. Edit config to reflect skipped files
+9. Run `validate-config.sh` (fix-and-retry loop)
+10. `.gitignore` housekeeping
+11. Commit
 
 Mark each `in_progress` when you start it and `completed` the instant it's done. Never batch — the user reads this list to follow along with what you're doing.
 
 ## Step 2: Per-File Loop
 
-Iterate convention files in this order: **constitution, architecture, glossary, domain.** For each:
+Iterate convention files in this order: **constitution, architecture, glossary, domain, design.** For each:
 
 ### 2a. Detect
 
@@ -82,6 +85,7 @@ Default paths the scaffold will set:
 - Architecture: `docs/ARCHITECTURE.md`
 - Glossary: `docs/GLOSSARY.md`
 - Domain: `docs/DOMAIN.md`
+- Design: `docs/DESIGN.md`
 
 ### 2b. Ask the User
 
@@ -100,76 +104,47 @@ On no: record this file as **skipped**; continue to the next file.
 
 Record the chosen mode. On **Skip**: continue to the next file.
 
-### 2c. Dispatch the Proposer Subagent
+### 2c. Load the Matching `discovering-X` Skill Inline
 
-For modes Create, Extend, or Replace, dispatch a `general-purpose` subagent with the corresponding `proposing-X` skill:
+For modes Create, Extend, or Replace, route to the per-file skill via the Skill tool. All five convention files use the same uniform mechanism — no subagent dispatch, ever.
 
-| Convention file | Subagent skill |
+| Convention file | Skill loaded (inline) |
 |---|---|
-| Constitution | `proposing-constitution` |
-| Architecture | `proposing-architecture` |
-| Glossary | `proposing-glossary` |
-| Domain model | `proposing-domain-model` |
+| Constitution | `discovering-constitution` |
+| Architecture | `discovering-architecture` |
+| Glossary | `discovering-glossary` |
+| Domain model | `discovering-domain-model` |
+| Design | `discovering-design` |
 
-**Subagent dispatch prompt template:**
+**How to load:**
+
+Use the Skill tool to load the matching `discovering-<topic>` skill. Pass these inputs (the skill's documented input convention):
 
 ```
-You are analyzing the project to propose content for a convention file.
+Load skill: discovering-<topic>
 
-Use the `<skill-name>` skill via the Skill tool.
-
-REPO_ROOT: <absolute path to repo root>
-MODE: create | extend | replace
-EXISTING_CONTENT: (only for extend mode — the verbatim current file content)
-FILE_PATH: <where the file will be written>
-
-Return your findings (what you observed) and proposed content (the markdown
-draft). Do not write to any file yourself; do not interact with the user.
+REPO_ROOT:        <absolute path to repo root>
+MODE:             create | extend | replace
+EXISTING_CONTENT: (only for extend / replace — the verbatim current file content)
+FILE_PATH:        <target path — e.g., docs/constitution.md, docs/ARCHITECTURE.md,
+                   docs/GLOSSARY.md, docs/DOMAIN.md, docs/DESIGN.md, or whatever
+                   the config'd context.<name>_path resolves to>
 ```
 
-The subagent returns:
-- **`findings`** — structured observations grouped by category (what they read, what stood out)
-- **`proposed_content`** — the markdown draft (for extend mode: a diff or additions section)
+The skill handles the entire interaction itself — code scan, user discussion (one question at a time, structured choices, free-form where appropriate), draft preview, refinement loop (cap 3 iterations), and atomic write. **You do NOT run a separate discuss-and-write step for any convention file** — each discovering-X skill performs both internally.
 
-### 2d. Discuss with User
+When the skill returns control to you, it reports one of:
 
-Present the findings + proposed_content to the user:
+- `created` — file written via the Build path (or, for design only, `created via build` / `created via import from <path>`)
+- `extended` — merged content written (extend mode)
+- `replaced` — full draft written over previous content (replace mode)
+- `skipped (declined mid-skill)` — user bailed out partway through the skill's own flow
 
-> "Here's what the analyzer found, and the draft it proposes:
->
-> **Findings:**
-> <findings>
->
-> **Proposed content for `<filename>`:**
-> <proposed_content>
->
-> Want to: **approve** (write as-is) / **request changes** (tell me what to adjust) / **abort** (skip this file)?"
+Record that outcome alongside the path, then proceed to 2d.
 
-**On approve:** continue to 2e.
+### 2d. Next File
 
-**On request changes:** capture the user's notes. Re-dispatch the proposer subagent with the original inputs PLUS the user's notes appended: "Address these specific changes the user asked for: <notes>". Loop back to 2d. **Cap: 3 iterations.** After 3 failed iterations, surface to the user with: "I've made 3 attempts and the proposal still isn't matching your intent. Want to (a) accept the current draft anyway, (b) skip this file entirely, or (c) write the content yourself?"
-
-**On abort:** record as skipped; continue to the next file.
-
-### 2e. Write the File
-
-Atomic write to the target path:
-
-```bash
-# Write to .tmp, then atomic mv
-cat > "$FILE_PATH.tmp" <<EOF
-<proposed_content>
-EOF
-mv "$FILE_PATH.tmp" "$FILE_PATH"
-```
-
-For **Extend** mode: the merged content (existing + additions) is what gets written, not just the additions.
-
-Mark this file as **created/extended/replaced**, capture the final path (in case it differs from the scaffold default — rare).
-
-### 2f. Next File
-
-Continue to the next convention file in the order. Repeat until all four are settled.
+Continue to the next convention file in the order. Repeat until all five are settled.
 
 ## Step 3: Create Supporting Directories
 
@@ -288,7 +263,7 @@ Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SD
 ## Step 8: Commit
 
 ```bash
-git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md \
+git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         docs/adr/ docs/specs/ docs/handoff/ \
         .sdd/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
@@ -308,6 +283,7 @@ Convention files:
 - docs/ARCHITECTURE.md — <...>
 - docs/GLOSSARY.md — <...>
 - docs/DOMAIN.md — <...>
+- docs/DESIGN.md — <...>
 
 Directories:
 - docs/adr/ (with README)
@@ -333,39 +309,45 @@ If `.sdd/config.yml` already exists when this skill starts, treat it as a re-run
 
 The skill is safe to invoke repeatedly. It never destroys user-authored content without explicit Replace approval.
 
-## Subagent Failure Protocol
+## Inline Skill Failure Protocol
 
-If a proposer subagent returns malformed output (missing findings or proposed_content), times out, or crashes:
+Each discovering-X skill has its own internal failure handling — tweak-iteration caps, start-over bailouts, abort options — and most issues resolve inside the skill. You only see a failure at this level if the skill itself crashes, returns an unrecognized outcome string, or returns control without writing the file when it claimed it would.
 
-1. **Retry once** with the same inputs. Transient failures are common; one retry costs little.
+If that happens:
+
+1. **Retry once** by re-loading the skill with the same inputs. Transient failures are common; one retry costs little.
 2. If the retry also fails, surface to the user:
 
-   > "The `<skill-name>` analyzer didn't return a usable proposal (reason: <observed issue>). Options:
+   > "The `<skill-name>` skill didn't complete cleanly (reason: <observed issue>). Options:
    > - **Retry** (third attempt)
    > - **Skip this file** (proceed without)
-   > - **Write the content yourself** (you provide the markdown; I'll save it)
+   > - **Write the content yourself** (you provide the markdown; I'll save it via atomic write at the configured path)
    > - **Abort the whole bootstrap**"
 
-3. Never substitute the coordinator's own analysis for the failed subagent's. The subagent is the read-heavy specialist; you don't pretend to do its job.
+3. Never substitute the coordinator's own analysis for the failed skill's. The discovering-X skill is the source of truth for its file's content — you don't pretend to do its job, even when it's stuck.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---|---|
-| Doing the per-file analysis inline in the coordinator | Dispatch the proposer subagent; deep analysis is its job |
-| Writing convention files without user approval of the proposal | Always discuss findings+proposal first; user approves before write |
-| Overwriting an existing file in Extend mode | Extend merges; only Replace overwrites |
-| Regenerating the YAML scaffold | Copy verbatim, then Edit specific keys |
-| Skipping validate-config.sh | Mandatory; bootstrap isn't done until it passes |
-| Looping the validator more than 3 times | Cap is 3; after that, surface to user |
-| Bundling multiple commits (one per file) | One bootstrap = one commit |
-| Auto-deciding Skip/Extend/Replace | Always ask the user explicitly |
+| Performing the per-file analysis or discussion in the coordinator | Load the matching discovering-X skill; it owns the scan + conversation. |
+| Dispatching a discovering-X skill as a subagent | All five are inline — load via the Skill tool, never Task/Agent. A subagent dispatch would break the interactive Q&A flow. |
+| Running multiple discovering-X skills in parallel | Sequential, one file at a time, so the user can reason about each. |
+| Re-doing the user discussion or write after a discovering-X returns | The skill already discussed + wrote internally — your job is to record the outcome and move on. |
+| Writing convention files directly from the coordinator | The discovering-X skill is the single source of truth for its file's content. |
+| Overwriting an existing file in Extend mode | Extend merges; only Replace overwrites. |
+| Regenerating the YAML scaffold | Copy verbatim, then Edit specific keys. |
+| Skipping validate-config.sh | Mandatory; bootstrap isn't done until it passes. |
+| Looping the validator more than 3 times | Cap is 3; after that, surface to user. |
+| Bundling multiple commits (one per file) | One bootstrap = one commit. |
+| Auto-deciding Skip/Extend/Replace | Always ask the user explicitly. |
 
 ## Red Flags
 
-- About to dispatch two proposer subagents in parallel → STOP; sequential only
-- About to write a convention file without showing the user the proposal first → STOP
+- About to load two discovering-X skills in parallel → STOP; sequential only
+- About to do the per-file scan or discussion yourself inline in the coordinator → STOP; that's the discovering-X skill's job
+- About to dispatch a discovering-X via Task/Agent → STOP; all five are inline — Skill tool only
+- About to write a convention file from the coordinator → STOP; the discovering-X skill writes
 - About to commit before `validate-config.sh` passes → STOP
 - About to overwrite an existing file without the user picking Replace → STOP
-- About to do the per-file deep analysis yourself inline → STOP; that's the subagent's job
-- About to dispatch a sub-subagent from inside a proposer → not your concern; proposer subagents are leaf skills
+- About to re-prompt the user for the same file after a discovering-X already returned → STOP; the conversation already happened inside the skill

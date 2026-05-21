@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 5-skill set used to set up `.sdd/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sdd/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -31,7 +31,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 
 **Bootstrap (outside the SDD family — see `project-bootstrap/` directory):**
 - `bootstrapping-project` — one-time project setup coordinator
-- `proposing-constitution` / `proposing-architecture` / `proposing-glossary` / `proposing-domain-model` — per-artifact subagent analyzers
+- `discovering-constitution` / `discovering-architecture` / `discovering-glossary` / `discovering-domain-model` / `discovering-design` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched)
 
 **Shared scripts:**
 - `discover-context.sh` — find project convention files; reads paths from `.sdd/config.yml`
@@ -800,7 +800,7 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
-2. For each of constitution → architecture → glossary → domain: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → dispatch the matching `proposing-X` subagent → discuss findings + proposed content with the user → write the file. Cap fix-iterations at 3 per file.
+2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline via the Skill tool. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
 3. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs.
 4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sdd/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
@@ -808,25 +808,38 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 7. Ensure `.sdd/local.yml` is gitignored.
 8. Single commit `chore: initialize SDD project context`.
 
-**Reads:** existing project files (via `discover-context.sh` + per-subagent reads); EXISTING_CONTENT for extend/replace modes.
-**Writes:** opted-in convention files; `docs/adr|specs|handoff/README.md` stubs; `.sdd/config.yml`; possibly `.gitignore` entry; one commit.
+**Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
+**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs|handoff/README.md` stubs; `.sdd/config.yml`; possibly `.gitignore` entry; one commit.
 
-### proposing-constitution / proposing-architecture / proposing-glossary / proposing-domain-model
+### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
 
-**Type:** Subagent skills (read-only)
-**Loaded:** by dispatched subagents from `bootstrapping-project`
+**Type:** Inline conversational skills
+**Loaded:** by `bootstrapping-project` into its own context via the Skill tool when the per-file loop reaches each slot
 **Stage:** N/A
 
-**Purpose:** Deep, focused analysis of the project for one specific convention file. Each subagent reads broadly (per-skill targets), returns findings + a proposed markdown draft. They do NOT write files, interact with the user, or dispatch further subagents.
+**Purpose:** Deep, focused per-file analysis with sustained user interaction. Each skill performs a silent code scan, announces findings, asks targeted questions about things the code can't reveal, drafts the file, runs a tweak loop (cap 3 iterations), and atomically writes itself. The coordinator just records the outcome string.
 
-| Skill | Reads | Produces |
-|---|---|---|
-| `proposing-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
-| `proposing-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
-| `proposing-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | 10-30 alphabetical terms, each ≤2 sentences |
-| `proposing-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
+| Skill | Reads | User-interaction layer | Produces |
+|---|---|---|---|
+| `discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | Confirm candidate principles → set MUST/SHALL/SHOULD severity → add intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
+| `discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | Confirm component grouping → declare out-of-scope → confirm env-var-only integrations → add non-code facts → resolve cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
+| `discovering-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | Pick which ≤30 terms make the cut → declare aliases / multi-naming → refine definitions during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
+| `discovering-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | Pick which ≤15 entities are load-bearing → confirm lifecycles → resolve cardinality → add workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
+| `discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps in `package.json` | (Build path) Confirm vibe / theme intent → set color role rules → confirm component vocabulary → state do's-and-don'ts. (Import path) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
 
-All four support `create` / `extend` / `replace` modes from the dispatcher. Each enforces hard caps (no diagrams, length limits, codebase-evidence requirements).
+All five skills support `create` / `extend` / `replace` modes from the coordinator. Each enforces hard caps (no diagrams; length limits where applicable; codebase-evidence OR explicit user input for every proposition; ALWAYS uses the harness question tool; one question per turn; multi-choice with recommended options when possible; no external-authority citations).
+
+**Outcome strings** reported back to the coordinator:
+- `created` (or for design: `created via build` / `created via import from <path>`)
+- `extended`
+- `replaced`
+- `skipped (declined mid-skill)`
+
+**Why inline (not subagent):** Each convention file mixes code-derivable signal (extractable in one pass) with user-held intent (only drawable out conversationally — which principles matter, which terms are load-bearing, which boundaries are deliberate, what the vibe is). A dispatched subagent returns once and dies; it can't have the back-and-forth needed for the second half. Routing the conversation through the coordinator (subagent returns findings → coordinator paraphrases → user replies → coordinator re-dispatches) wastes turns and drifts intent. So all five stay inline.
+
+**Writes:** `docs/DESIGN.md` (or `context.design_path` if overridden) directly — `bootstrapping-project` skips its usual Discuss / Write steps for this file.
+
+**Outcomes reported to coordinator:** `created via import from <path>` / `created via build` / `extended via build` / `replaced via build` / `skipped (declined mid-skill)`.
 
 ---
 
@@ -845,6 +858,7 @@ All four support `create` / `extend` / `replace` modes from the dispatcher. Each
 | `architecture` | `context.architecture_path` | scalar; null = not used |
 | `glossary` | `context.glossary_path` | scalar; null = not used |
 | `domain` | `context.domain_path` | scalar; null = not used |
+| `design` | `context.design_path` | scalar; null = not used |
 | `spec_dir` | `paths.spec_dir` | also drives `active_states` |
 | `adr_dir` | `paths.adr_dir` | also drives `adrs` |
 | `readme` | (hardcoded `README.md`) | one universal location |
@@ -864,6 +878,7 @@ All four support `create` / `extend` / `replace` modes from the dispatcher. Each
   "architecture": "docs/ARCHITECTURE.md" | null,
   "glossary": "docs/GLOSSARY.md" | null,
   "domain": null,
+  "design": "docs/DESIGN.md" | null,
   "readme": "README.md",
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
@@ -1022,11 +1037,12 @@ sdd-coordinator (entry; user-invoked)
 
 project-bootstrap family (outside SDD pipeline; user-invoked manually)
 ├── bootstrapping-project (coordinator)
-│       ↓ dispatches one of:
-├── proposing-constitution    (subagent, read-only)
-├── proposing-architecture    (subagent, read-only)
-├── proposing-glossary        (subagent, read-only)
-└── proposing-domain-model    (subagent, read-only)
+│       ↓ loads inline via Skill tool (one per convention file, sequential):
+│   ├── discovering-constitution   (inline, conversational)
+│   ├── discovering-architecture   (inline, conversational)
+│   ├── discovering-glossary       (inline, conversational)
+│   ├── discovering-domain-model   (inline, conversational)
+│   └── discovering-design         (inline, conversational — Import path or Build path)
 ```
 
 ---

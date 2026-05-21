@@ -173,6 +173,7 @@ context:
   architecture_path: docs/ARCHITECTURE.md
   glossary_path: docs/GLOSSARY.md
   domain_path: docs/DOMAIN.md
+  design_path: docs/DESIGN.md
 
 # ── Preflight (Stage 0) ─────────────────────────────────────────────
 preflight:
@@ -332,9 +333,10 @@ context:
   constitution_path: docs/principles.md
   architecture_path: docs/internal/ARCH.md
   glossary_path: null               # this project doesn't have one
+  design_path: null                 # CLI tool — no UI surface
 ```
 
-Each key is a single explicit path or `null`. The SDD pipeline expects a single canonical pointer per artifact, not a list. If your project keeps a convention file at a non-default path (e.g., `docs/internal/ARCH.md`), point the corresponding `<name>_path` at it.
+Each key is a single explicit path or `null`. The SDD pipeline expects a single canonical pointer per artifact, not a list. If your project keeps a convention file at a non-default path (e.g., `docs/internal/ARCH.md`), point the corresponding `<name>_path` at it. `design_path: null` is the right choice for CLI tools, libraries, or backend services with no visual UI surface — the bootstrapper's `discovering-design` skill detects the absence of a UI surface during its code scan and surfaces Skip as the recommended option for such projects.
 
 ### Hard ceilings (not overridable)
 

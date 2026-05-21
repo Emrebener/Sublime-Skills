@@ -25,6 +25,7 @@ context:
   architecture_path: docs/ARCHITECTURE.md       # system structure overview
   glossary_path: docs/GLOSSARY.md               # canonical domain vocabulary
   domain_path: docs/DOMAIN.md                   # conceptual entities and relationships
+  design_path: docs/DESIGN.md                   # visual design system (colors, type, spacing, components)
 
 # ── Preflight (Stage 0) ─────────────────────────────────────────────
 preflight:

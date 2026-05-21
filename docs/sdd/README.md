@@ -45,7 +45,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 
 **First-time setup on a project:** invoke `bootstrapping-project` (in the `project-bootstrap/` family) manually. It walks you through each convention file with deep per-file project analysis (via dedicated subagents) and scaffolds:
 - `docs/constitution.md` (optional project-wide principles)
-- `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md` (optional scaffolds)
+- `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
 - `.sdd/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
 - `docs/adr/`, `docs/specs/`, `docs/handoff/` directories with README stubs
 
@@ -76,6 +76,7 @@ Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name
 │   ├── ARCHITECTURE.md                    # optional, repo-level
 │   ├── GLOSSARY.md                        # optional
 │   ├── DOMAIN.md                          # optional
+│   ├── DESIGN.md                          # optional, visual design system
 │   ├── adr/
 │   │   ├── README.md
 │   │   ├── 0001-<title>.md
