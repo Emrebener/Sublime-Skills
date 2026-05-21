@@ -41,7 +41,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 9 | Auto plan-review | Subagent uses `reviewing-plans`; findings via `receiving-review-findings` | No |
 | 10 | Optional 2nd plan-review | Subagent uses `reviewing-plans`; findings via `receiving-review-findings` | **Yes — ask user, default no** |
 | 11 | User plan approval + commit | Inline | No |
-| 12 | Implementation | Inline via `implementing-plans` (dispatches per-task subagents) | No |
+| 12 | Implementation (sub-pipeline) | Inline via `implementing-plans` (dispatches per-task subagents) | No |
 | 13 | Optional feature testing | Inline via `testing-implementation` (dispatches tester subagent) | **Yes — ask user, default yes** |
 | 14 | Generate handoff | Subagent uses `generating-handoff` | **Yes — ask user, default yes** |
 | 15 | Maintain memory file | Subagent uses `maintaining-memory-file` | **Yes — ask user, default yes** (auto-skipped if no memory file is configured/detected) |
@@ -246,7 +246,7 @@ Same pattern as Stage 4.
 
 Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to start implementation, or request changes." Wait for explicit approval.
 
-### Stage 12 — Implementation
+### Stage 12 — Implementation (sub-pipeline)
 
 Load `implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is initialized/synced and updated per task.
 

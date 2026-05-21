@@ -22,7 +22,7 @@ This document explains each stage in detail: what runs, what it produces, how fa
 | 9 | Auto plan-review | Subagent via `reviewing-plans` | No | No (returns findings) |
 | 10 | 2nd plan-review | Subagent via `reviewing-plans` | **Yes** | No (returns findings) |
 | 11 | User plan approval | Inline (coordinator) | No | Updates `state.json` |
-| 12 | Implementation | Per-task subagents | No | Code files, tests, `state.json` |
+| 12 | Implementation (sub-pipeline) | Per-task subagents | No | Code files, tests, `state.json` |
 | 13 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
 | 14 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
 | 15 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
@@ -422,7 +422,7 @@ Possibilities:
 
 ---
 
-## Stage 12 — Implementation
+## Stage 12 — Implementation (sub-pipeline)
 
 **Skill:** `implementing-plans` (inline; orchestrates subagents)
 **Output:** code changes, commits, updated `state.json` per task
