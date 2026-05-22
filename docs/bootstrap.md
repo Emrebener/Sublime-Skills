@@ -342,7 +342,7 @@ to:
 | `3` | Usage error | Halt — coordinator bug. |
 
 Validator checks include:
-- All required keys present (`paths.spec_dir`, `paths.adr_dir`, `paths.handoff_dir`, `context.<name>_path` for all five, `preflight.*`, `grill.*`, `memory_file.*`, `finishing.*`)
+- All required keys present (`paths.spec_dir`, `paths.adr_dir`, `paths.handoff_dir`, `context.<name>_path` for all five, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`)
 - No unknown keys (catches schema drift)
 - Each context path is either `null` or points to an actual existing file (orphan paths fail)
 - Each `paths.*_dir` value is a string
@@ -362,7 +362,7 @@ If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, the coordi
 
 `.sublime-skills/config.yml` itself **is** committed — it's project-wide config that everyone needs.
 
-`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one wants `finishing.mode: pr`, others `merge-local`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
+`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one developer prefers `branching.branch_pattern: "feature/{short-name}"`, others use the default `feat/`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
 
 Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline. No gitignore entry needed.
 

@@ -68,6 +68,7 @@ If you suspect the task should NOT be `[NO-TDD]` — i.e., it's actually changin
 - One task → one commit (or a small handful, if the task lists multiple commits explicitly)
 - Commit message format: as the task specifies. If the task doesn't specify, use Conventional Commits style: `<type>(<scope>): <description> (T<id>)` — e.g., `feat(auth): JWT issue/verify (T012)`
 - Reference the task ID in the message so reviewers and the handoff doc can trace back
+- **Path-scoped `git add` only.** List the specific files you modified or created — never `git add .` or `git add -A`. The user may have pre-existing dirty files from before SDD started; those must stay untouched. If you don't know exactly which files you touched, you've drifted from the task — stop and report concerns instead.
 - Don't squash unrelated changes into one commit. If you find yourself wanting to, you've drifted from the task — stop and report concerns instead.
 
 ### If a Commit Fails

@@ -253,6 +253,8 @@ Update `state.json` using the atomic pattern (write to `state.json.tmp`, then `m
 
 Leave `current_stage` as `"plan_writing"` and DO NOT append `"plan_written"` to `stages_completed` here. The coordinator advances and marks completion after this skill returns.
 
+**Do NOT commit.** The plan.md and state.json updates stay uncommitted. The `choosing-feature-branch` skill at Stage 12 batch-commits the plan + state alongside the spec and ADRs on the user's chosen branch.
+
 ## Step 9: Report
 
 Return to the coordinator. The report **must include the validator's PASS line verbatim** — the coordinator uses this as proof that validation actually ran and succeeded.

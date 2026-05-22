@@ -1,251 +1,128 @@
 ---
 name: finishing-sdd
-description: Use during the finishing stage of an SDD pipeline run, after implementation (and optional testing and handoff generation) are complete. Closes the run — merge, PR, keep, or discard — honoring any user config, then cleans up the state file.
+description: Use during the finishing stage of an SDD pipeline run (Stage 17), after implementation (and any optional testing, handoff, and memory-file stages) are complete. Validates the state file, prints a summary report of what the pipeline produced, deletes the state file, and commits the deletion. V1 explicitly does NOT manage branches or merges — the user decides what to do with the feature branch.
 ---
 
 # Finishing SDD
 
 ## Overview
 
-Close out an SDD run. Default is interactive (4 options); config can short-circuit to a single mode. After the chosen action: delete the state file (work is done).
+Close out an SDD run. This is bookkeeping, not source-control management:
 
-**Core principle:** Verify before integrating. Confirm destructive actions explicitly. Restore what we displaced.
+1. Read and validate the state file — confirm implementation actually completed.
+2. Print a summary report of what the pipeline produced.
+3. Delete `state.json` and commit the deletion as a `chore` commit.
+
+That's it. No merging, no pull requests, no branch deletion, no test re-runs. Those are explicitly out of scope for V1 — the user decides what to do with the feature branch after SDD hands control back.
+
+**Core principle:** SDD's responsibility ends at "implementation complete." Source control belongs to the user.
 
 **Announce at start:** "I'm using the finishing-sdd skill to wrap up this SDD run."
 
 ## Hard Gates
 
-- Do NOT proceed if implementation (or testing, if it was run) is in an unresolved failing state
-- Do NOT discard work without typed confirmation
-- Do NOT force-push, drop branches the user didn't ask to drop, or rewrite history
+- Do NOT proceed if `state.stages_completed` doesn't contain `implementation_complete`
+- Do NOT proceed if the state file is malformed or unreadable
+- Do NOT bypass a failing commit with `--no-verify` or `--no-gpg-sign`
+- Do NOT use `git add .` / `git add -A` — the state deletion commit is path-scoped
 
 ## Checklist
 
-1. Verify pre-finish state (tests pass, no unresolved failures)
-2. Determine target branch
-3. Determine mode (config override OR interactive prompt)
-4. Execute chosen action
-5. Delete state file
-6. Report
+1. Validate state file
+2. Print summary report
+3. Delete state.json and commit the deletion
 
-## Step 1: Verify Pre-Finish State
+## Step 1: Validate State
 
-Read the state file. Confirm:
+Read `docs/specs/<feature_id>/state.json`. Confirm:
 
-- `stages_completed` includes implementation_complete
-- If testing was run, `test_status` is `passed` or `passed_after_fixes`
-- If testing was skipped (`testing_skipped`), confirm with user before proceeding: "Testing was skipped. Finish anyway?"
-- If `test_status` is `failed_escalated`, do NOT proceed without user explicit confirmation — they may want to investigate first
+- The file parses as JSON.
+- `stages_completed` is an array containing `implementation_complete`.
 
-Run the project's primary test command one more time as a sanity check.
+If either check fails: surface the issue and halt. Common reasons: malformed JSON (rare; would have been caught earlier by `inspecting-state`), or the user invoked finishing prematurely (before implementation finished).
 
-**Resolution order for the test command:**
+Additionally, check `test_status`:
 
-1. **Config override** (preferred): if `.sublime-skills/config.yml` has `finishing.test_command` set, use exactly that command. This is the right answer for Makefile-driven projects, `nox`/`tox` setups, Maven/Gradle, monorepos with custom test runners, or any project that doesn't fit the auto-detect patterns.
+- If `test_status` is `passed` or `passed_after_fixes`: fine, proceed.
+- If `test_status` is `skipped_user_choice` or `skipped_mcp_unavailable`: fine, proceed (the user knew testing was skipped).
+- If `test_status` is `failed_escalated` OR `null` (when `testing` isn't in `stages_skipped`): prompt the user via the harness's interactive question tool: "Tests aren't in a passing state (`<test_status>`). Finish anyway?" Only proceed on explicit yes.
 
-   ```yaml
-   finishing:
-     test_command: "make test"
-   ```
+**No test re-run.** Stage 14 (feature testing) was the test gate; if it ran and passed, we trust the result. If it was skipped, the user already made that call.
 
-2. **Auto-detect** (fallback): if no config override, try in priority order and use the **first match only**:
+## Step 2: Print Summary Report
 
-   | If present | Run | Notes |
-   |---|---|---|
-   | `Makefile` (with a `test` target) | `make test` | Highest priority — projects with a Makefile usually treat that as the canonical entry point |
-   | `package.json` | `npm test` | Node/JS projects |
-   | `Cargo.toml` | `cargo test` | Rust |
-   | `pyproject.toml` | `pytest` | Python (modern) |
-   | `setup.py` | `pytest` or `python -m unittest discover` (whichever fits) | Python (legacy) |
-   | `go.mod` | `go test ./...` | Go |
-   | `pom.xml` | `mvn test` | Java/Maven |
-   | `build.gradle` or `build.gradle.kts` | `gradle test` | Java/Gradle |
+Print a structured block to the user. Pull values from `state.json`:
 
-   Use `grep -q "^test:" Makefile 2>/dev/null` to verify a `test` target exists before picking `make test`.
+```
+SDD run complete: <feature_id>
 
-3. **None match**: ask the user what command to run. Offer to save their answer as `.sublime-skills/config.yml → finishing.test_command` for future runs.
+  Short name:        <short_name>
+  Started:           <started_at>
+  Updated:           <updated_at>
+  Branch:            <branch>
 
-**Do NOT run multiple test commands** even in polyglot repos. The config override is the right answer when one repo needs more than one runner (a Makefile target that fans out is typical).
+  Artifacts:
+    Spec:            <spec_path>
+    Plan:            <plan_path or "(none)">
+    Handoff:         <handoff_path or "(skipped)">
+    Memory file:     <memory_file_path if memory_file_updated else "(no update)">
 
-If the chosen command fails, halt and report failures. Don't offer finishing options until tests pass (or user explicitly says "I know, finish anyway").
+  ADRs created:      <count from adr_results>
+    <list of ADR-NNNN — title for each>
 
-## Step 2: Determine Target Branch
+  Tasks:             <N completed> / <N total> (from `tasks` map)
+  Test status:       <test_status>
+  Memory file updated: <memory_file_updated>
+
+  Stages completed:  <count of stages_completed>
+  Stages skipped:    <list from stages_skipped>
+```
+
+This is informational — the user reads it and now knows what the pipeline did. The artifacts (spec.md, plan.md, ADRs, handoff doc, memory file) are all already committed; this report just summarizes their existence.
+
+## Step 3: Delete State File and Commit
+
+The state file is tool-managed metadata — its job is done once the pipeline finishes. Delete it (silently, no prompt — the user doesn't curate this file) and commit the deletion as the final SDD commit on the feature branch.
 
 ```bash
-BRANCH=$(git branch --show-current)
+git rm "docs/specs/<feature_id>/state.json"
+git commit -m "chore(<feature_id>): SDD complete"
 ```
 
-Determine `BASE_BRANCH` (the merge target). Default `main`; check `.sublime-skills/config.yml` → `finishing.merge_target`. Confirm with user if uncertain.
+**Path-scoped.** Only `state.json` goes in this commit. Never `git add .` / `git add -A`.
 
-## Step 3: Determine Mode
+### Commit failure handling
 
-Read `.sublime-skills/config.yml` → `finishing.mode`. Use the scalar helper for convenience:
+If the commit fails (pre-commit hook, signing failure, missing git identity, etc.): surface the error verbatim and halt. The user fixes the underlying issue and re-invokes the coordinator (which will route back to Stage 17 since `finished` isn't yet in `stages_completed`).
+
+**NEVER bypass with `--no-verify`, `--no-gpg-sign`, or `--force`.** Per the Commit Failure Protocol in `sdd-coordinator`.
+
+### If the state file is already deleted
+
+If `git rm` fails because the file is missing (rare — e.g., the user deleted it manually mid-failure), check whether the deletion is already part of the working tree:
 
 ```bash
-MODE=$(./spec-driven-development/scripts/get-config-value.sh finishing mode)
-MODE="${MODE:-prompt}"   # default if not set
+git status --porcelain "docs/specs/<feature_id>/state.json"
 ```
 
-Possible values:
+If the path no longer appears in `git ls-files`, the state file is already gone from git's perspective. Skip the commit. Report "state file already removed; nothing to commit."
 
-| Mode | Behavior |
-|---|---|
-| `prompt` (default) | Show the 4-option menu below |
-| `leave` | Skip interactive menu; leave branch as-is. Equivalent to option 3. |
-| `merge-local` | Skip menu; merge into `merge_target`. Equivalent to option 1. |
-| `pr` | Skip menu; push and create PR. Equivalent to option 2. |
-| `auto` | Pick automatically: PR if remote exists and PR command is configured; merge-local otherwise; leave if neither |
-
-For modes other than `prompt`, still confirm with user once: "Finishing mode is `<mode>`. Proceed with that, or pick interactively? (proceed/interactive)".
-
-## Step 4: Execute Chosen Action
-
-### Option 1 — Merge Locally
-
-```bash
-# Merge first; verify before removing anything
-git checkout "$BASE_BRANCH"
-git pull
-git merge "$BRANCH"
-```
-
-**If the merge fails with conflicts** (`git status` shows `UU` entries): STOP. Tell the user which files conflicted. Do NOT attempt to auto-resolve. The user resolves and re-invokes finishing.
-
-**If the merge fails for other reasons** (commit-hook failure on merge commit, signing failure, etc.): STOP. Per the Commit Failure Protocol in `sdd-coordinator`. Do NOT bypass with `--no-verify`.
-
-If the merge succeeded, sanity-test on the merged result:
-
-```bash
-<project test command>
-```
-
-If tests fail on the merged result: STOP. Don't delete anything; let user resolve.
-
-If tests pass: proceed to Step 5 (delete state file). Delete the feature branch only if config says so (`delete_branch_after_merge: true` is the default):
-
-```bash
-git branch -d "$BRANCH"
-```
-
-### Option 2 — Push & Create PR
-
-```bash
-git push -u origin "$BRANCH"
-
-# Use configured pr_command if present, else default
-gh pr create --title "<title>" --body-file <body_file>
-```
-
-`<title>` defaults to the spec's title; user can override interactively.
-
-`<body_file>` is a temp file with:
-
-```markdown
-## Summary
-<2-3 bullets pulled from the spec's Goal section>
-
-## Test plan
-- [ ] <bulleted manual-verification steps, derived from the spec's acceptance scenarios>
-
-## Spec
-docs/specs/NNN-<short-name>/spec.md
-
-## Plan
-docs/specs/NNN-<short-name>/plan.md
-```
-
-The state file deletion still happens (work is complete from SDD's perspective; further iteration is normal git work).
-
-### Option 3 — Keep As-Is
-
-Report: "Branch `<name>` preserved at `<path>`. State file kept since work continues."
-
-**Do NOT delete the state file for Option 3** — the user may want SDD to resume context later (e.g., they discover a missed requirement and want to iterate within the SDD pipeline).
-
-Skip Step 5+ — branch stays as-is, state file kept.
-
-### Option 4 — Discard
-
-Require typed confirmation: `discard`.
-
-```bash
-git checkout "$BASE_BRANCH"
-```
-
-Proceed to Step 5, then force-delete branch:
-
-```bash
-git branch -D "$BRANCH"
-```
-
-## Step 5: Delete State File
-
-For Options 1, 2, and 4 — work is done from SDD's perspective. Delete the state file:
-
-```bash
-rm "docs/specs/NNN-<short-name>/state.json"
-```
-
-Commit the deletion (matters for Options 1 and 2 — keeps the spec dir clean in history). The deletion is committed as part of the feature's last commit when possible; otherwise as a standalone "chore: clean up SDD state" commit.
-
-For Option 3 — keep state file.
-
-## Step 6: Report
-
-```
-SDD run complete.
-- Action: merge-local | pr | keep | discard
-- Branch: <name>
-- PR: <url> (if applicable)
-- State file: deleted | kept
-```
+After the commit (or detected pre-removal): SDD run is done. The user now decides what to do with the feature branch — merge it, open a PR, leave it for later. That's their call.
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---|---|
-| Deleting state file for Option 3 | Option 3 means "work continues" — keep state |
-| Trying to restore a preflight stash | Preflight no longer stashes (it aborts on dirty files). If you see `preflight.stash_ref` in an old state file, ignore it — the field is deprecated. |
-| Force-push to main as part of "merge" | Never; only `git merge` on the base branch, never `git push --force` to the base |
+| Re-running the test suite | NEVER — Stage 14 (feature testing) was the test gate. |
+| Asking the user whether to delete the state file | NEVER — state.json is tool metadata; the user doesn't curate it. Just delete + commit. |
+| Using `git add .` or `git add -A` for the deletion commit | NEVER — only the specific state.json path. |
+| Bypassing a failing commit with `--no-verify` | NEVER — abort and surface the hook error. |
+| Trying to merge, push, create a PR, or delete the branch | NEVER — V1 doesn't manage source control. The user does that after SDD ends. |
 
 ## Red Flags
 
-- About to `git push --force` anywhere → STOP
-- About to `git branch -D` without typed `discard` confirmation → STOP
-- Tests failing on the merge result → STOP; let user resolve
-
-## Config Schema
-
-```yaml
-finishing:
-  mode: prompt              # prompt | leave | merge-local | pr | auto
-  merge_target: main
-  delete_branch_after_merge: true
-  test_command: null        # explicit command to run for sanity tests; null = auto-detect
-  pr_command: "gh pr create --title '{title}' --body-file {body_file}"
-  pr_body_template: |
-    ## Summary
-    {summary}
-
-    ## Test plan
-    {test_plan}
-
-    ## Spec
-    {spec_link}
-
-    ## Plan
-    {plan_link}
-```
-
-If `pr_command` is unset, default to `gh pr create --title "{title}" --body-file {body_file}`.
-
-If `test_command` is unset (default), Step 1's auto-detect runs. Set it explicitly for any project that doesn't match the auto-detect priority list (Makefile, Node, Cargo, Python, Go, Maven, Gradle). Examples:
-
-```yaml
-finishing:
-  test_command: "make test"        # Makefile-driven monorepo
-  # or
-  test_command: "nox -s tests"     # Python with nox
-  # or
-  test_command: "pnpm run test:ci" # specific script
-```
+- About to run `git merge`, `git push`, `gh pr create`, `git branch -d`, or any branch/remote operation → STOP; out of scope for V1
+- About to re-run the test suite → STOP; not this skill's job in V1
+- About to delete state.json without committing the deletion → STOP; commit it
+- About to commit with `--no-verify` → STOP; surface the failure
+- About to skip the `implementation_complete` check → STOP; the gate is non-negotiable

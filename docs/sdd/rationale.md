@@ -4,7 +4,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ## Contents
 
-- [Why a 17-stage pipeline](#why-a-17-stage-pipeline)
+- [Why an 18-stage pipeline](#why-an-18-stage-pipeline)
 - [Why thin coordinator + many skills](#why-thin-coordinator--many-skills)
 - [Why no external skill dependencies](#why-no-external-skill-dependencies)
 - [Why abort-only preflight](#why-abort-only-preflight)
@@ -23,9 +23,9 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ---
 
-## Why a 17-stage pipeline
+## Why an 18-stage pipeline
 
-A 17-stage pipeline sounds heavy (Stages 0-16). For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
+An 18-stage pipeline sounds heavy (Stages 0-17). For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
 
 - AI agents tend to skip stages they shouldn't (especially review stages) when given the option
 - Inconsistent application means inconsistent quality across features
@@ -246,23 +246,17 @@ The `testing-implementation` skill repeats this rule in five different places. T
 
 ---
 
-## Why config-driven finishing
+## Why SDD doesn't manage branches or merges (V1)
 
-`finishing-sdd` has 4 options (merge / PR / keep / discard). Users typically have a strong preference: they always create a PR, or they always merge locally, or they always leave the branch. Interactive prompts on every run get tedious.
+The pipeline doesn't merge branches, create PRs, push to remotes, or delete the feature branch. Stage 17 (`finishing-sdd`) prints a summary and deletes `state.json`. That's it. The user decides what happens to the feature branch after SDD ends.
 
-The config (`.sublime-skills/config.yml` → `finishing.mode`) lets users short-circuit:
-- `prompt` (default) — interactive
-- `leave` — always leave the branch
-- `merge-local` — always merge into base
-- `pr` — always create a PR
-- `auto` — pick based on remote availability
+This is a deliberate V1 scoping choice:
 
-Plus a one-time confirmation when a non-default mode kicks in (in case the user wants to switch this once).
+- **Source control is the user's responsibility.** Teams have wildly different workflows (PR vs trunk vs fast-forward vs squash-merge vs rebase-and-merge, with or without `gh`, with or without protected branches, with or without draft PRs, with or without signed commits). The combinatorial surface is large; SDD trying to drive it leads to brittle, magic behavior that fails in surprising ways.
+- **Tests already ran.** Stage 14 (feature testing) is the gate. A final test re-run at Stage 17 was redundant — it ran the same suite a second (sometimes third) time. We dropped it.
+- **The artifacts are the durable record.** Spec, plan, ADRs, handoff doc, and per-task commits already exist on the feature branch by the time finishing runs. The user's git skills take it from there.
 
-Why we made it config-driven instead of project-specific (e.g., a `.github/` setting):
-- The setting affects how SDD finishes, not how the project deploys
-- It can vary per user even within the same project (some users always PR; others merge locally)
-- Easy to override per-pipeline if needed
+This also affects where branch creation happens: not in preflight (which is too early — the user doesn't yet know what they're building) but at Stage 12 (`choosing-feature-branch`), right before code starts landing. By that point the spec and plan exist and the user can decide branch policy with full context.
 
 ---
 
@@ -305,7 +299,7 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 
 | Aspect | Brainstorming | SDD |
 |---|---|---|
-| Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 17-stage pipeline with explicit stage boundaries |
+| Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 18-stage pipeline with explicit stage boundaries |
 | ADR step | None | Stage 6, dedicated skill |
 | Optional grill | None | Stage 4, dedicated skill |
 | 2nd review | None | Optional Stages 5 + 10 |
@@ -322,7 +316,7 @@ We added: the ADR step, the optional grill, the 2nd review pass, dedicated featu
 
 | Aspect | Kiro | SDD |
 |---|---|---|
-| Pipeline | requirements → design → tasks → execute | 16 stages |
+| Pipeline | requirements → design → tasks → execute | 18 stages |
 | Format | EARS format for acceptance criteria | Given/When/Then default; EARS as opt-in option |
 | Diagrams | Mermaid in design docs | Prohibited |
 | Per-task gating | STOP after every task; wait for user | Continuous execution; user only involved at approval gates |

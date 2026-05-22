@@ -96,7 +96,7 @@ Shared scripts at `spec-driven-development/scripts/`:
 #### [sdd-coordinator](spec-driven-development/sdd-coordinator/)
 
 Entry point for SDD runs. Thin state machine + dispatcher — knows the
-16-stage pipeline, reads the per-feature state file first on every
+18-stage pipeline, reads the per-feature state file first on every
 invocation (via `inspecting-state`), resumes interrupted runs, loads
 phase-skills inline for interactive stages, dispatches subagents for
 fresh-context stages (reviews, ADR maintenance, per-task implementation,
@@ -108,13 +108,14 @@ manual test plan rather than improvising.
 
 #### [preflight-checks](spec-driven-development/preflight-checks/)
 
-First stage of an SDD run. Inspects git state. **Abort-only on
-problems:** if the working tree is dirty, or the current branch is
-inappropriate (develop / release / random non-SDD branch), the skill
-aborts and tells the user to clean up manually before re-invoking. Only
-proceeds when on `main`/`master` (creates a feature branch from there),
-or on a feature-like branch that has a matching active SDD state file
-(resume case).
+First stage of an SDD run. A permissive validation gate that confirms
+`.sublime-skills/config.yml` is valid, the current directory is inside
+a git repo, and HEAD is attached to a named branch. Dirty working trees
+are allowed (with a one-time warn-and-confirm) — SDD's commits are
+path-scoped to its own artifacts, so the user's pre-existing dirty
+files stay untouched. Does NOT create branches: that decision happens
+later at Stage 12 (`choosing-feature-branch`), right before
+implementation.
 
 #### [discovering-requirements](spec-driven-development/discovering-requirements/)
 
@@ -194,6 +195,16 @@ task), placeholder scan, type/name/path consistency across tasks, TDD
 discipline, `[P]` correctness, story independence (MVP-first),
 constitution/ADR alignment, granularity. Findings categorized
 CRITICAL / HIGH / MEDIUM / LOW. Strict read-only.
+
+#### [choosing-feature-branch](spec-driven-development/choosing-feature-branch/)
+
+Stage 12: branching decision + batch commit. After plan approval, asks
+the user via a 3-way prompt whether to create a feature branch (default
+`feat/<short-name>` from `branching.branch_pattern`), use a different
+name, or stay on the current branch. Optionally runs `git checkout -b`,
+then batch-commits all SDD planning artifacts (spec, plan, ADRs,
+state.json) in three thematic, **path-scoped** commits on the chosen
+branch. Path-scoping protects the user's pre-existing dirty files.
 
 #### [implementing-plans](spec-driven-development/implementing-plans/)
 
@@ -280,12 +291,12 @@ failure when separable, grouped by root cause when shared.
 
 #### [finishing-sdd](spec-driven-development/finishing-sdd/)
 
-Final stage. Verifies tests pass one more time, presents 4 options
-(merge-local / PR / keep-as-is / discard — discard requires typed
-confirmation) or short-circuits to a single mode based on
-`.sublime-skills/config.yml`. Executes the choice and deletes the
-state file (the spec, plan, ADRs, handoff doc, and git history are the
-durable record).
+Final stage. Reads the state file, prints a structured summary of what
+the pipeline produced (feature_id, spec/plan/handoff paths, ADRs,
+tasks, test status, branch info), then deletes `state.json` and
+commits the deletion as a `chore` commit. V1 explicitly does NOT
+manage source control — no merging, PR creation, or branch deletion.
+The user decides what to do with the feature branch after SDD ends.
 
 #### [generating-handoff](spec-driven-development/generating-handoff/)
 

@@ -139,6 +139,8 @@ Use this **locked format** (do not deviate):
 
 **Status:** Default to `Proposed`. The coordinator's user-approval stage will flip it to `Accepted` (or the user can during review).
 
+**Do NOT commit.** Write the ADR files but do NOT run `git commit`. Stage 12 (`choosing-feature-branch`) batch-commits all SDD planning artifacts — including these ADRs — on the user's chosen branch.
+
 **Date:** Today in UTC: `date -u +%Y-%m-%d`. Don't use local time.
 
 **Numbering:** Sequential across all ADRs in the project. If the highest existing is `0012`, the next is `0013`, even if `0007` was deleted (do not fill gaps). Multiple new ADRs from one spec are numbered sequentially in the order they were identified.

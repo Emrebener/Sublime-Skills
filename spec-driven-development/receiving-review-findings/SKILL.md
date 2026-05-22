@@ -192,6 +192,8 @@ After processing, update the state file (atomic write) with any tracked informat
 }
 ```
 
+**Do NOT commit.** Through Stages 2–10, state.json updates are written atomically but remain uncommitted. The `choosing-feature-branch` skill at Stage 12 batch-commits the accumulated state alongside the SDD planning artifacts. (From Stage 13 onward, normal per-stage commits resume.)
+
 ## Common Mistakes
 
 | Mistake | Fix |

@@ -25,11 +25,12 @@ The coordinator MUST track each of these as a todo item and complete them in ord
 
 1. Load project context (script + Read found files)
 2. Scope check — is this one feature or several? Decompose if needed.
-3. Conversational discovery, one question at a time
-4. Propose 2-3 approaches for any non-obvious major decision
-5. Present the shared understanding in sections; get section-by-section approval
-6. Confirm final understanding with the user
-7. Hand off to `writing-specs`
+3. Determine work type (`feature` or `fix`) — infer from initial input; ask only if ambiguous
+4. Conversational discovery, one question at a time
+5. Propose 2-3 approaches for any non-obvious major decision
+6. Present the shared understanding in sections; get section-by-section approval
+7. Confirm final understanding with the user
+8. Hand off to `writing-specs`
 
 ## Step 1: Load Project Context
 
@@ -64,7 +65,19 @@ If too big, surface immediately:
 
 If the user pushes back, accept their judgment but note the risk: "I'll proceed, but if the spec gets unwieldy I'll suggest the split again."
 
-## Step 3: Conversational Discovery
+## Step 3: Determine Work Type
+
+Classify the work as either `feature` (something new being built) or `fix` (a defect in existing behavior being corrected). This is recorded in the state file at Stage 2 and used by `choosing-feature-branch` (Stage 12) to suggest a branch prefix (`feat/` vs `fix/`).
+
+**Inference rule:** if the user's initial input contains clear bug-fix signals — verbs like "fix", "broken", "regression", "bug", or framings like "X used to work but now…" — classify as `fix`. Otherwise default to `feature`.
+
+If genuinely ambiguous (e.g., "improve the login flow" could be either a UX feature or a UX bug fix), ask once via the harness's interactive question tool:
+
+> Is this a new feature, or a fix to existing behavior?
+
+Record the classification in your in-memory output. Do not labor on this — it's a single bit that only affects the suggested branch name.
+
+## Step 4: Conversational Discovery
 
 Walk through these dimensions (in roughly this order, skipping any that are already clear from the user's description):
 
@@ -87,7 +100,7 @@ Walk through these dimensions (in roughly this order, skipping any that are alre
 - Skip dimensions that are obviously not applicable (e.g., "key entities" for a config-only feature)
 - Stop when you have enough to write a spec — overly thorough discovery is friction
 
-## Step 4: Propose Approaches for Major Decisions
+## Step 5: Propose Approaches for Major Decisions
 
 For any non-obvious major design decision (e.g., "JWT vs session cookies", "REST vs WebSocket", "synchronous vs queued processing"), propose **2-3 alternatives** with:
 - Description (1-2 sentences each)
@@ -108,7 +121,7 @@ Example:
 >
 > Recommended A because [project-specific reasoning]. Sound right?"
 
-## Step 5: Present Shared Understanding in Sections
+## Step 6: Present Shared Understanding in Sections
 
 Once the conversation has covered enough ground, summarize back to the user in sections. Get explicit approval after each section before moving to the next. Cover (in order):
 
@@ -124,7 +137,7 @@ Once the conversation has covered enough ground, summarize back to the user in s
 
 If the user pushes back on any section, revise and re-confirm. Don't move on.
 
-## Step 6: Final Confirmation
+## Step 7: Final Confirmation
 
 When all sections are approved, say:
 
@@ -136,13 +149,14 @@ When all sections are approved, say:
 
 Wait for explicit confirmation.
 
-## Step 7: Hand Off
+## Step 8: Hand Off
 
 After confirmation, return control to the coordinator with:
 
 ```
 Discovery complete.
 - Short name: <kebab-case>
+- Work type: feature | fix
 - Approved sections: goal, users, scope, success, entities, edge_cases, decisions
 - Major decisions captured: [list, to become ADR candidates later]
 - Out-of-scope explicit: [list]

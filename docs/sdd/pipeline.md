@@ -1,6 +1,6 @@
 # The SDD Pipeline
 
-The pipeline is a strict 17-stage sequence (Stages 0-16) with several optional stages the user gates explicitly. The coordinator (`sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
+The pipeline is a strict 18-stage sequence (Stages 0-17) with several optional stages the user gates explicitly. The coordinator (`sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
 
 This document explains each stage in detail: what runs, what it produces, how failure is handled, and what the next stage expects.
 
@@ -12,21 +12,22 @@ This document explains each stage in detail: what runs, what it produces, how fa
 |---|---|---|---|---|
 | 0 | Preflight | Inline via `preflight-checks` | No | No (git state only) |
 | 1 | Discovering requirements | Inline via `discovering-requirements` | No | No (in-memory only) |
-| 2 | Writing the spec | Inline via `writing-specs` | No | `spec.md`, `state.json` |
+| 2 | Writing the spec | Inline via `writing-specs` | No | `spec.md`, `state.json` (uncommitted) |
 | 3 | Auto spec-review | Subagent via `reviewing-specs` | No | No (returns findings) |
-| 4 | Grill session | Inline via `grilling-specs` | **Yes** | `spec.md` (updates inline) |
+| 4 | Grill session | Inline via `grilling-specs` | **Yes** | `spec.md` (updates inline; uncommitted) |
 | 5 | 2nd spec-review | Subagent via `reviewing-specs` | **Yes** | No (returns findings) |
-| 6 | ADR maintenance | Subagent via `maintaining-adrs` | No | `docs/adr/NNNN-*.md` (zero or more) |
-| 7 | User spec approval | Inline (coordinator) | No | Updates ADR statuses to Accepted |
-| 8 | Writing the plan | Inline via `writing-plans` | No | `plan.md`, `state.json` |
+| 6 | ADR maintenance | Subagent via `maintaining-adrs` | No | `docs/adr/NNNN-*.md` (zero or more; uncommitted) |
+| 7 | User spec approval | Inline (coordinator) | No | Updates ADR statuses to Accepted (uncommitted) |
+| 8 | Writing the plan | Inline via `writing-plans` | No | `plan.md`, `state.json` (uncommitted) |
 | 9 | Auto plan-review | Subagent via `reviewing-plans` | No | No (returns findings) |
 | 10 | 2nd plan-review | Subagent via `reviewing-plans` | **Yes** | No (returns findings) |
-| 11 | User plan approval | Inline (coordinator) | No | Updates `state.json` |
-| 12 | Implementation (sub-pipeline) | Per-task subagents | No | Code files, tests, `state.json` |
-| 13 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
-| 14 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
-| 15 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
-| 16 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json` |
+| 11 | User plan approval | Inline (coordinator) | No | No (approval gate; artifacts remain uncommitted) |
+| 12 | Choosing feature branch + batch commit | Inline via `choosing-feature-branch` | No | Optionally creates branch; batch-commits all SDD planning artifacts (spec, plan, ADRs, state.json) on the chosen branch |
+| 13 | Implementation (sub-pipeline) | Per-task subagents | No | Code files, tests, `state.json` (committed per task) |
+| 14 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
+| 15 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
+| 16 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
+| 17 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json` + commits the deletion |
 
 Subagent stages run with no inherited conversation context; the coordinator builds their prompts from scratch.
 
@@ -34,7 +35,7 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-Every invocation of `sdd-coordinator` begins with the same three actions, regardless of whether this is a fresh run or a resume. Each step has one dedicated job — **state lookup**, then **routing**, then **todo list**. All halt checks (config validation, dirty workspace, detached HEAD, branch state) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
+Every invocation of `sdd-coordinator` begins with the same three actions, regardless of whether this is a fresh run or a resume. Each step has one dedicated job — **state lookup**, then **routing**, then **todo list**. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
 
 1. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (resolved from `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere. No halts; just a report.
 
@@ -42,7 +43,7 @@ Every invocation of `sdd-coordinator` begins with the same three actions, regard
 
    | Report says | Coordinator does |
    |---|---|
-   | 0 active runs + on `main`/`master` + clean tree | Confirm fresh-start intent, then proceed to Stage 0 |
+   | 0 active runs + no pre-state interruption signals | Confirm fresh-start intent, then proceed to Stage 0 |
    | 0 active runs + pre-state interruption flagged | Ask user: resume from Stage 1, start fresh, or abandon. Never silently pick. |
    | 1 active run + current branch matches `state.branch` | Confirm `"Resuming feature X at stage Y"`. On yes, jump to the appropriate stage. |
    | 1 active run + current branch does NOT match `state.branch` | **Do NOT silently resume.** Ask: switch to the state's branch and resume, start a new feature on this branch (state file stays), or abort. Never auto-checkout branches. |
@@ -54,43 +55,48 @@ Every invocation of `sdd-coordinator` begins with the same three actions, regard
 
 3. **Build the progress todo list** for the user's view.
 
-After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), dirty workspace, detached HEAD with active state, protected branch, ambiguous branch — plus branch creation. After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) via `scripts/get-config-value.sh` for use throughout the rest of the run.
+After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `scripts/get-config-value.sh` for use throughout the rest of the run.
+
+### Commit timing (important)
+
+Through Stages 2–11, SDD writes files (spec, plan, ADRs, state.json) but does **not** commit them — they live uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits them on the user's chosen branch in three thematic commits. From Stage 13 onward, commits happen normally per stage.
+
+**Why:** Stage 12 is where the user decides which branch the work lives on. Committing earlier would force SDD to make a branch decision up front (or land commits on `main`/wherever the user happened to be).
+
+**Tradeoff:** if you `git stash`, `git restore`, or change branches mid-pipeline (Stages 0–11), the uncommitted SDD artifacts may be displaced. The `inspecting-state` skill flags uncommitted runs in its report so you know to be careful. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
 
 ---
 
 ## Stage 0 — Preflight
 
 **Skill:** `preflight-checks` (inline)
-**Output:** validated `.sublime-skills/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start).
+**Output:** validated `.sublime-skills/config.yml`, confirmed git repo, named branch, dirty-tree warning acknowledged (if applicable).
 
-Stage 0 is the **single home for every pre-pipeline halt check**. It runs in this order:
+Stage 0 is a permissive validation gate. It runs in this order:
 
 1. `validate-config.sh` — config presence and validity
-2. `git status --porcelain` + `git branch --show-current` — workspace + branch state
-3. Detached HEAD with active state file — abort if both true
-4. Dirty working tree — abort if any output
-5. Branch routing — based on which branch we're on (decision matrix below)
-6. Branch creation (fresh start) or reuse (resume)
+2. `git rev-parse --git-dir` — confirm we're in a git repo
+3. `git branch --show-current` — must be non-empty (no detached HEAD)
+4. `git status --porcelain` — if non-empty, show files and ask the user to confirm proceeding (SDD will only commit its own artifacts via path-scoped `git add`; their other dirty files stay untouched)
 
-The decision matrix (after config + dirty/detached checks pass):
+The abort matrix:
 
 | Condition | Result |
 |---|---|
 | `.sublime-skills/config.yml` missing | **ABORT** with `config_missing` — direct user to `bootstrapping-project` |
 | `.sublime-skills/config.yml` invalid (`validate-config.sh` exit 1) | **ABORT** with `config_invalid` — surface validator output verbatim |
-| Detached HEAD + active state file present | **ABORT** with `detached_head_with_state` — too ambiguous to route |
-| Dirty working tree | **ABORT** — tell user to commit/stash/discard manually, then re-invoke |
-| Clean tree + on `main` or `master` | Create new feature branch `feat/<short-name>` (or `fix/...` for bug fixes), proceed |
-| Clean tree + on a feature-like branch + matching state file exists | Resume on that branch |
-| Clean tree + on a feature-like branch + no matching state file | **ABORT** — branch is ambiguous, user clarifies |
-| Clean tree + on `develop`/`release/*`/`hotfix/*` | **ABORT** — protected branches; user switches first |
-| Clean tree + on any other unrecognized branch | **ABORT** — user switches first |
+| Not a git repo (`git rev-parse --git-dir` fails) | **ABORT** with `not_a_git_repo` — direct user to `git init` |
+| Detached HEAD | **ABORT** with `detached_head` — no branch to commit to |
+| Dirty working tree + user declines | **ABORT** with `user_declined` |
 
-There is no auto-commit, no stash, no checkout, no inline config repair. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
+**Stage 0 does NOT:**
+- Create or switch branches (that's Stage 12's job)
+- Abort on a dirty working tree (it warns and asks; if the user wants SDD to run on top of in-progress work, that's allowed)
+- Abort on which branch you're on — any named branch is fine
 
-**State file does not exist yet.** Preflight outputs (branch, original branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
+**State file does not exist yet.** Preflight outputs (current branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
 
-**On abort:** the coordinator surfaces the abort message to the user and exits cleanly. No partial state is written. The user can re-invoke after fixing the underlying issue.
+**On abort:** the coordinator surfaces the abort message to the user and exits cleanly. No partial state is written.
 
 ---
 
@@ -132,7 +138,7 @@ The skill walks through (and skips dimensions already covered by the user's init
 **Skill:** `writing-specs` (inline)
 **Output:** `docs/specs/NNN-<short-name>/spec.md`, `docs/specs/NNN-<short-name>/state.json`
 
-The coordinator passes the in-memory understanding from Stage 1 plus the preflight outcomes (branch, original branch) to this skill. The skill:
+The coordinator passes the in-memory understanding from Stage 1 plus the preflight outcomes (current branch) to this skill. The skill:
 
 1. Resolves the feature directory: scans `<spec_dir>/` (default `docs/specs/`) for the highest existing `NNN`, picks `NNN+1` (or `001` if none exist). Composes with the short name.
 2. Loads project context (skip if coordinator already passed it).
@@ -149,18 +155,13 @@ The coordinator passes the in-memory understanding from Stage 1 plus the preflig
   "feature_id": "NNN-<short-name>",
   "current_stage": "spec_writing",
   "stages_completed": ["preflight", "discovering"],
-  "preflight": { "original_branch": "main" }
+  "branch": "<current branch from preflight>"
 }
 ```
 
 Note: `current_stage` stays as `spec_writing` (still mid-stage from the skill's perspective). After the skill returns, the coordinator advances and adds `spec_written` to `stages_completed`.
 
-**Commit:** the coordinator commits the spec and the state file in one commit:
-
-```bash
-git add docs/specs/NNN-<short-name>/spec.md docs/specs/NNN-<short-name>/state.json
-git commit -m "spec(NNN-short-name): initial draft"
-```
+**No commit.** The spec and state file stay uncommitted. `choosing-feature-branch` (Stage 12) batch-commits them on the chosen branch.
 
 ---
 
@@ -233,12 +234,7 @@ On `yes`: load `grilling-specs`. The skill:
 
 **Why inline (not subagent)?** Grilling is a multi-turn user conversation. Subagents can't have back-and-forth with the user — they take a prompt and return a result. So this stage runs in the coordinator's session.
 
-**Commit:** after the grill, the coordinator commits the updated spec:
-
-```bash
-git add docs/specs/NNN-<short-name>/spec.md
-git commit -m "spec(NNN-short-name): grill session updates"
-```
+**No commit.** Spec edits stay uncommitted; `choosing-feature-branch` (Stage 12) batch-commits the final spec on the chosen branch.
 
 ---
 
@@ -294,12 +290,7 @@ The subagent:
 
 **Zero ADRs is a valid outcome.** Not every spec contains architecturally significant decisions. The subagent should return "0 ADRs created" with a one-sentence explanation when that's the case.
 
-**Commit (if any ADRs created/modified):**
-
-```bash
-git add docs/adr/<new files> [docs/adr/<modified ones>]
-git commit -m "docs(adr): NNNN-NNNN from spec NNN-short-name"
-```
+**No commit.** New/modified ADR files stay uncommitted; `choosing-feature-branch` (Stage 12) batch-commits them.
 
 ADRs are written with `Status: Proposed`. Stage 7's default behavior on approval flips them to `Accepted`.
 
@@ -308,7 +299,7 @@ ADRs are written with `Status: Proposed`. Stage 7's default behavior on approval
 ## Stage 7 — User spec approval
 
 **Inline (coordinator)**
-**Output:** user approval, ADR statuses flipped (default) or kept (explicit opt-out), commit of any final changes
+**Output:** user approval; ADR statuses flipped (default) or kept (explicit opt-out) as in-place file edits (uncommitted — Stage 12 batch-commits them)
 
 The coordinator tells the user:
 
@@ -317,14 +308,16 @@ The coordinator tells the user:
 > - ADRs (currently `Proposed`): [list with paths]
 >
 > Please let me know one of:
-> - **Approve** — flip ADRs to Accepted and proceed (default for spec approval)
+> - **Approve** — flip ADRs to Accepted (in your working tree; commits happen at Stage 12) and proceed (default for spec approval)
 > - **Approve, keep ADRs as Proposed** — proceed but leave ADR statuses untouched
 > - **Request changes** — tell me what to change"
 
+All artifact updates from approval (ADR status flips, any inline spec edits from "request changes") stay uncommitted in the working tree. Stage 12 (`choosing-feature-branch`) batch-commits them on the chosen branch.
+
 The user reads the files and responds. Possibilities:
 
-- **Approve** (default flow): the coordinator flips every ADR file's status from `Proposed` to `Accepted`, commits, advances to Stage 8.
-- **Approve, keep ADRs as Proposed**: ADRs stay as-is; the coordinator commits state.json advancement only and proceeds to Stage 8.
+- **Approve** (default flow): the coordinator flips every ADR file's status from `Proposed` to `Accepted` (file edits only — uncommitted), advances to Stage 8.
+- **Approve, keep ADRs as Proposed**: ADRs stay as-is; the coordinator advances to Stage 8 (no commit).
 - **Request changes**: classify before applying.
   - **Light-touch edit** (typo, wording, tightening an FR, adding an edge case, ADR text adjustment): apply inline using `receiving-review-findings` discipline, re-run validator, re-ask.
   - **Substantive — re-discovery needed** (decomposition, fundamental requirement change, story added/removed, big rethink): do NOT edit inline. Confirm with user, then reset `current_stage` to `discovering` and re-enter Stage 1. The new discovery may produce a revised spec that supersedes the current one.
@@ -363,14 +356,9 @@ The skill:
 
 **Atomic write:** the plan content is written to `<plan_path>.tmp` and atomically moved to the final path.
 
-**Validator enforcement:** `writing-plans` returns the validator's PASS line verbatim in its report. The coordinator re-runs `validate-plan.sh` before committing — if the fresh run disagrees with the writer's report, the stage halts. Validator catches duplicate T### IDs, placeholders, missing required sections, and forbidden diagram syntax.
+**Validator enforcement:** `writing-plans` returns the validator's PASS line verbatim in its report. The coordinator re-runs `validate-plan.sh` — if the fresh run disagrees with the writer's report, the stage halts. Validator catches duplicate T### IDs, placeholders, missing required sections, and forbidden diagram syntax.
 
-**Commit:**
-
-```bash
-git add docs/specs/NNN-<short-name>/plan.md docs/specs/NNN-<short-name>/state.json
-git commit -m "plan(NNN-short-name): initial draft"
-```
+**No commit.** Plan and state.json stay uncommitted; `choosing-feature-branch` (Stage 12) batch-commits them on the chosen branch.
 
 ---
 
@@ -406,20 +394,61 @@ Same pattern as Stage 5. Asked: `"Want a second-pass plan review? (yes/no, defau
 The coordinator tells the user:
 
 > "Plan ready for review: docs/specs/NNN-<short-name>/plan.md
-> Approve to start implementation, or request changes."
+> Approve to choose a feature branch and start implementation, or request changes."
 
 Possibilities:
 
-- **Approve**: commit, advance to Stage 12.
+- **Approve**: advance to Stage 12 (`choosing-feature-branch`). No commit here — artifacts remain uncommitted through Stage 11.
 - **Request changes**: coordinator applies inline, re-validates, re-asks.
 - **Loop back to spec**: if the plan reveals a spec gap, the coordinator can return to earlier stages. (Practically rare — Stage 9 should catch most issues.)
 - **Reject and abandon**: coordinator exits.
 
-**Hard gate:** no implementation without approval.
+**Hard gate:** no Stage 12 without approval.
 
 ---
 
-## Stage 12 — Implementation (sub-pipeline)
+## Stage 12 — Choosing feature branch + batch commit
+
+**Skill:** `choosing-feature-branch` (inline)
+**Output:** branch decided (and optionally created); three thematic commits landing all SDD planning artifacts on the chosen branch.
+
+The skill asks the user a single 3-way prompt:
+
+> About to start implementation for `<feature_id>`.
+> You're currently on `<current-branch>`. Choose:
+> 1. Create and switch to `<derived-name>` (from `branching.branch_pattern`) — recommended
+> 2. Use a different branch name
+> 3. Stay on `<current-branch>` — commits will land here
+
+On options 1 or 2: validates the chosen name, checks for collision, runs `git checkout -b`. The uncommitted spec/plan/ADR/state files travel with the working tree to the new branch (this is just how git works — uncommitted changes follow you across `checkout`).
+
+On option 3: no branch op.
+
+Then the skill batch-commits in three thematic, **path-scoped** commits (skipping any whose paths don't exist):
+
+```bash
+# Commit 1 — spec + initial state
+git add docs/specs/NNN-<short-name>/spec.md docs/specs/NNN-<short-name>/state.json
+git commit -m "docs(NNN-short-name): spec"
+
+# Commit 2 — ADRs (skipped if none)
+git add docs/adr/<new files>
+git commit -m "docs(adr): N decisions for NNN-short-name"
+
+# Commit 3 — plan + state.json update
+git add docs/specs/NNN-<short-name>/plan.md docs/specs/NNN-<short-name>/state.json
+git commit -m "docs(NNN-short-name): plan"
+```
+
+**Path-scoping is mandatory.** Never `git add .` / `git add -A` — the user's pre-existing dirty files (which preflight allowed) must stay untouched.
+
+After commits, update `state.json` (`current_stage: implementing`, append `branch_chosen` to `stages_completed`, write `branch` if changed). Return to the coordinator.
+
+**On abort** (`branch_creation_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves (e.g., delete the conflicting branch, fix a pre-commit hook) and re-invokes the coordinator.
+
+---
+
+## Stage 13 — Implementation (sub-pipeline)
 
 **Skill:** `implementing-plans` (inline; orchestrates subagents)
 **Output:** code changes, commits, updated `state.json` per task
@@ -474,7 +503,7 @@ Once final review passes, write `final_review_completed: true` to state file.
 
 ---
 
-## Stage 13 — Feature testing (optional, user-gated)
+## Stage 14 — Feature testing (optional, user-gated)
 
 **Skill:** `testing-implementation` (inline; orchestrates subagents)
 **Output:** test result in `state.json`
@@ -485,7 +514,7 @@ The coordinator asks:
 
 This is feature-level verification, distinct from per-task unit tests (those ran during implementation as part of TDD).
 
-On `no`: `testing` added to `stages_skipped`. Advance to Stage 14.
+On `no`: `testing` added to `stages_skipped`. Advance to Stage 15.
 
 On `yes`:
 
@@ -502,7 +531,7 @@ On `yes`:
 
    | Status | Coordinator action |
    |---|---|
-   | PASS | Update state, advance to Stage 14 |
+   | PASS | Update state, advance to Stage 15 |
    | FAIL | Dispatch fresh fixer subagent (using `fixer-prompt.md`) with the failure list. Re-test after fixes. Cap: 3 iterations. After 3, escalate to user. |
    | MCP_UNAVAILABLE | **CRITICAL: the coordinator MUST NOT try to test the feature itself.** Present the tester's manual test plan + code-review findings to the user. Ask whether to (a) run manual tests now, (b) skip testing and advance, (c) pause SDD so the user can configure the missing MCP. |
 
@@ -510,7 +539,7 @@ On `yes`:
 
 ---
 
-## Stage 14 — Generate handoff (optional, user-gated)
+## Stage 15 — Generate handoff (optional, user-gated)
 
 **Subagent:** fresh subagent invoking `generating-handoff`
 **Output:** `docs/handoff/YYYY-MM-DD-<short-title>.md`
@@ -519,7 +548,7 @@ The coordinator asks:
 
 > "Generate a handoff document for this run? (yes/no, default yes — recommended when someone else may pick this up, or you'll iterate on it later in a fresh session)"
 
-On `no`: `handoff` added to `stages_skipped`. Advance to Stage 15.
+On `no`: `handoff` added to `stages_skipped`. Advance to Stage 16.
 
 On `yes`, resolve `HANDOFF_DIR`:
 - Default: `docs/handoff` (repo-relative; handoff will be committed)
@@ -570,7 +599,7 @@ Record the handoff path in state file under `handoff_path` (absolute path if out
 
 ---
 
-## Stage 15 — Maintain memory file (optional, user-gated)
+## Stage 16 — Maintain memory file (optional, user-gated)
 
 **Subagent:** fresh subagent invoking `maintaining-memory-file`
 **Output:** possibly an updated agent memory file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents.md`); often, no update
@@ -586,7 +615,7 @@ If a path was resolved, the coordinator asks:
 
 > "Check memory file `<MEMORY_FILE_PATH>` for updates from this run? (yes/no, default yes — most runs result in 'no update needed', so this is cheap to say yes to)"
 
-On `no`: `memory_file` added to `stages_skipped`. Advance to Stage 16.
+On `no`: `memory_file` added to `stages_skipped`. Advance to Stage 17.
 
 On `yes`, dispatch the subagent with `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT` (from config, default 40000), and `EXISTING_CONTENT` (current file text, or empty if it doesn't exist yet).
 
@@ -610,37 +639,27 @@ Three outcomes:
 
 ---
 
-## Stage 16 — Finishing
+## Stage 17 — Finishing
 
 **Skill:** `finishing-sdd` (inline)
-**Output:** closes the run; merge / PR / keep / discard; deletes state file (unless "keep")
+**Output:** summary report; state file deleted + commit.
 
-1. **Verify pre-finish state.** Re-run the project's test suite as a final sanity check. Resolution order: (a) `finishing.test_command` config override if set (preferred for Makefile-driven repos, nox/tox, monorepos, anything outside auto-detect), (b) auto-detect by file presence in priority order (`Makefile` → `package.json` → `Cargo.toml` → `pyproject.toml` → `setup.py` → `go.mod` → `pom.xml` → `build.gradle`), running the first match only — never multiple, (c) if nothing matches, ask the user (and offer to save their answer to `finishing.test_command`). If tests fail here, halt — don't offer finishing options until tests pass (or user explicitly overrides).
+SDD V1 explicitly does NOT manage branches or merges. Stage 17 is just bookkeeping:
 
-2. **Determine target branch** (current branch + merge target).
+1. **Validate state.** Read `docs/specs/<feature_id>/state.json`. Confirm `implementation_complete` is in `stages_completed`. If `test_status` is `failed_escalated` (or absent and testing wasn't skipped), ask the user "Tests aren't in a passing state. Finish anyway?" before proceeding. (**No** final test re-run — Stage 14 was the test gate.)
 
-3. **Determine mode** from `.sublime-skills/config.yml` → `finishing.mode`:
-   - `prompt` (default): interactive 4-option menu
-   - `leave`: skip menu; leave branch as-is
-   - `merge-local`: skip menu; merge into base branch
-   - `pr`: skip menu; push + create PR
-   - `auto`: pick automatically (PR if remote exists and PR command configured; else merge-local; else leave)
+2. **Print summary.** A structured report including: feature_id, short_name, started_at, current branch, spec/plan/handoff paths, ADRs created (count + IDs), tasks completed, test_status, memory_file_updated.
 
-4. **Execute the choice:**
+3. **Delete state file + commit.** Path-scoped:
 
-   **Merge locally** — checkout base branch, pull, merge feature branch. If the merge fails with conflicts (`git status` shows `UU` entries): STOP, tell user which files conflicted, do NOT auto-resolve. If the merge fails for other commit-related reasons (hook rejection, signing): STOP per the Commit Failure Protocol — never use `--no-verify`. If merge succeeded, run tests on the merged result. If pass: delete feature branch. If fail: stop, let user resolve.
+   ```bash
+   git rm docs/specs/<feature_id>/state.json
+   git commit -m "chore(<feature_id>): SDD complete"
+   ```
 
-   **Push and create PR** — push branch, run configured PR command (default `gh pr create`). State file is deleted (SDD's work is done; further iteration is normal git work).
+   If the commit fails (hook or signing): surface the error and halt. The user resolves and re-invokes.
 
-   **Keep as-is** — leave everything. State file is kept (work may continue via SDD later).
-
-   **Discard** — requires typed `discard` confirmation. Checkout base branch, force-delete feature branch. Everything goes.
-
-5. **Delete state file** (for Merge, PR, Discard — work is done from SDD's perspective). State file deletion is committed alongside the feature's final commits.
-
-   For Keep: state file is preserved.
-
-6. **Report** to user with the final summary.
+After Stage 17: the user decides what to do with the feature branch (merge, PR, leave it). SDD is done.
 
 ---
 
@@ -659,9 +678,9 @@ The pipeline is forward-flowing by default, but you can iterate:
 
 - **Spec changes during plan review (Stage 9-10)**: if the plan reviewer surfaces a spec gap, the coordinator can apply minor edits to the spec inline (re-running the spec validator) without going back through Stage 3. For substantive spec changes, the coordinator returns to Stage 8 (writing-plans) after the spec is updated — Stage 7 was already approved; the spec change is treated as a fix not a redo unless the user requests otherwise.
 
-- **Plan changes during implementation (Stage 12)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator surfaces to the user. The user may want to revise the plan and re-enter Stage 8, or override the issue manually.
+- **Plan changes during implementation (Stage 13)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator surfaces to the user. The user may want to revise the plan and re-enter Stage 8, or override the issue manually.
 
-- **Mid-implementation spec changes**: rare but possible. Treat as: pause Stage 12, revise spec inline (re-validate), revise plan inline (re-validate), then resume Stage 12 from where it left off. The state file's `tasks` map is preserved.
+- **Mid-implementation spec changes**: rare but possible. Treat as: pause Stage 13, revise spec inline (re-validate), revise plan inline (re-validate), then resume Stage 13 from where it left off. The state file's `tasks` map is preserved.
 
 The pipeline doesn't prescribe a clean "loop back to earlier stage" mechanism for every case — that's deliberate. Real iteration is messier than a strict state machine accommodates, and the coordinator's judgment (plus user input on big calls) handles it.
 
@@ -673,7 +692,7 @@ The pipeline doesn't prescribe a clean "loop back to earlier stage" mechanism fo
 
 - **Mid-stage interruption**: the state file's `current_stage` shows the in-progress stage; `stages_completed` doesn't yet include that stage. The coordinator re-runs that stage from the start (the stage's work is idempotent-ish — re-writing a spec.md or re-dispatching a reviewer is safe).
 
-- **Mid-task interruption (Stage 12)**: the `tasks` map shows `T003: "in_progress"`. The coordinator re-dispatches T003 from the start. Per-task work is fully isolated; re-dispatching is safe.
+- **Mid-task interruption (Stage 13)**: the `tasks` map shows `T003: "in_progress"`. The coordinator re-dispatches T003 from the start. Per-task work is fully isolated; re-dispatching is safe.
 
 - **Pre-state-file interruption (between Stage 0 and Stage 2)**: no state file exists. `inspecting-state` detects this via the git-branch signal (non-default branch + no matching state). The coordinator asks the user whether to resume from Stage 1 or start fresh.
 

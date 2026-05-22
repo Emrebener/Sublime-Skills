@@ -27,11 +27,12 @@ context:
   domain_path: docs/DOMAIN.md                   # conceptual entities and relationships
   design_path: docs/DESIGN.md                   # visual design system (colors, type, spacing, components)
 
-# ── Preflight (Stage 0) ─────────────────────────────────────────────
-preflight:
+# ── Branching (Stage 12) ────────────────────────────────────────────
+branching:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used when the user starts fresh from main/master. Bug-fix runs use
-  # `fix/{short-name}` automatically.
+  # Used by the `choosing-feature-branch` skill (Stage 12) when offering
+  # to create a feature branch. Bug-fix runs (state.work_type == "fix")
+  # use `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
 # ── Grill (Stage 4) ─────────────────────────────────────────────────
@@ -55,46 +56,3 @@ memory_file:
   # of this value and refuses to push past 100% (must prune first).
   # 40000 is a widely-recommended ceiling for agent memory files.
   character_limit: 40000
-
-# ── Finishing (Stage 16) ────────────────────────────────────────────
-finishing:
-  # prompt      — interactive 4-option menu (default)
-  # leave       — skip menu; leave branch as-is
-  # merge-local — skip menu; merge into merge_target
-  # pr          — skip menu; push + create PR via pr_command
-  # auto        — PR if remote+pr_command, else merge-local, else leave
-  mode: prompt
-
-  # Base branch for merge / PR target.
-  merge_target: main
-
-  # Delete the feature branch after a local merge.
-  delete_branch_after_merge: true
-
-  # Explicit test command for finishing-sdd's pre-merge sanity check.
-  # null = auto-detect in this priority order:
-  # Makefile → npm → cargo → pytest → go → mvn → gradle (first match wins).
-  # Set explicitly for Makefile-driven repos, nox/tox, monorepos, or
-  # anything the auto-detect priority list doesn't cover.
-  test_command: null
-
-  # PR creation command template. Placeholders: {title}, {body_file}.
-  pr_command: "gh pr create --title '{title}' --body-file {body_file}"
-
-  # PR body template. Placeholders:
-  #   {summary}     — taken from spec's Goal section
-  #   {test_plan}   — derived from acceptance scenarios
-  #   {spec_link}   — link or path to spec.md
-  #   {plan_link}   — link or path to plan.md
-  pr_body_template: |
-    ## Summary
-    {summary}
-
-    ## Test plan
-    {test_plan}
-
-    ## Spec
-    {spec_link}
-
-    ## Plan
-    {plan_link}

@@ -18,16 +18,17 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 - `receiving-review-findings` — Stages 3, 5, 9, 10 (inline)
 - `writing-plans` — Stage 8
 - `reviewing-plans` — Stages 9, 10 (subagent)
-- `implementing-plans` — Stage 12 (orchestrates per-task subagents)
-- `implementing-task` — Stage 12 (loaded by implementer subagents)
-- `reviewing-task-compliance` — Stage 12 (loaded by spec-compliance reviewer subagent)
-- `reviewing-task-quality` — Stage 12 (loaded by code-quality reviewer subagent; also used for final review)
-- `testing-implementation` — Stage 13 (orchestrates tester + fixer subagents)
-- `testing-feature` — Stage 13 (loaded by tester subagent)
-- `fixing-test-failures` — Stage 13 (loaded by fixer subagent)
-- `generating-handoff` — Stage 14 (subagent)
-- `maintaining-memory-file` — Stage 15 (subagent)
-- `finishing-sdd` — Stage 16
+- `choosing-feature-branch` — Stage 12 (inline; batch-commits SDD planning artifacts)
+- `implementing-plans` — Stage 13 (orchestrates per-task subagents)
+- `implementing-task` — Stage 13 (loaded by implementer subagents)
+- `reviewing-task-compliance` — Stage 13 (loaded by spec-compliance reviewer subagent)
+- `reviewing-task-quality` — Stage 13 (loaded by code-quality reviewer subagent; also used for final review)
+- `testing-implementation` — Stage 14 (orchestrates tester + fixer subagents)
+- `testing-feature` — Stage 14 (loaded by tester subagent)
+- `fixing-test-failures` — Stage 14 (loaded by fixer subagent)
+- `generating-handoff` — Stage 15 (subagent)
+- `maintaining-memory-file` — Stage 16 (subagent)
+- `finishing-sdd` — Stage 17
 
 **Bootstrap (outside the SDD family — see `project-bootstrap/` directory):**
 - `bootstrapping-project` — one-time project setup coordinator
@@ -51,7 +52,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 
 **Type:** Orchestrator (entry point)
 **Loaded:** by the user at the start of every SDD session
-**Stage:** drives all 16 stages
+**Stage:** drives all 18 stages
 
 **Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, runs `inspecting-state`, decides whether to start fresh or resume, then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
 
@@ -120,34 +121,34 @@ The "Branch match with current" field per run lets the coordinator route correct
 **Loaded:** by the coordinator at Stage 0
 **Stage:** 0
 
-**Purpose:** Verify the repo is in a fit state to start an SDD pipeline run. **Aborts on any problem.** Does not clean up; the user fixes things manually.
+**Purpose:** Validate that the repo is workable for SDD. A **permissive** gate: aborts only on conditions that genuinely make SDD impossible. Does NOT create branches (Stage 12 owns that).
 
 **Behavior matrix:**
 
 | Condition | Action |
 |---|---|
-| Dirty working tree | ABORT — `dirty_working_tree` |
-| Clean + on `main`/`master` | Create feature branch, proceed |
-| Clean + on feature-like branch + matching state file | Resume on this branch |
-| Clean + on feature-like branch + no matching state | ABORT — `ambiguous_branch` |
-| Clean + on `develop`/`release/*`/`hotfix/*` | ABORT — `protected_branch` |
-| Clean + on any other branch | ABORT — `ambiguous_branch` |
+| `.sublime-skills/config.yml` missing | ABORT — `config_missing` |
+| `.sublime-skills/config.yml` invalid | ABORT — `config_invalid` |
+| Not a git repo | ABORT — `not_a_git_repo` |
+| Detached HEAD | ABORT — `detached_head` |
+| Dirty working tree | WARN + confirm; ABORT — `user_declined` only if user says no |
+| Otherwise (clean tree, named branch, valid config, git repo) | Proceed |
 
 **Key rules:**
-- No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout` to escape an inappropriate branch. Just abort.
-- Branch naming default: `feat/<short-name>` (or `fix/<short-name>` for bug fixes). Overridable via `.sublime-skills/config.yml` → `preflight.branch_pattern`.
+- No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout`. Preflight never mutates state.
+- Dirty trees are allowed because SDD's commits are path-scoped to its own artifacts — the user's pre-existing dirty files stay untouched throughout the pipeline.
+- Branch creation belongs to Stage 12 (`choosing-feature-branch`), not here.
 
-**Reads:** git state
-**Writes:** at most one new branch via `git checkout -b`
-**State file:** does not yet exist; outputs (branch, original branch) are returned to the coordinator for in-memory holding
+**Reads:** config + git state
+**Writes:** nothing
+**State file:** does not yet exist; outputs (current branch) are returned to the coordinator for in-memory holding
 
 **Returns on success:**
 
 ```
 Preflight complete.
-- Branch: feat/user-auth (created from main) | (resumed)
-- Original branch: main
-- Working tree: clean
+- Branch: <current branch>
+- Working tree: clean | dirty (proceeding per user confirmation)
 - Status: ready
 ```
 
@@ -156,7 +157,7 @@ Preflight complete.
 ```
 Preflight aborted.
 - Status: aborted_at_preflight
-- Reason: dirty_working_tree | ambiguous_branch | protected_branch | user_declined
+- Reason: config_missing | config_invalid | not_a_git_repo | detached_head | user_declined
 - Message: <user-facing message>
 ```
 
@@ -441,11 +442,43 @@ Preflight aborted.
 
 ---
 
+## choosing-feature-branch
+
+**Type:** Phase skill (inline)
+**Loaded:** by the coordinator at Stage 12
+**Stage:** 12
+
+**Purpose:** Decide which branch the SDD planning artifacts (spec, plan, ADRs, state.json) — uncommitted through Stages 2–11 — should land on. Optionally creates a feature branch with `git checkout -b`, then batch-commits the artifacts in three thematic commits.
+
+**3-way user prompt:**
+1. Create and switch to `<derived-name>` (recommended; derived from `branching.branch_pattern`)
+2. Use a different branch name
+3. Stay on the current branch — commits land here
+
+**Batch commits (in order, skipping any whose paths don't exist):**
+1. `docs(<feature_id>): spec` — spec.md + state.json
+2. `docs(adr): N decisions for <feature_id>` — new ADRs from this run
+3. `docs(<feature_id>): plan` — plan.md + state.json (updated)
+
+**Path-scoping is mandatory.** Never `git add .` / `git add -A`. The user may have pre-existing dirty files (preflight allows them through); path-scoping protects them.
+
+**Aborts:**
+- `branch_creation_failed` (checkout failed; branch exists or invalid name)
+- `user_declined` (user said abort at any prompt)
+- `commit_failed` (hook rejection / signing failure — per the Commit Failure Protocol)
+
+**Hard rules:**
+- No `--no-verify`, `--no-gpg-sign`, `--force`, or `--amend`
+- No push, pull, merge, or branch deletion
+- On partial-commit failure (commit 1 succeeded, 2 failed), halt and surface; never amend a previous commit. User resolves the partial state manually.
+
+---
+
 ## implementing-plans
 
 **Type:** Phase skill (inline; orchestrates per-task subagents)
-**Loaded:** by the coordinator at Stage 12
-**Stage:** 12
+**Loaded:** by the coordinator at Stage 13
+**Stage:** 13
 
 **Purpose:** Drive the per-task loop. For each task: dispatch implementer subagent → handle status → dispatch spec-compliance reviewer → loop on Issues Found (cap 3) → dispatch code-quality reviewer → loop on Issues Found (cap 3, Minor non-blocking) → mark complete.
 
@@ -565,8 +598,8 @@ Preflight aborted.
 ## testing-implementation
 
 **Type:** Phase skill (inline; orchestrates tester subagent)
-**Loaded:** by the coordinator at Stage 13 (only if user opted in)
-**Stage:** 13 (optional)
+**Loaded:** by the coordinator at Stage 14 (only if user opted in)
+**Stage:** 14 (optional)
 
 **Purpose:** Feature-level testing distinct from per-task unit tests. Dispatches a tester subagent that picks a strategy based on available MCPs and feature type.
 
@@ -574,7 +607,7 @@ Preflight aborted.
 
 | Status | Coordinator action |
 |---|---|
-| PASS | Update state, advance to Stage 14 |
+| PASS | Update state, advance to Stage 15 |
 | FAIL | Dispatch fixer subagent with failures; re-test; cap 3 iterations before escalating |
 | MCP_UNAVAILABLE | Surface manual test plan + code review findings to user; **coordinator MUST NOT test itself** |
 
@@ -656,8 +689,8 @@ Preflight aborted.
 ## generating-handoff
 
 **Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stage 14
-**Stage:** 14 (user-prompted, default yes)
+**Loaded:** by the dispatched subagent at Stage 15
+**Stage:** 15 (user-prompted, default yes)
 
 **Purpose:** Produce a self-contained handoff document at `docs/handoff/YYYY-MM-DD-<short-title>.md` that lets a fresh agent (or human) continue work without re-reading everything.
 
@@ -700,8 +733,8 @@ Two-pass scan: keep going until no new redactions surface.
 ## maintaining-memory-file
 
 **Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stage 15
-**Stage:** 15 (user-prompted, default yes; auto-skipped without prompt when no memory file is configured/detected)
+**Loaded:** by the dispatched subagent at Stage 16
+**Stage:** 16 (user-prompted, default yes; auto-skipped without prompt when no memory file is configured/detected)
 
 **Purpose:** Decide whether the project's agent memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md`) needs updating based on what this run produced, and if so, update it. Most runs do NOT warrant an update — that's normal.
 
@@ -751,33 +784,22 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 
 ## finishing-sdd
 
-**Type:** Phase skill (inline; user-interactive)
-**Loaded:** by the coordinator at Stage 16
-**Stage:** 16
+**Type:** Phase skill (inline)
+**Loaded:** by the coordinator at Stage 17
+**Stage:** 17
 
-**Purpose:** Close out the SDD run. Verify tests, present 4 options (merge / PR / keep / discard), execute the choice, clean up.
+**Purpose:** Close out the SDD run. Validate the state file, print a structured summary report of what the pipeline produced, delete `state.json`, commit the deletion. V1 explicitly does NOT manage source control — no merging, PR creation, or branch deletion. The user decides what to do with the feature branch.
 
-**Pre-finish verification:** run the project test suite one more time. If failures: halt; user must resolve or explicitly override.
-
-**Mode selection** (`.sublime-skills/config.yml` → `finishing.mode`):
-- `prompt` (default): interactive menu
-- `leave`: no menu; leave branch as-is
-- `merge-local`: no menu; merge into base
-- `pr`: no menu; push + create PR
-- `auto`: pick based on remote and PR command availability
-
-**4 options (when interactive):**
-
-| Option | Action | State file | Branch deletion |
-|---|---|---|---|
-| 1. Merge locally | Checkout base, merge, test merged result | Deleted | Yes (if config) |
-| 2. Push + PR | Push + run PR command | Deleted | No |
-| 3. Keep as-is | Leave everything | Kept | No |
-| 4. Discard | Typed `discard` confirmation; force-delete branch | Deleted | Yes (force) |
+**Steps:**
+1. Read and validate `state.json`. Confirm `implementation_complete` is in `stages_completed`. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
+2. Print summary: feature_id, short_name, branch, spec/plan/handoff paths, ADRs created, tasks completed, test_status, memory_file_updated.
+3. `git rm docs/specs/<feature_id>/state.json` + `git commit -m "chore(<feature_id>): SDD complete"` (path-scoped).
 
 **Hard rules:**
-- No `git push --force` anywhere
-- No branch deletion without typed confirmation for Discard
+- No merge / push / PR / branch deletion
+- No test re-run
+- Path-scoped `git add` only
+- Never `--no-verify` / `--no-gpg-sign`
 
 ---
 
@@ -862,7 +884,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 | `config` | — | path to `.sublime-skills/config.yml` if present |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
-**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `paths:` and `context:`. List-typed or multi-line config values (e.g., `finishing.pr_body_template`) are parsed by individual skills that need them.
+**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `paths:` and `context:`. List-typed or multi-line config values are parsed by individual skills that need them.
 
 **Output JSON shape:**
 
@@ -893,15 +915,14 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 **Checks (on the merged config):**
 - YAML parses for both files (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner that validates the base config only and warns when overlay is present)
-- All six top-level blocks present: `paths`, `context`, `preflight`, `grill`, `memory_file`, `finishing`
+- All five top-level blocks present: `paths`, `context`, `preflight`, `grill`, `memory_file`
 - Required scalar keys per block
 - Each `context.<name>_path` is null OR points to an existing file (orphan paths fail)
-- `finishing.mode` ∈ `{prompt, leave, merge-local, pr, auto}`
 - Numeric sanity (`grill.question_cap` 1-20; `memory_file.character_limit` ≥ 1000)
-- Type sanity (booleans, strings, null-or-string)
+- Type sanity (strings, null-or-string)
 - Rejects unknown `context.*_path` keys (catches stale schema after upgrades)
 
-**Overlay-specific checks:** any block name in `config-local.yml` that isn't one of the six known blocks is flagged; any key under a known block that isn't part of the schema is flagged. Findings sourced from the overlay are prefixed with `config-local.yml:` so it's clear where to fix them.
+**Overlay-specific checks:** any block name in `config-local.yml` that isn't one of the five known blocks is flagged; any key under a known block that isn't part of the schema is flagged. Findings sourced from the overlay are prefixed with `config-local.yml:` so it's clear where to fix them.
 
 **Exit codes:**
 - `0` — PASS
@@ -921,10 +942,10 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 **Usage:** `./scripts/get-config-value.sh <block> <key> [config-path]`
 
 Examples:
-- `./scripts/get-config-value.sh finishing test_command` → `"make test"`
-- `./scripts/get-config-value.sh preflight branch_pattern` → `"feat/{short-name}"`
+- `./scripts/get-config-value.sh branching branch_pattern` → `"feat/{short-name}"`
 - `./scripts/get-config-value.sh grill question_cap` → `"15"`
 - `./scripts/get-config-value.sh memory_file character_limit` → `"40000"`
+- `./scripts/get-config-value.sh paths spec_dir` → `"docs/specs"`
 
 **Exit codes:**
 - `0` — value found (printed to stdout, no trailing newline)
@@ -1021,19 +1042,21 @@ sdd-coordinator (entry; user-invoked)
 │
 ├── (user approval — Stage 11)
 │
-├── implementing-plans          (Stage 12; orchestrates per-task subagents)
+├── choosing-feature-branch     (Stage 12; inline; batch-commits planning artifacts)
+│
+├── implementing-plans          (Stage 13; orchestrates per-task subagents)
 │       ↓
 │       per-task fresh subagents (each task: implementer + 2 reviewers)
 │           ↓
 │       implementer subagents load → implementing-task
 │
-├── testing-implementation      (Stage 13; orchestrates tester subagent)
+├── testing-implementation      (Stage 14; orchestrates tester subagent)
 │
-├── dispatch → generating-handoff (Stage 14; subagent; uses validate-handoff.sh)
+├── dispatch → generating-handoff (Stage 15; subagent; uses validate-handoff.sh)
 │
-├── dispatch → maintaining-memory-file (Stage 15; subagent)
+├── dispatch → maintaining-memory-file (Stage 16; subagent)
 │
-└── finishing-sdd               (Stage 16)
+└── finishing-sdd               (Stage 17)
 
 
 project-bootstrap family (outside SDD pipeline; user-invoked manually)

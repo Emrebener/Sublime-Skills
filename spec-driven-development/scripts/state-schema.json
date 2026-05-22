@@ -7,6 +7,7 @@
   "required": [
     "feature_id",
     "short_name",
+    "work_type",
     "started_at",
     "updated_at",
     "branch",
@@ -14,7 +15,6 @@
     "current_stage",
     "stages_completed",
     "stages_skipped",
-    "preflight",
     "tasks"
   ],
   "additionalProperties": false,
@@ -28,6 +28,11 @@
       "type": "string",
       "pattern": "^[a-z][a-z0-9-]*$",
       "description": "Kebab-case short name"
+    },
+    "work_type": {
+      "type": "string",
+      "enum": ["feature", "fix"],
+      "description": "Captured at Stage 1 by discovering-requirements. Used by choosing-feature-branch (Stage 12) to derive the suggested branch prefix (feat/ vs fix/)."
     },
     "started_at": {
       "type": "string",
@@ -64,6 +69,7 @@
         "plan_auto_review",
         "plan_second_review",
         "plan_approval",
+        "choosing_branch",
         "implementing",
         "testing",
         "handoff",
@@ -88,6 +94,7 @@
           "plan_auto_reviewed",
           "plan_second_reviewed",
           "plan_approved",
+          "branch_chosen",
           "implementation_complete",
           "testing_complete",
           "handoff_generated",
@@ -108,16 +115,6 @@
           "handoff",
           "memory_file"
         ]
-      }
-    },
-    "preflight": {
-      "type": "object",
-      "required": ["original_branch"],
-      "additionalProperties": false,
-      "properties": {
-        "original_branch": {
-          "type": "string"
-        }
       }
     },
     "tasks": {

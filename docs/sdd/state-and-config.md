@@ -14,12 +14,16 @@ A JSON file at `docs/specs/NNN-<short-name>/state.json`, one per in-progress SDD
 
 | Stage | What happens to state.json |
 |---|---|
-| 0 (Preflight) | Does NOT exist yet. Preflight outputs are held in coordinator's in-memory dict. |
+| 0 (Preflight) | Does NOT exist yet. Preflight outputs (current branch) are held in coordinator's in-memory dict. |
 | 1 (Discovery) | Still does not exist. Discovery outputs in memory. |
-| 2 (Writing spec) | **Created** by `writing-specs`, atomic write. Pre-populated with feature_id, branch, paths, preflight outcomes from in-memory. |
-| 3-13 | **Updated at every stage boundary** by the coordinator (atomic). Stage 12 (`implementing-plans`) also updates `tasks` per-task. |
-| 14 (Handoff) | Updated with `handoff_path`. |
-| 15 (Finishing) | **Deleted** for Merge/PR/Discard. **Kept** for Keep-As-Is. |
+| 2 (Writing spec) | **Created** by `writing-specs`, atomic write. Pre-populated with feature_id, branch, paths. **Uncommitted.** |
+| 3–11 | **Updated** at every stage boundary by the coordinator (atomic). **Uncommitted** throughout. |
+| 12 (Choosing branch) | **Batch-committed** alongside spec/plan/ADRs in three thematic commits on the chosen branch. |
+| 13 (Implementing) | Updated per-task with `tasks` transitions; committed inline with each task's code commits. |
+| 14 (Testing) | Updated with `test_status` and `fix_iterations`. |
+| 15 (Handoff) | Updated with `handoff_path`. |
+| 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. |
+| 17 (Finishing) | **Deleted** + commit (`chore(<feature_id>): SDD complete`). |
 
 ### Atomic write pattern
 
@@ -52,21 +56,24 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 
 ### Git policy
 
-State.json is **committed alongside the relevant artifact**:
+State.json (and the other SDD planning artifacts: spec.md, plan.md, ADRs) is **uncommitted through Stages 2–11**. The `choosing-feature-branch` skill at Stage 12 batch-commits all of these on the user's chosen branch in three thematic, path-scoped commits:
 
-- Stage 2: committed with `spec.md` in `spec(NNN): initial draft`
-- Stage 4: committed with updated `spec.md` in `spec(NNN): grill session updates`
-- Stage 6: committed with new ADRs in `docs(adr): NNNN from spec NNN`
-- Stage 7: committed if any spec/ADR edits happened during approval
-- Stage 8: committed with `plan.md` in `plan(NNN): initial draft`
-- Stage 12: committed at end of implementation in `chore(NNN): mark implementation complete`
-- Stage 14: committed with handoff doc in `docs(NNN): handoff document`
-- Stage 15: committed with memory file in `docs(memory): update from NNN-short-name` (only if memory file was updated; usually no commit)
-- Stage 16: deletion is committed (or amended into final commit, per project preference)
+- `docs(<feature_id>): spec` — spec.md + state.json
+- `docs(adr): N decisions for <feature_id>` — ADRs (skipped if none)
+- `docs(<feature_id>): plan` — plan.md + state.json (updated)
 
-No standalone "update state" commits — state always rides along with content.
+From Stage 13 onward, state.json is committed alongside the stage's artifact:
+
+- Stage 13 (implementation): per-task code commits include any state.json delta (tasks map transitions)
+- Stage 15 (handoff): committed with handoff doc in `docs(<feature_id>): handoff document`
+- Stage 16 (memory file): committed with memory file in `docs(memory): update from <feature_id>` (only if memory file was updated; usually no commit)
+- Stage 17 (finishing): deletion is committed as `chore(<feature_id>): SDD complete`
+
+**All commits use path-scoped `git add`.** No `git add .` / `git add -A` — preflight allows dirty working trees, so path-scoping is what protects the user's pre-existing dirty files.
 
 **Squash-merge implication:** if the project squashes on merge, the state file's churn collapses into a single final commit. By the time the feature lands in main, only the spec, plan, ADRs, and handoff persist; the state file is gone.
+
+**Mid-pipeline kill risk.** Through Stages 0–11 the state file is uncommitted. If the session dies and the user runs `git stash` or switches branches before Stage 12, the uncommitted artifacts can be displaced. `inspecting-state` flags uncommitted runs in its report so users know to be careful with git operations during that window.
 
 ### Resume protocol
 
@@ -112,11 +119,12 @@ Re-running a stage is safe because:
 - Stage 4 (grill): the user can decide to skip if previous grill already happened
 - Stage 6 (ADRs): subagent checks for duplicates against existing ADRs
 - Stage 8 (writing-plans): re-renders the plan.md
-- Stage 12 (implementation): `tasks` map tells the loop which tasks are done
+- Stage 12 (choosing-feature-branch): batch-commit failures halt the pipeline; the user resolves and re-invokes
+- Stage 13 (implementation): `tasks` map tells the loop which tasks are done
 
-### Mid-task interruption (Stage 12)
+### Mid-task interruption (Stage 13)
 
-If Stage 12 was interrupted mid-task:
+If Stage 13 was interrupted mid-task:
 - `current_stage`: `implementing`
 - `tasks`: shows `T###: "in_progress"` for the task that was running
 - `stages_completed`: doesn't include `implementation_complete`
@@ -175,11 +183,12 @@ context:
   domain_path: docs/DOMAIN.md
   design_path: docs/DESIGN.md
 
-# ── Preflight (Stage 0) ─────────────────────────────────────────────
-preflight:
+# ── Branching (Stage 12) ────────────────────────────────────────────
+branching:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used when starting fresh from main/master. Bug-fix runs use
-  # `fix/{short-name}` automatically.
+  # Used by the `choosing-feature-branch` skill (Stage 12) when offering
+  # to create a feature branch. Bug-fix runs (state.work_type == "fix")
+  # use `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
 # ── Grill (Stage 4) ─────────────────────────────────────────────────
@@ -188,60 +197,24 @@ grill:
   # with an override.
   question_cap: 10
 
-# ── Memory file maintenance (Stage 15) ──────────────────────────────
-# Stage 15 itself is user-prompted at runtime; this block only configures
+# ── Memory file maintenance (Stage 16) ──────────────────────────────
+# Stage 16 itself is user-prompted at runtime; this block only configures
 # which file is maintained and the size budget. There is no `enabled`
 # toggle — the user decides per-run.
 memory_file:
   # Explicit path. null = auto-detect at repo root in order:
   # CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md (first match wins).
-  # If nothing matches, Stage 15 auto-skips without prompting.
+  # If nothing matches, Stage 16 auto-skips without prompting.
   path: null
 
   # Soft cap on memory file size (characters). Skill warns at 90% of
   # this value and refuses to push past 100% (must prune first).
   character_limit: 40000
-
-# ── Finishing (Stage 16) ────────────────────────────────────────────
-finishing:
-  # prompt       — interactive 4-option menu (default)
-  # leave        — skip menu; leave branch as-is
-  # merge-local  — skip menu; merge into merge_target
-  # pr           — skip menu; push + create PR via pr_command
-  # auto         — PR if remote+pr_command, else merge-local, else leave
-  mode: prompt
-
-  # Base branch for merge / PR target.
-  merge_target: main
-
-  # Delete the feature branch after a local merge.
-  delete_branch_after_merge: true
-
-  # Explicit test command for finishing-sdd's pre-merge sanity check.
-  # null = auto-detect (Makefile → npm → cargo → pytest → go → mvn → gradle).
-  # Set explicitly for Makefile-driven repos, nox/tox, monorepos, etc.
-  test_command: null
-
-  # PR command template. Placeholders: {title}, {body_file}.
-  pr_command: "gh pr create --title '{title}' --body-file {body_file}"
-
-  # PR body template. Placeholders: {summary} (from spec Goal),
-  # {test_plan} (from acceptance scenarios), {spec_link}, {plan_link}.
-  pr_body_template: |
-    ## Summary
-    {summary}
-
-    ## Test plan
-    {test_plan}
-
-    ## Spec
-    {spec_link}
-
-    ## Plan
-    {plan_link}
 ```
 
-**Stages 14 (handoff) and 15 (memory file) are user-prompted at runtime**, not config-toggled. The pattern matches Stage 13 (testing): the coordinator asks `yes/no` per run. If you want to skip both every time, just answer `no` when prompted — but most users will want to make the choice per feature.
+**Stages 14 (testing), 15 (handoff), and 16 (memory file) are user-prompted at runtime**, not config-toggled. The coordinator asks `yes/no` per run. If you want to skip all of them every time, just answer `no` when prompted — but most users will want to make the choice per feature.
+
+**V1 does NOT include a `finishing:` config block.** Stage 17 (`finishing-sdd`) prints a summary and deletes the state file. No merge/PR/branch-deletion behavior is configurable — those are the user's call after SDD ends.
 
 ### Config overlay (`config-local.yml`)
 
@@ -253,12 +226,13 @@ Alongside `config.yml`, the bootstrap also creates an empty `.sublime-skills/con
 
 ```yaml
 # .sublime-skills/config-local.yml — per-developer overrides
-finishing:
-  mode: pr
-  merge_target: develop
+branching:
+  branch_pattern: "feature/{short-name}"
+memory_file:
+  character_limit: 60000
 ```
 
-The other keys (paths, context, grill, memory_file, the rest of preflight + finishing) fall through to `config.yml`'s values.
+The other keys (paths, context, grill, the rest of preflight + memory_file) fall through to `config.yml`'s values.
 
 **Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap appends `.sublime-skills/config-local.yml` to `.gitignore` in Step 7. Each developer's overlay is their own; no one else sees it.
 
@@ -272,7 +246,7 @@ The other keys (paths, context, grill, memory_file, the rest of preflight + fini
 
 Each skill that depends on config reads it explicitly. The pattern is:
 
-1. Read config via the central scripts. `get-config-value.sh <block> <key>` returns a single scalar; `discover-context.sh` returns the bulk of paths as JSON. Both scripts honor `config-local.yml` overlay automatically. Skills that need list-typed or multi-line values (currently just `finishing.pr_body_template`) should also overlay manually if they parse the YAML themselves.
+1. Read config via the central scripts. `get-config-value.sh <block> <key>` returns a single scalar; `discover-context.sh` returns the bulk of paths as JSON. Both scripts honor `config-local.yml` overlay automatically. Skills that need list-typed or multi-line values should overlay manually if they parse the YAML themselves.
 2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent in both files, that's the answer.
 3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
 
@@ -280,20 +254,14 @@ The coordinator caches the config once at session start (after `inspecting-state
 
 ### Common overrides
 
-**Always create a PR, no interactive menu:**
+**Custom branch naming pattern:**
 
 ```yaml
-finishing:
-  mode: pr
-  pr_command: "gh pr create --title '{title}' --body-file {body_file}"
+branching:
+  branch_pattern: "feature/{short-name}"
 ```
 
-**Always leave the branch alone at the end:**
-
-```yaml
-finishing:
-  mode: leave
-```
+Used by `choosing-feature-branch` (Stage 12) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
 
 **Custom paths:**
 
@@ -312,19 +280,7 @@ memory_file:
   character_limit: 40000   # widely-recommended soft cap for agent memory files
 ```
 
-`path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 15 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
-
-**Explicit test command (Makefile, nox, monorepo, etc.):**
-
-```yaml
-finishing:
-  test_command: "make test"
-# or
-finishing:
-  test_command: "nox -s tests"
-```
-
-When set, `finishing-sdd`'s Step 1 sanity check runs exactly this command instead of auto-detecting. Required for any project whose entry point doesn't match the auto-detect priority list (Makefile/npm/cargo/pytest/go/mvn/gradle).
+`path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 16 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
 
 **Handoff outside the repo (not committed):**
 
@@ -335,7 +291,7 @@ paths:
   handoff_dir: ~/notes/sdd                # tilde expanded to $HOME
 ```
 
-When `handoff_dir` resolves outside the repo's working tree, the handoff file is written but NOT staged or committed. The path is recorded in `state.json` so other tooling can find it. The state-file commit at Stage 14 only includes `state.json`, not the handoff itself.
+When `handoff_dir` resolves outside the repo's working tree, the handoff file is written but NOT staged or committed. The path is recorded in `state.json` so other tooling can find it. The state-file commit at Stage 15 only includes `state.json`, not the handoff itself.
 
 **Custom context file locations:**
 
@@ -388,10 +344,6 @@ If the config changes mid-pipeline (rare but possible):
 - Already-completed stages aren't re-run
 - Stages that depend on config (e.g., `paths.handoff_dir` or `memory_file.path`) honor the new value
 
-If a config field is renamed or removed in a future SDD version:
-- Old config files keep working (unrecognized keys are ignored)
-- The coordinator emits a warning if it sees deprecated keys
-
 ---
 
 ## Worked example: a state file mid-implementation
@@ -417,9 +369,6 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
     "spec_grill", "spec_second_review",
     "plan_second_review"
   ],
-  "preflight": {
-    "original_branch": "main"
-  },
   "adr_results": [
     {
       "id": "ADR-0003",

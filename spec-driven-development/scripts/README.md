@@ -107,14 +107,13 @@ are most often unredacted secrets — re-run redaction before retrying.
 
 Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`. If a sibling `.sublime-skills/config-local.yml` exists, it's overlaid onto the base config per-key and validation runs against the merged result.
 
-Checks: YAML parses (both files); all six top-level blocks present in the base
-(`paths`, `context`, `preflight`, `grill`, `memory_file`, `finishing`);
-required scalar keys per block in the merged result; every
-`context.<name>_path` is null OR points to an existing file (orphan paths
-fail); `finishing.mode` enum membership; numeric and type sanity on remaining
-fields; rejection of unknown `context.*_path` keys (catches stale schema). The
-overlay is additionally checked for unknown blocks and unknown keys; findings
-sourced from it are prefixed with `config-local.yml:`.
+Checks: YAML parses (both files); all five top-level blocks present in the base
+(`paths`, `context`, `preflight`, `grill`, `memory_file`); required scalar
+keys per block in the merged result; every `context.<name>_path` is null OR
+points to an existing file (orphan paths fail); numeric and type sanity on
+remaining fields; rejection of unknown `context.*_path` keys (catches stale
+schema). The overlay is additionally checked for unknown blocks and unknown
+keys; findings sourced from it are prefixed with `config-local.yml:`.
 
 Empty (zero-byte) `config-local.yml` is treated as "no overrides."
 
@@ -138,10 +137,10 @@ Reads a single scalar value from the layered config. `config-local.yml` is consu
 Examples:
 
 ```bash
-./scripts/get-config-value.sh finishing test_command       # "make test"
-./scripts/get-config-value.sh preflight branch_pattern     # "feat/{short-name}"
+./scripts/get-config-value.sh branching branch_pattern     # "feat/{short-name}"
 ./scripts/get-config-value.sh grill question_cap           # "15"
 ./scripts/get-config-value.sh paths handoff_dir            # "docs/handoff"
+./scripts/get-config-value.sh memory_file character_limit  # "40000"
 ```
 
 Exit codes:
@@ -156,9 +155,9 @@ Exit codes:
 - For anything more complex, skills should use a proper YAML parser
   (`yq`, `python -c "import yaml"`, etc.)
 
-For list-typed or multi-line config values (e.g., `finishing.pr_body_template`),
-the skill must parse the YAML itself. This helper covers the common case
-(single scalar lookup) — it's not a general-purpose YAML library.
+For list-typed or multi-line config values, the skill must parse the YAML
+itself. This helper covers the common case (single scalar lookup) — it's not
+a general-purpose YAML library.
 
 ## State File Schema
 

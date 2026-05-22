@@ -52,9 +52,9 @@ For each state path:
 
 The canonical schema is `spec-driven-development/scripts/state-schema.md` (human-readable) and `state-schema.json` (machine-readable). Validate each state file against that schema — these are the single source of truth, not a local copy.
 
-**Required fields:** `feature_id`, `short_name`, `started_at`, `updated_at`, `branch`, `spec_path`, `current_stage`, `stages_completed`, `stages_skipped`, `preflight` (with `original_branch`), `tasks`.
+**Required fields:** `feature_id`, `short_name`, `started_at`, `updated_at`, `branch`, `spec_path`, `current_stage`, `stages_completed`, `stages_skipped`, `tasks`.
 
-**Optional fields, present after specific stages advance:** `plan_path` (after Stage 8), `adr_results` (after Stage 6, may be `[]`), `test_status` and `fix_iterations` (after Stage 13), `final_review_completed` (after Stage 12 final review), `handoff_path` (after Stage 14), `memory_file_updated` and `memory_file_path` (after Stage 15), `reviewer_pushbacks` (any stage; `[]` initial), `spec_auto_review_iterations` and `plan_auto_review_iterations` (after the relevant review stages).
+**Optional fields, present after specific stages advance:** `plan_path` (after Stage 8), `adr_results` (after Stage 6, may be `[]`), `test_status` and `fix_iterations` (after Stage 14), `final_review_completed` (after Stage 13 final review), `handoff_path` (after Stage 15), `memory_file_updated` and `memory_file_path` (after Stage 16), `reviewer_pushbacks` (any stage; `[]` initial), `spec_auto_review_iterations` and `plan_auto_review_iterations` (after the relevant review stages).
 
 **Validation checks to perform:**
 
@@ -86,7 +86,7 @@ Flag "possible pre-state interruption" ONLY when ALL of these are true:
 
 If all three are true, include "possible pre-state interruption" in the report. Otherwise, do not — the user is on an unrelated branch and the coordinator should treat the state as "no active runs."
 
-If the user has a custom `preflight.branch_pattern` in `.sublime-skills/config.yml` that doesn't match the `feat/*` or `fix/*` shape, this detection may miss their interruption — that's acceptable; the coordinator's interactive prompts catch the case at confirmation time. False positives are worse than false negatives here.
+If the user has a custom `branching.branch_pattern` in `.sublime-skills/config.yml` that doesn't match the `feat/*` or `fix/*` shape, this detection may miss their interruption — that's acceptable; the coordinator's interactive prompts catch the case at confirmation time. False positives are worse than false negatives here.
 
 ## Step 5: Produce Report
 
@@ -114,6 +114,7 @@ Output format:
 - **Test status:** <test_status or "n/a">
 - **ADRs created in this run:** <count>
 - **Validation:** ok | issues: <list of issues>
+- **Tracked in git:** yes | no (uncommitted — Stages 0–11 in progress)
 
 ### Run 2: (if any)
 
@@ -133,7 +134,23 @@ Output format:
 - "Two active runs found; coordinator should ask user which to resume."
 - "Pre-state interruption detected on branch `feat/user-auth`; coordinator should offer to resume from discovery or start fresh."
 - "State file for `003-user-auth` is malformed (missing `feature_id`); coordinator should ask user how to proceed.">
+
+⚠ **If any run shows `Tracked in git: no`**, append this note to the summary:
+"One or more SDD runs have uncommitted artifacts (Stages 0–11 in progress). Avoid `git stash`, `git restore`, or branch switches on those runs until Stage 12 (`choosing-feature-branch`) batch-commits them — those operations can displace the uncommitted spec/plan/state files."
 ```
+
+## How to Check Tracked-in-git Status
+
+For each state file path found, run:
+
+```bash
+git ls-files --error-unmatch "<path>" > /dev/null 2>&1
+```
+
+Exit 0 → file is tracked (already committed to git, or staged). Report `Tracked in git: yes`.
+Exit non-zero → file is untracked (uncommitted; only on disk). Report `Tracked in git: no (uncommitted — Stages 0–11 in progress)`.
+
+This is informational; no decisions are made here. The coordinator's resume routing handles uncommitted-state runs the same way as committed-state runs, but the user reading the report sees the warning.
 
 ## How the Coordinator Uses This
 

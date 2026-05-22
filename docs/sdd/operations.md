@@ -18,7 +18,7 @@ This document covers operational mechanics: how subagents are dispatched, what t
 
 ## Subagent dispatch
 
-The coordinator dispatches subagents at seven different points in the pipeline (plus the per-task dispatch loop in Stage 12 and the per-failure dispatch loop in Stage 13). Each dispatch is governed by the same general principles:
+The coordinator dispatches subagents at seven different points in the pipeline (plus the per-task dispatch loop in Stage 13 and the per-failure dispatch loop in Stage 14). Each dispatch is governed by the same general principles:
 
 ### Dispatch principles
 
@@ -35,14 +35,14 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 | 3, 5 | Spec reviewer | Inline in `sdd-coordinator` (calls `reviewing-specs`) |
 | 6 | ADR maintainer | Inline in `sdd-coordinator` (calls `maintaining-adrs`) |
 | 9, 10 | Plan reviewer | Inline in `sdd-coordinator` (calls `reviewing-plans`) |
-| 12 (per task) | Implementer | `spec-driven-development/implementing-plans/implementer-prompt.md` (calls `implementing-task`) |
-| 12 (per task) | Spec-compliance reviewer | `spec-driven-development/implementing-plans/spec-compliance-reviewer-prompt.md` (calls `reviewing-task-compliance`) |
-| 12 (per task) | Code-quality reviewer | `spec-driven-development/implementing-plans/code-quality-reviewer-prompt.md` (calls `reviewing-task-quality`) |
-| 12 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `reviewing-task-quality`) |
-| 13 | Feature tester | `spec-driven-development/testing-implementation/tester-prompt.md` (calls `testing-feature`) |
-| 13 (fix loop) | Fixer | `spec-driven-development/testing-implementation/fixer-prompt.md` (calls `fixing-test-failures`) |
-| 14 | Handoff generator | Inline in `sdd-coordinator` (calls `generating-handoff`) |
-| 15 | Memory file maintainer | Inline in `sdd-coordinator` (calls `maintaining-memory-file`) |
+| 13 (per task) | Implementer | `spec-driven-development/implementing-plans/implementer-prompt.md` (calls `implementing-task`) |
+| 13 (per task) | Spec-compliance reviewer | `spec-driven-development/implementing-plans/spec-compliance-reviewer-prompt.md` (calls `reviewing-task-compliance`) |
+| 13 (per task) | Code-quality reviewer | `spec-driven-development/implementing-plans/code-quality-reviewer-prompt.md` (calls `reviewing-task-quality`) |
+| 13 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `reviewing-task-quality`) |
+| 14 | Feature tester | `spec-driven-development/testing-implementation/tester-prompt.md` (calls `testing-feature`) |
+| 14 (fix loop) | Fixer | `spec-driven-development/testing-implementation/fixer-prompt.md` (calls `fixing-test-failures`) |
+| 15 | Handoff generator | Inline in `sdd-coordinator` (calls `generating-handoff`) |
+| 16 | Memory file maintainer | Inline in `sdd-coordinator` (calls `maintaining-memory-file`) |
 
 ### Standard dispatch shape
 
@@ -60,7 +60,7 @@ The `<INPUTS>` block is the bulk of the prompt. It includes file paths, content 
 
 ### Why fresh subagents per task
 
-For Stage 12 implementation, every task gets THREE fresh subagent dispatches (implementer + two reviewers):
+For Stage 13 implementation, every task gets THREE fresh subagent dispatches (implementer + two reviewers):
 
 - **Context isolation:** subagent A working on T003 doesn't have T002's context. Prevents cross-task contamination.
 - **Smaller context budgets:** each dispatch has only what it needs.
@@ -122,7 +122,7 @@ Per-task code-quality reviewers also distinguish:
 
 | Status | Meaning | Coordinator action |
 |---|---|---|
-| `PASS` | All tests passed | Advance to Stage 14 |
+| `PASS` | All tests passed | Advance to Stage 15 |
 | `FAIL` | Issues found in feature-level testing | Dispatch fixer, re-test (cap 3 iterations) |
 | `MCP_UNAVAILABLE` | Couldn't run real tests | Surface manual test plan + code review to user; **DO NOT test yourself** |
 
@@ -454,7 +454,7 @@ If two handoffs are generated on the same date with the same short name (rare), 
 ### Branch names
 
 - Pattern: `feat/<short-name>` for features, `fix/<short-name>` for bug fixes
-- Configurable via `.sublime-skills/config.yml` → `preflight.branch_pattern`
+- Configurable via `.sublime-skills/config.yml` → `branching.branch_pattern`
 
 The short name matches the spec directory's short name (after the spec is created in Stage 2). At Stage 0 (preflight), the user may give a working name that gets refined later — that's OK.
 
@@ -475,23 +475,20 @@ The short name matches the spec directory's short name (after the spec is create
 
 ## Troubleshooting
 
-### "Preflight aborted — dirty_working_tree"
+### "Preflight aborted — not_a_git_repo"
 
-**Cause:** `git status` is not empty when you invoke the coordinator.
-**Fix:** commit or stash your changes manually, then re-invoke. The pipeline is intentionally strict here — it won't try to clean up for you.
+**Cause:** the current directory isn't inside a git repository.
+**Fix:** initialize one and re-invoke: `git init && git commit --allow-empty -m "Initial commit"`. SDD requires git to commit pipeline artifacts.
 
-### "Preflight aborted — ambiguous_branch"
+### "Preflight aborted — detached_head"
 
-**Cause:** you're on a non-default branch with no matching SDD state file.
-**Fix:**
-- If you have an in-progress SDD run elsewhere, restore its state file
-- If you want to start fresh, switch to `main` and re-invoke
-- If you want to manually proceed, abandon the branch first
+**Cause:** HEAD is detached (no current branch). SDD requires a named branch to commit to.
+**Fix:** switch to a branch (`git checkout <branch>`) or create one (`git checkout -b <new>`), then re-invoke.
 
-### "Preflight aborted — protected_branch"
+### "Preflight aborted — user_declined"
 
-**Cause:** you're on `develop`, `release/*`, or `hotfix/*`.
-**Fix:** switch to `main` (or whatever your default branch is) and re-invoke. SDD intentionally won't initiate from protected branches.
+**Cause:** you said "no" to the dirty-tree confirmation, or to a feature-branch decision later in Stage 12.
+**Fix:** clean up the working tree (or accept it), then re-invoke. SDD can run on top of dirty work; the confirmation is just a heads-up.
 
 ### `validate-spec.sh` or `validate-plan.sh` failing
 
@@ -574,7 +571,7 @@ The atomic write pattern (write to `.tmp` then `mv`) makes this rare — typical
 ### "I want to revise the spec mid-implementation"
 
 **Cause:** an implementation task revealed a spec gap or wrong assumption.
-**Fix:** pause Stage 12 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then resume Stage 12 from where you left off. The `tasks` map is preserved.
+**Fix:** pause Stage 13 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then resume Stage 13 from where you left off. The `tasks` map is preserved.
 
 There's no clean "loop back to earlier stage" mechanism for this — it's deliberately a judgment call.
 

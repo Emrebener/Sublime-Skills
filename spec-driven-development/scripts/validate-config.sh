@@ -114,10 +114,9 @@ context_keys = ["constitution_path", "architecture_path", "glossary_path", "doma
 known_blocks = {
     "paths": {"spec_dir", "adr_dir", "handoff_dir"},
     "context": set(context_keys),
-    "preflight": {"branch_pattern"},
+    "branching": {"branch_pattern"},
     "grill": {"question_cap"},
     "memory_file": {"path", "character_limit"},
-    "finishing": {"mode", "merge_target", "delete_branch_after_merge", "test_command", "pr_command", "pr_body_template"},
 }
 
 # Overlay: parse config-local.yml if present, sanity-check its shape and key
@@ -165,7 +164,7 @@ if os.path.isfile(local_path):
                 data[block] = merged
 
 # Required top-level blocks
-required_blocks = ["paths", "context", "preflight", "grill", "memory_file", "finishing"]
+required_blocks = ["paths", "context", "branching", "grill", "memory_file"]
 for block in required_blocks:
     if block not in data:
         fail(f"missing top-level block: {block}")
@@ -211,14 +210,14 @@ if isinstance(ctx_block, dict):
     for extra in sorted(set(ctx_block.keys()) - set(context_keys)):
         fail(f"context.{extra}: unknown key (allowed: {', '.join(context_keys)})")
 
-# ── preflight block ────────────────────────────────────────────────
-v = get("preflight", "branch_pattern")
+# ── branching block ────────────────────────────────────────────────
+v = get("branching", "branch_pattern")
 if v == "__MISSING__":
-    fail("preflight.branch_pattern: missing")
+    fail("branching.branch_pattern: missing")
 elif not isinstance(v, str) or not v.strip():
-    fail(f"preflight.branch_pattern: must be a non-empty string, got {v!r}")
+    fail(f"branching.branch_pattern: must be a non-empty string, got {v!r}")
 elif "{short-name}" not in v:
-    warn(f"preflight.branch_pattern does not contain {{short-name}} placeholder: {v!r}")
+    warn(f"branching.branch_pattern does not contain {{short-name}} placeholder: {v!r}")
 
 # ── grill block ────────────────────────────────────────────────────
 v = get("grill", "question_cap")
@@ -243,49 +242,6 @@ elif not isinstance(v, int) or isinstance(v, bool):
     fail(f"memory_file.character_limit: must be an integer, got {type(v).__name__}")
 elif v < 1000:
     fail(f"memory_file.character_limit: must be at least 1000, got {v}")
-
-# ── finishing block ────────────────────────────────────────────────
-v = get("finishing", "mode")
-allowed_modes = {"prompt", "leave", "merge-local", "pr", "auto"}
-if v == "__MISSING__":
-    fail("finishing.mode: missing")
-elif v not in allowed_modes:
-    fail(f"finishing.mode: must be one of {sorted(allowed_modes)}, got {v!r}")
-
-v = get("finishing", "merge_target")
-if v == "__MISSING__":
-    fail("finishing.merge_target: missing")
-elif not isinstance(v, str) or not v.strip():
-    fail(f"finishing.merge_target: must be a non-empty string, got {v!r}")
-
-v = get("finishing", "delete_branch_after_merge")
-if v == "__MISSING__":
-    fail("finishing.delete_branch_after_merge: missing")
-elif not isinstance(v, bool):
-    fail(f"finishing.delete_branch_after_merge: must be a boolean, got {type(v).__name__}")
-
-v = get("finishing", "test_command")
-if v == "__MISSING__":
-    fail("finishing.test_command: missing (use null to auto-detect)")
-elif v is not None and (not isinstance(v, str) or not v.strip()):
-    fail(f"finishing.test_command: must be null or a non-empty string, got {v!r}")
-
-v = get("finishing", "pr_command")
-if v == "__MISSING__":
-    fail("finishing.pr_command: missing")
-elif not isinstance(v, str) or not v.strip():
-    fail(f"finishing.pr_command: must be a non-empty string, got {v!r}")
-else:
-    if "{title}" not in v:
-        warn("finishing.pr_command does not contain {title} placeholder")
-    if "{body_file}" not in v:
-        warn("finishing.pr_command does not contain {body_file} placeholder")
-
-v = get("finishing", "pr_body_template")
-if v == "__MISSING__":
-    fail("finishing.pr_body_template: missing")
-elif not isinstance(v, str) or not v.strip():
-    fail(f"finishing.pr_body_template: must be a non-empty string, got {v!r}")
 
 sys.exit(1 if fail_count else 0)
 PY
@@ -314,7 +270,6 @@ fi
 #   - Required top-level blocks present
 #   - Required keys present per block
 #   - context.*_path values resolve to existing files (or are null)
-#   - finishing.mode is in the allowed enum
 #   - Reject unknown context.*_path keys
 
 record_warn "python3+PyYAML unavailable; running shallow fallback validator (some checks skipped)"
@@ -354,7 +309,7 @@ block_exists() {
 }
 
 # Required blocks
-for block in paths context preflight grill memory_file finishing; do
+for block in paths context branching grill memory_file; do
   if ! block_exists "$block"; then
     record_fail "missing top-level block: $block"
   fi
@@ -377,10 +332,9 @@ declare_required() {
 
 declare_required paths spec_dir adr_dir handoff_dir
 declare_required context constitution_path architecture_path glossary_path domain_path design_path
-declare_required preflight branch_pattern
+declare_required branching branch_pattern
 declare_required grill question_cap
 declare_required memory_file path character_limit
-declare_required finishing mode merge_target delete_branch_after_merge test_command pr_command pr_body_template
 
 # context.*_path values: must be null or point to an existing file
 for key in constitution_path architecture_path glossary_path domain_path design_path; do
@@ -405,15 +359,6 @@ for key in constitution_path architecture_path glossary_path domain_path design_
     record_fail "context.$key: orphan path (file does not exist): $v"
   fi
 done
-
-# finishing.mode enum
-v="$(read_scalar finishing mode)"
-if [ -n "$v" ]; then
-  case "$v" in
-    prompt|leave|merge-local|pr|auto) : ;;
-    *) record_fail "finishing.mode: must be one of [prompt, leave, merge-local, pr, auto], got '$v'" ;;
-  esac
-fi
 
 # Reject unknown context keys (catches stale schema)
 unknown_keys=$(awk '

@@ -608,7 +608,7 @@ Revocation is handled via a blocklist table (`session_blocklist`) with a TTL mat
 
 ## Test status
 
-<One paragraph: whether feature-level testing ran (Stage 13), result, what was NOT verified that a fresh agent should manually check.>
+<One paragraph: whether feature-level testing ran (Stage 14), result, what was NOT verified that a fresh agent should manually check.>
 
 ## Open concerns
 
@@ -687,9 +687,9 @@ Quick reference:
 - **Path:** `docs/specs/NNN-<short-name>/state.json`
 - **Created:** Stage 2 (`writing-specs`)
 - **Updated:** at every stage boundary by the coordinator; per-task by `implementing-plans`
-- **Deleted:** Stage 16 (`finishing-sdd`) on Merge, PR, or Discard; kept on Keep-As-Is
+- **Deleted:** Stage 17 (`finishing-sdd`) with a path-scoped `chore` commit
 - **Atomic writes** via `state.json.tmp` + `mv`
-- **Committed to git** alongside relevant spec/plan/code commits; squash-merge eats the noise
+- **Uncommitted through Stages 2–11** (lives in working tree only); **batch-committed at Stage 12** (`choosing-feature-branch`); from Stage 13 onward updates ride along with the active stage's commit
 
 ---
 

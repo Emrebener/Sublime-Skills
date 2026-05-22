@@ -169,6 +169,8 @@ If the substantive change contradicts earlier wording, **replace the contradicte
 
 Write the full new spec content to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. Do this even when only the Clarifications log changed — that's the per-answer durable record that keeps cross-session resume working. Don't batch multiple answers before saving.
 
+**Do NOT commit.** Spec edits accumulate uncommitted; the `choosing-feature-branch` skill at Stage 12 batch-commits the final spec alongside the plan and ADRs.
+
 Then ask the next question (or stop, per Step 6).
 
 ## Step 6: Stop Conditions
