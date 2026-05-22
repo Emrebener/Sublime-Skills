@@ -26,7 +26,7 @@ This document explains each stage in detail: what runs, what it produces, how fa
 | 13 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
 | 14 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
 | 15 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
-| 16 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json`, cleans worktree |
+| 16 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json` |
 
 Subagent stages run with no inherited conversation context; the coordinator builds their prompts from scratch.
 
@@ -54,14 +54,14 @@ Every invocation of `sdd-coordinator` begins with the same three actions, regard
 
 3. **Build the progress todo list** for the user's view.
 
-After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), dirty workspace, detached HEAD with active state, protected branch, ambiguous branch — plus branch creation and optional worktree setup. After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) via `scripts/get-config-value.sh` for use throughout the rest of the run.
+After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), dirty workspace, detached HEAD with active state, protected branch, ambiguous branch — plus branch creation. After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, preflight options, grill cap, finishing mode + test command, memory file size budget, etc.) via `scripts/get-config-value.sh` for use throughout the rest of the run.
 
 ---
 
 ## Stage 0 — Preflight
 
 **Skill:** `preflight-checks` (inline)
-**Output:** validated `.sublime-skills/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start), optional worktree.
+**Output:** validated `.sublime-skills/config.yml`, verified clean working tree, confirmed appropriate branch (created if fresh start).
 
 Stage 0 is the **single home for every pre-pipeline halt check**. It runs in this order:
 
@@ -71,7 +71,6 @@ Stage 0 is the **single home for every pre-pipeline halt check**. It runs in thi
 4. Dirty working tree — abort if any output
 5. Branch routing — based on which branch we're on (decision matrix below)
 6. Branch creation (fresh start) or reuse (resume)
-7. Optional worktree creation (only if `preflight.use_worktree: true`)
 
 The decision matrix (after config + dirty/detached checks pass):
 
@@ -89,9 +88,7 @@ The decision matrix (after config + dirty/detached checks pass):
 
 There is no auto-commit, no stash, no checkout, no inline config repair. The skill aborts on any unsafe condition. This is by design; magic cleanup is the failure mode we want to avoid.
 
-If a worktree is configured (`.sublime-skills/config.yml` → `preflight.use_worktree: true`), the skill commits the `.worktrees/` entry to `.gitignore` on the **base branch** (BEFORE creating the feature branch — keeps the gitignore commit out of every feature PR), then creates the feature branch, then creates a worktree under `.worktrees/<sanitized-branch>/` (slashes in branch names are flattened to dashes — `feat/user-auth` → `.worktrees/feat-user-auth/`). The worktree path is returned to the coordinator for later cleanup in Stage 16.
-
-**State file does not exist yet.** Preflight outputs (branch, worktree path, original branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
+**State file does not exist yet.** Preflight outputs (branch, original branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
 
 **On abort:** the coordinator surfaces the abort message to the user and exits cleanly. No partial state is written. The user can re-invoke after fixing the underlying issue.
 
@@ -135,7 +132,7 @@ The skill walks through (and skips dimensions already covered by the user's init
 **Skill:** `writing-specs` (inline)
 **Output:** `docs/specs/NNN-<short-name>/spec.md`, `docs/specs/NNN-<short-name>/state.json`
 
-The coordinator passes the in-memory understanding from Stage 1 plus the preflight outcomes (branch, worktree path, original branch) to this skill. The skill:
+The coordinator passes the in-memory understanding from Stage 1 plus the preflight outcomes (branch, original branch) to this skill. The skill:
 
 1. Resolves the feature directory: scans `<spec_dir>/` (default `docs/specs/`) for the highest existing `NNN`, picks `NNN+1` (or `001` if none exist). Composes with the short name.
 2. Loads project context (skip if coordinator already passed it).
@@ -152,7 +149,7 @@ The coordinator passes the in-memory understanding from Stage 1 plus the preflig
   "feature_id": "NNN-<short-name>",
   "current_stage": "spec_writing",
   "stages_completed": ["preflight", "discovering"],
-  "preflight": { "worktree_path": null, "original_branch": "main" }
+  "preflight": { "original_branch": "main" }
 }
 ```
 
@@ -438,7 +435,7 @@ The skill drives the per-task loop. For each task in plan order:
    - `{TASK_TEXT}` — full task text from the plan, pasted inline (the subagent doesn't re-read the plan file)
    - `{CONTEXT}` — scene-setting (story it serves, prior tasks it depends on, architectural notes)
    - `{SPEC_PATH}`, `{PLAN_PATH}` — for targeted lookups only (e.g., verifying a cited `**Requirements:** FR-NNN`)
-   - `{WORKING_DIR}` — repo root or worktree path
+   - `{WORKING_DIR}` — repo root
 
    The implementer subagent uses the `implementing-task` skill for guidance. If anything in the task is unclear, the implementer returns `NEEDS_CONTEXT` immediately (with what they need / what they tried / what they'd do if forced to guess) — they do NOT proceed and guess. The four statuses:
 
@@ -620,7 +617,7 @@ Three outcomes:
 
 1. **Verify pre-finish state.** Re-run the project's test suite as a final sanity check. Resolution order: (a) `finishing.test_command` config override if set (preferred for Makefile-driven repos, nox/tox, monorepos, anything outside auto-detect), (b) auto-detect by file presence in priority order (`Makefile` → `package.json` → `Cargo.toml` → `pyproject.toml` → `setup.py` → `go.mod` → `pom.xml` → `build.gradle`), running the first match only — never multiple, (c) if nothing matches, ask the user (and offer to save their answer to `finishing.test_command`). If tests fail here, halt — don't offer finishing options until tests pass (or user explicitly overrides).
 
-2. **Detect environment** (normal repo / linked worktree / detached HEAD).
+2. **Determine target branch** (current branch + merge target).
 
 3. **Determine mode** from `.sublime-skills/config.yml` → `finishing.mode`:
    - `prompt` (default): interactive 4-option menu
@@ -631,21 +628,19 @@ Three outcomes:
 
 4. **Execute the choice:**
 
-   **Merge locally** — checkout base branch, pull, merge feature branch. If the merge fails with conflicts (`git status` shows `UU` entries): STOP, tell user which files conflicted, do NOT auto-resolve. If the merge fails for other commit-related reasons (hook rejection, signing): STOP per the Commit Failure Protocol — never use `--no-verify`. If merge succeeded, run tests on the merged result. If pass: cleanup worktree (Step 6 below), delete feature branch. If fail: stop, let user resolve.
+   **Merge locally** — checkout base branch, pull, merge feature branch. If the merge fails with conflicts (`git status` shows `UU` entries): STOP, tell user which files conflicted, do NOT auto-resolve. If the merge fails for other commit-related reasons (hook rejection, signing): STOP per the Commit Failure Protocol — never use `--no-verify`. If merge succeeded, run tests on the merged result. If pass: delete feature branch. If fail: stop, let user resolve.
 
-   **Push and create PR** — push branch, run configured PR command (default `gh pr create`). Worktree is preserved (user needs it for PR iteration). State file is deleted (SDD's work is done; further iteration is normal git work).
+   **Push and create PR** — push branch, run configured PR command (default `gh pr create`). State file is deleted (SDD's work is done; further iteration is normal git work).
 
    **Keep as-is** — leave everything. State file is kept (work may continue via SDD later).
 
-   **Discard** — requires typed `discard` confirmation. Checkout base branch, cleanup worktree, force-delete feature branch. Everything goes.
+   **Discard** — requires typed `discard` confirmation. Checkout base branch, force-delete feature branch. Everything goes.
 
-5. **Worktree cleanup** (only for Merge or Discard) — provenance check: only remove worktrees under `.worktrees/` whose path matches `preflight.worktree_path` in the state file. Run from main repo root: `git worktree remove <path>; git worktree prune`.
-
-6. **Delete state file** (for Merge, PR, Discard — work is done from SDD's perspective). State file deletion is committed alongside the feature's final commits.
+5. **Delete state file** (for Merge, PR, Discard — work is done from SDD's perspective). State file deletion is committed alongside the feature's final commits.
 
    For Keep: state file is preserved.
 
-7. **Report** to user with the final summary.
+6. **Report** to user with the final summary.
 
 ---
 

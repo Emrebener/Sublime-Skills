@@ -85,7 +85,7 @@ The Clarifications section is auto-managed by the grilling-specs skill if invoke
 
 ## Step 4: Initialize State File
 
-Write `docs/specs/NNN-<short-name>/state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`). See `sdd-coordinator` for the full state schema. Use the preflight outcomes the coordinator passed in (branch, worktree path, original branch).
+Write `docs/specs/NNN-<short-name>/state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`). See `sdd-coordinator` for the full state schema. Use the preflight outcomes the coordinator passed in (branch, original branch).
 
 Initial state when this skill writes the file:
 
@@ -103,7 +103,6 @@ Initial state when this skill writes the file:
   "stages_skipped": [],
   "tasks": {},
   "preflight": {
-    "worktree_path": "<from coordinator's in-memory dict, or null>",
     "original_branch": "<from coordinator's in-memory dict>"
   },
   "adr_results": [],

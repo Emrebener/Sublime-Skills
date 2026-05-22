@@ -34,12 +34,6 @@ preflight:
   # `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
-  # If true, work happens in .worktrees/<sanitized-branch>/ instead of in
-  # the main checkout. Useful when you want to continue unrelated work in
-  # the main checkout while an SDD run is in progress. The preflight
-  # skill ensures .worktrees/ is gitignored before creating one.
-  use_worktree: false
-
 # ── Grill (Stage 4) ─────────────────────────────────────────────────
 grill:
   # Soft cap on questions per grill session. Hard ceiling is 20 even with

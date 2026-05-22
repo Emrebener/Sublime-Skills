@@ -139,7 +139,7 @@ Examples:
 
 ```bash
 ./scripts/get-config-value.sh finishing test_command       # "make test"
-./scripts/get-config-value.sh preflight use_worktree       # "true"
+./scripts/get-config-value.sh preflight branch_pattern     # "feat/{short-name}"
 ./scripts/get-config-value.sh grill question_cap           # "15"
 ./scripts/get-config-value.sh paths handoff_dir            # "docs/handoff"
 ```

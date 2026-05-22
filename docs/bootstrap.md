@@ -324,7 +324,7 @@ to:
   glossary_path: null
 ```
 
-**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `preflight`, `grill`, `memory_file`, `finishing` — all keep their scaffold defaults. If the user later wants worktrees or a custom test command, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
+**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `preflight`, `grill`, `memory_file`, `finishing` — all keep their scaffold defaults. If the user later wants a custom test command, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
 
 ---
 
@@ -362,7 +362,7 @@ If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, the coordi
 
 `.sublime-skills/config.yml` itself **is** committed — it's project-wide config that everyone needs.
 
-`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one team member uses worktrees, others don't; one wants `finishing.mode: pr`, others `merge-local`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
+`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one wants `finishing.mode: pr`, others `merge-local`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
 
 Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline. No gitignore entry needed.
 

@@ -114,7 +114,6 @@ Output format:
 - **Test status:** <test_status or "n/a">
 - **ADRs created in this run:** <count>
 - **Validation:** ok | issues: <list of issues>
-- **Preflight worktree:** <worktree_path or "none">
 
 ### Run 2: (if any)
 

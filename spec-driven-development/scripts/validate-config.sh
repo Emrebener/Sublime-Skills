@@ -114,7 +114,7 @@ context_keys = ["constitution_path", "architecture_path", "glossary_path", "doma
 known_blocks = {
     "paths": {"spec_dir", "adr_dir", "handoff_dir"},
     "context": set(context_keys),
-    "preflight": {"branch_pattern", "use_worktree"},
+    "preflight": {"branch_pattern"},
     "grill": {"question_cap"},
     "memory_file": {"path", "character_limit"},
     "finishing": {"mode", "merge_target", "delete_branch_after_merge", "test_command", "pr_command", "pr_body_template"},
@@ -219,12 +219,6 @@ elif not isinstance(v, str) or not v.strip():
     fail(f"preflight.branch_pattern: must be a non-empty string, got {v!r}")
 elif "{short-name}" not in v:
     warn(f"preflight.branch_pattern does not contain {{short-name}} placeholder: {v!r}")
-
-v = get("preflight", "use_worktree")
-if v == "__MISSING__":
-    fail("preflight.use_worktree: missing")
-elif not isinstance(v, bool):
-    fail(f"preflight.use_worktree: must be a boolean, got {type(v).__name__}")
 
 # ── grill block ────────────────────────────────────────────────────
 v = get("grill", "question_cap")
@@ -383,7 +377,7 @@ declare_required() {
 
 declare_required paths spec_dir adr_dir handoff_dir
 declare_required context constitution_path architecture_path glossary_path domain_path design_path
-declare_required preflight branch_pattern use_worktree
+declare_required preflight branch_pattern
 declare_required grill question_cap
 declare_required memory_file path character_limit
 declare_required finishing mode merge_target delete_branch_after_merge test_command pr_command pr_body_template

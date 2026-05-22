@@ -115,9 +115,6 @@
       "required": ["original_branch"],
       "additionalProperties": false,
       "properties": {
-        "worktree_path": {
-          "type": ["string", "null"]
-        },
         "original_branch": {
           "type": "string"
         }

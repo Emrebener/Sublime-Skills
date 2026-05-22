@@ -19,7 +19,7 @@ You are the fixer subagent. The tester ran feature-level tests and reported spec
 
 - `FAILURES` — the failure list from the tester, verbatim. Each failure includes: story, scenario (Given/When/Then), expected, actual, likely location (file:line hint), reproduction (exact commands or browser steps).
 - `BRANCH` — feature branch name
-- `WORKING_DIR` — repo root or worktree path
+- `WORKING_DIR` — repo root
 
 ## Hard Rules
 

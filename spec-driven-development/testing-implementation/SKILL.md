@@ -97,7 +97,7 @@ Dispatch a **fresh** subagent with `./fixer-prompt.md`. Fill placeholders:
 
 - `{FAILURES}` — the failure list returned by the tester, verbatim (one block per failure with: story, scenario, expected, actual, likely location, reproduction)
 - `{BRANCH}` — current branch name
-- `{WORKING_DIR}` — repo root or worktree path
+- `{WORKING_DIR}` — repo root
 
 The fixer's role is implementation-only — fix the listed issues, commit, return.
 

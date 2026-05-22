@@ -1,13 +1,13 @@
 ---
 name: finishing-sdd
-description: Use during the finishing stage of an SDD pipeline run, after implementation (and optional testing and handoff generation) are complete. Closes the run — merge, PR, keep, or discard — honoring any user config, then cleans up the state file and removes worktrees we created.
+description: Use during the finishing stage of an SDD pipeline run, after implementation (and optional testing and handoff generation) are complete. Closes the run — merge, PR, keep, or discard — honoring any user config, then cleans up the state file.
 ---
 
 # Finishing SDD
 
 ## Overview
 
-Close out an SDD run. Default is interactive (4 options); config can short-circuit to a single mode. After the chosen action: clean up worktree (if preflight created one), delete the state file (work is done).
+Close out an SDD run. Default is interactive (4 options); config can short-circuit to a single mode. After the chosen action: delete the state file (work is done).
 
 **Core principle:** Verify before integrating. Confirm destructive actions explicitly. Restore what we displaced.
 
@@ -18,18 +18,15 @@ Close out an SDD run. Default is interactive (4 options); config can short-circu
 - Do NOT proceed if implementation (or testing, if it was run) is in an unresolved failing state
 - Do NOT discard work without typed confirmation
 - Do NOT force-push, drop branches the user didn't ask to drop, or rewrite history
-- Do NOT clean up a worktree we didn't create (provenance check via state file)
-- Do NOT silently ignore worktree cleanup if `preflight.worktree_path` is non-null
 
 ## Checklist
 
 1. Verify pre-finish state (tests pass, no unresolved failures)
-2. Detect environment (normal repo, worktree, detached HEAD)
+2. Determine target branch
 3. Determine mode (config override OR interactive prompt)
 4. Execute chosen action
-5. Clean up worktree if we created one
-6. Delete state file
-7. Report
+5. Delete state file
+6. Report
 
 ## Step 1: Verify Pre-Finish State
 
@@ -72,17 +69,11 @@ Run the project's primary test command one more time as a sanity check.
 
 If the chosen command fails, halt and report failures. Don't offer finishing options until tests pass (or user explicitly says "I know, finish anyway").
 
-## Step 2: Detect Environment
+## Step 2: Determine Target Branch
 
 ```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
 BRANCH=$(git branch --show-current)
 ```
-
-- `GIT_DIR == GIT_COMMON` → normal repo
-- `GIT_DIR != GIT_COMMON`, on a named branch → linked worktree (named)
-- `GIT_DIR != GIT_COMMON`, detached HEAD → linked worktree (detached) — uncommon
 
 Determine `BASE_BRANCH` (the merge target). Default `main`; check `.sublime-skills/config.yml` → `finishing.merge_target`. Confirm with user if uncertain.
 
@@ -112,9 +103,6 @@ For modes other than `prompt`, still confirm with user once: "Finishing mode is 
 ### Option 1 — Merge Locally
 
 ```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-cd "$MAIN_ROOT"
-
 # Merge first; verify before removing anything
 git checkout "$BASE_BRANCH"
 git pull
@@ -133,7 +121,7 @@ If the merge succeeded, sanity-test on the merged result:
 
 If tests fail on the merged result: STOP. Don't delete anything; let user resolve.
 
-If tests pass: proceed to cleanup (Step 5+). Delete the feature branch only if config says so (`delete_branch_after_merge: true` is the default):
+If tests pass: proceed to Step 5 (delete state file). Delete the feature branch only if config says so (`delete_branch_after_merge: true` is the default):
 
 ```bash
 git branch -d "$BRANCH"
@@ -166,7 +154,7 @@ docs/specs/NNN-<short-name>/spec.md
 docs/specs/NNN-<short-name>/plan.md
 ```
 
-**Do NOT clean up the worktree for Option 2** — user needs it alive for PR iteration. The state file deletion still happens (work is complete from SDD's perspective; further iteration is normal git work).
+The state file deletion still happens (work is complete from SDD's perspective; further iteration is normal git work).
 
 ### Option 3 — Keep As-Is
 
@@ -181,41 +169,16 @@ Skip Step 5+ — branch stays as-is, state file kept.
 Require typed confirmation: `discard`.
 
 ```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-cd "$MAIN_ROOT"
 git checkout "$BASE_BRANCH"
 ```
 
-Proceed to Step 5+ cleanup, then force-delete branch:
+Proceed to Step 5, then force-delete branch:
 
 ```bash
 git branch -D "$BRANCH"
 ```
 
-## Step 5: Worktree Cleanup
-
-Only runs for Option 1 or Option 4. Read state file's `preflight.worktree_path`.
-
-```bash
-GIT_DIR=$(cd "$(git rev-parse --git-dir)" && pwd -P)
-GIT_COMMON=$(cd "$(git rev-parse --git-common-dir)" && pwd -P)
-WORKTREE_PATH=$(git rev-parse --show-toplevel)
-```
-
-**If `GIT_DIR == GIT_COMMON`:** Normal repo, no worktree. Skip.
-
-**If worktree path is under `.worktrees/` AND state file's `preflight.worktree_path` matches:** We created it; we own cleanup.
-
-```bash
-MAIN_ROOT=$(git -C "$(git rev-parse --git-common-dir)/.." rev-parse --show-toplevel)
-cd "$MAIN_ROOT"
-git worktree remove "$WORKTREE_PATH"
-git worktree prune
-```
-
-**Otherwise:** The worktree is harness-managed or user-managed. Don't touch it.
-
-## Step 6: Delete State File
+## Step 5: Delete State File
 
 For Options 1, 2, and 4 — work is done from SDD's perspective. Delete the state file:
 
@@ -227,14 +190,13 @@ Commit the deletion (matters for Options 1 and 2 — keeps the spec dir clean in
 
 For Option 3 — keep state file.
 
-## Step 7: Report
+## Step 6: Report
 
 ```
 SDD run complete.
 - Action: merge-local | pr | keep | discard
 - Branch: <name>
 - PR: <url> (if applicable)
-- Worktree cleaned: yes | no
 - State file: deleted | kept
 ```
 
@@ -242,12 +204,8 @@ SDD run complete.
 
 | Mistake | Fix |
 |---|---|
-| Cleaning up the worktree for Option 2 | User needs it for PR iteration — keep it |
-| Cleaning up worktrees we didn't create | Provenance check: only cleanup `.worktrees/<branch>` paths that match state file's `worktree_path` |
 | Deleting state file for Option 3 | Option 3 means "work continues" — keep state |
 | Trying to restore a preflight stash | Preflight no longer stashes (it aborts on dirty files). If you see `preflight.stash_ref` in an old state file, ignore it — the field is deprecated. |
-| Running `git worktree remove` from inside the worktree | `cd` to main repo root first |
-| Deleting feature branch before removing worktree | `git branch -d` fails if a worktree references the branch — remove worktree first |
 | Force-push to main as part of "merge" | Never; only `git merge` on the base branch, never `git push --force` to the base |
 
 ## Red Flags
@@ -255,8 +213,6 @@ SDD run complete.
 - About to `git push --force` anywhere → STOP
 - About to `git branch -D` without typed `discard` confirmation → STOP
 - Tests failing on the merge result → STOP; let user resolve
-- About to remove a worktree path not in our state file → STOP
-- About to delete the state file while a worktree is still active and being used by something else → STOP; verify worktree cleanup is genuinely complete first
 
 ## Config Schema
 

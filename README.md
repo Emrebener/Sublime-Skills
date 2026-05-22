@@ -114,8 +114,7 @@ inappropriate (develop / release / random non-SDD branch), the skill
 aborts and tells the user to clean up manually before re-invoking. Only
 proceeds when on `main`/`master` (creates a feature branch from there),
 or on a feature-like branch that has a matching active SDD state file
-(resume case). Optionally creates a `.worktrees/<branch>` worktree when
-configured.
+(resume case).
 
 #### [discovering-requirements](spec-driven-development/discovering-requirements/)
 
@@ -281,12 +280,10 @@ failure when separable, grouped by root cause when shared.
 
 #### [finishing-sdd](spec-driven-development/finishing-sdd/)
 
-Final stage. Verifies tests pass one more time, detects environment
-(normal repo vs worktree vs detached HEAD), presents 4 options
+Final stage. Verifies tests pass one more time, presents 4 options
 (merge-local / PR / keep-as-is / discard — discard requires typed
 confirmation) or short-circuits to a single mode based on
-`.sublime-skills/config.yml`. Executes the choice, cleans up worktrees that
-preflight created (provenance-checked via state file), and deletes the
+`.sublime-skills/config.yml`. Executes the choice and deletes the
 state file (the spec, plan, ADRs, handoff doc, and git history are the
 durable record).
 

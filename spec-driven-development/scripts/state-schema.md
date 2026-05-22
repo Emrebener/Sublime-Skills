@@ -25,7 +25,7 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 | `current_stage` | string | One of the enum values in the Stage Name Mapping table below. |
 | `stages_completed` | array of strings | Stages finished successfully, in chronological order. Each value from the Stage Name Mapping table's "stages_completed entry" column. |
 | `stages_skipped` | array of strings | Stages user opted to skip (only the four optional stages can appear here). |
-| `preflight` | object | `{ "worktree_path": string|null, "original_branch": string }`. Captured from Stage 0 outputs. |
+| `preflight` | object | `{ "original_branch": string }`. Captured from Stage 0 outputs. |
 | `tasks` | object | `{ "T###": "pending" | "in_progress" | "completed" }`. Empty `{}` before Stage 12 initializes it. |
 
 ## Optional fields (present after specific stages advance)
@@ -121,7 +121,6 @@ This is a typical state during Stage 12 with 3 tasks done, 1 in progress, 3 pend
   ],
   "stages_skipped": ["spec_grill", "spec_second_review", "plan_second_review"],
   "preflight": {
-    "worktree_path": null,
     "original_branch": "main"
   },
   "adr_results": [

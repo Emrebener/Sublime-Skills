@@ -100,7 +100,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 **Current branch:** ...
 
 ### Run 1: <feature_id>
-- Path, short_name, started, updated, branch, **branch match with current (yes|no)**, current_stage, stages_completed/skipped, tasks summary, test_status, ADR count, validation status, preflight worktree
+- Path, short_name, started, updated, branch, **branch match with current (yes|no)**, current_stage, stages_completed/skipped, tasks summary, test_status, ADR count, validation status
 
 ### Pre-State Interruption Signals (if applicable)
 
@@ -132,15 +132,14 @@ The "Branch match with current" field per run lets the coordinator route correct
 | Clean + on feature-like branch + no matching state | ABORT — `ambiguous_branch` |
 | Clean + on `develop`/`release/*`/`hotfix/*` | ABORT — `protected_branch` |
 | Clean + on any other branch | ABORT — `ambiguous_branch` |
-| Worktree config'd but creation fails | ABORT — `worktree_creation_failed` |
 
 **Key rules:**
 - No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout` to escape an inappropriate branch. Just abort.
 - Branch naming default: `feat/<short-name>` (or `fix/<short-name>` for bug fixes). Overridable via `.sublime-skills/config.yml` → `preflight.branch_pattern`.
 
 **Reads:** git state
-**Writes:** at most one new branch via `git checkout -b`; possibly a worktree
-**State file:** does not yet exist; outputs (branch, worktree path, original branch) are returned to the coordinator for in-memory holding
+**Writes:** at most one new branch via `git checkout -b`
+**State file:** does not yet exist; outputs (branch, original branch) are returned to the coordinator for in-memory holding
 
 **Returns on success:**
 
@@ -148,7 +147,6 @@ The "Branch match with current" field per run lets the coordinator route correct
 Preflight complete.
 - Branch: feat/user-auth (created from main) | (resumed)
 - Original branch: main
-- Worktree: none | .worktrees/feat-user-auth
 - Working tree: clean
 - Status: ready
 ```
@@ -158,7 +156,7 @@ Preflight complete.
 ```
 Preflight aborted.
 - Status: aborted_at_preflight
-- Reason: dirty_working_tree | ambiguous_branch | protected_branch | worktree_creation_failed | user_declined
+- Reason: dirty_working_tree | ambiguous_branch | protected_branch | user_declined
 - Message: <user-facing message>
 ```
 
@@ -770,19 +768,16 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 
 **4 options (when interactive):**
 
-| Option | Action | Worktree cleanup | State file | Branch deletion |
-|---|---|---|---|---|
-| 1. Merge locally | Checkout base, merge, test merged result | Yes (if we created it) | Deleted | Yes (if config) |
-| 2. Push + PR | Push + run PR command | NO (user needs it for iteration) | Deleted | No |
-| 3. Keep as-is | Leave everything | No | Kept | No |
-| 4. Discard | Typed `discard` confirmation; force-delete branch | Yes | Deleted | Yes (force) |
-
-**Worktree cleanup provenance check:** only cleans up worktrees under `.worktrees/<branch>` whose path matches `preflight.worktree_path` in the state file. Harness-managed worktrees are never touched.
+| Option | Action | State file | Branch deletion |
+|---|---|---|---|
+| 1. Merge locally | Checkout base, merge, test merged result | Deleted | Yes (if config) |
+| 2. Push + PR | Push + run PR command | Deleted | No |
+| 3. Keep as-is | Leave everything | Kept | No |
+| 4. Discard | Typed `discard` confirmation; force-delete branch | Deleted | Yes (force) |
 
 **Hard rules:**
 - No `git push --force` anywhere
 - No branch deletion without typed confirmation for Discard
-- Cleanup respects worktree provenance
 
 ---
 
@@ -927,7 +922,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 Examples:
 - `./scripts/get-config-value.sh finishing test_command` → `"make test"`
-- `./scripts/get-config-value.sh preflight use_worktree` → `"true"`
+- `./scripts/get-config-value.sh preflight branch_pattern` → `"feat/{short-name}"`
 - `./scripts/get-config-value.sh grill question_cap` → `"15"`
 - `./scripts/get-config-value.sh memory_file character_limit` → `"40000"`
 

@@ -114,7 +114,7 @@ Dispatch a fresh subagent with the prompt at `./implementer-prompt.md`. Fill in 
 - `{CONTEXT}` — scene-setting (story, dependencies, architectural notes)
 - `{SPEC_PATH}` — `docs/specs/NNN-<short-name>/spec.md`
 - `{PLAN_PATH}` — `docs/specs/NNN-<short-name>/plan.md`
-- `{WORKING_DIR}` — repo root or worktree path
+- `{WORKING_DIR}` — repo root
 
 The implementer subagent uses the `implementing-task` skill for protocol and produces: implementation, tests, commits, self-review, status report.
 

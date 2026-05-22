@@ -10,7 +10,7 @@
 #
 # Example:
 #   ./scripts/get-config-value.sh finishing test_command
-#   ./scripts/get-config-value.sh preflight use_worktree
+#   ./scripts/get-config-value.sh preflight branch_pattern
 #   ./scripts/get-config-value.sh grill question_cap
 #
 # If [config-path] is supplied, the sibling overlay path is derived by

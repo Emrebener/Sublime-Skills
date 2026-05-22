@@ -182,11 +182,6 @@ preflight:
   # `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
-  # If true, work happens in .worktrees/<sanitized-branch>/ rather than
-  # the main checkout. Lets you continue unrelated work in the main
-  # checkout while an SDD run is in progress.
-  use_worktree: false
-
 # ── Grill (Stage 4) ─────────────────────────────────────────────────
 grill:
   # Soft cap on questions per grill session. Hard ceiling is 20 even
@@ -258,10 +253,9 @@ Alongside `config.yml`, the bootstrap also creates an empty `.sublime-skills/con
 
 ```yaml
 # .sublime-skills/config-local.yml — per-developer overrides
-preflight:
-  use_worktree: true
 finishing:
   mode: pr
+  merge_target: develop
 ```
 
 The other keys (paths, context, grill, memory_file, the rest of preflight + finishing) fall through to `config.yml`'s values.
@@ -300,15 +294,6 @@ finishing:
 finishing:
   mode: leave
 ```
-
-**Use worktrees:**
-
-```yaml
-preflight:
-  use_worktree: true
-```
-
-(The skill will verify `.worktrees/` is gitignored before creating one. If it's not, the skill adds it to `.gitignore` and commits before proceeding.)
 
 **Custom paths:**
 
@@ -433,7 +418,6 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
     "plan_second_review"
   ],
   "preflight": {
-    "worktree_path": null,
     "original_branch": "main"
   },
   "adr_results": [

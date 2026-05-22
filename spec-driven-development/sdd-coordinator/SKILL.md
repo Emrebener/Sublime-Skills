@@ -137,11 +137,11 @@ If a stage fails (subagent returns Issues Found, validator fails, etc.): handle 
 
 ### Stage 0 — Preflight
 
-Load `preflight-checks`. Pass it the `inspecting-state` report from Step 1. It validates `.sublime-skills/config.yml` first (HALT-on-fail with reason `config_missing` or `config_invalid`), then runs all remaining pre-pipeline halt checks (dirty workspace, detached HEAD with state, protected/ambiguous branch), then handles branch creation and optional worktree. State file does NOT yet exist; hold preflight outcomes (branch, worktree path, original branch) in-memory for `writing-specs` to persist in Stage 2.
+Load `preflight-checks`. Pass it the `inspecting-state` report from Step 1. It validates `.sublime-skills/config.yml` first (HALT-on-fail with reason `config_missing` or `config_invalid`), then runs all remaining pre-pipeline halt checks (dirty workspace, detached HEAD with state, protected/ambiguous branch), then handles branch creation. State file does NOT yet exist; hold preflight outcomes (branch, original branch) in-memory for `writing-specs` to persist in Stage 2.
 
 After preflight returns ready, the config is known-valid and you can use `scripts/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
 
-On any abort (`config_missing` / `config_invalid` / `dirty_working_tree` / `detached_head_with_state` / `protected_branch` / `ambiguous_branch` / `worktree_creation_failed` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
+On any abort (`config_missing` / `config_invalid` / `dirty_working_tree` / `detached_head_with_state` / `protected_branch` / `ambiguous_branch` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
 
 ### Stage 1 — Discovering Requirements
 
