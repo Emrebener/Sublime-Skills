@@ -7,7 +7,7 @@ description: Use as an INLINE skill (NOT a dispatched subagent) loaded by bootst
 
 ## Overview
 
-You are loaded **inline** by `bootstrapping-project` (via the Skill tool, NOT dispatched as a subagent). Constitution principles are a mix of two things — codified rules already living in the project (linters, CI gates, security configs, source patterns) and intent the user holds in their head ("we never deploy on Fridays", "explicit failure beats silent fallbacks"). The code can show the first kind; only the user can confirm the second. So this skill stays in the coordinator's context and has a real conversation.
+You are loaded **inline** by `bootstrapping-project` (NOT dispatched as a subagent). Constitution principles are a mix of two things — codified rules already living in the project (linters, CI gates, security configs, source patterns) and intent the user holds in their head ("we never deploy on Fridays", "explicit failure beats silent fallbacks"). The code can show the first kind; only the user can confirm the second. So this skill stays in the coordinator's context and has a real conversation.
 
 **Key principle:** Constitution principles must be either *observed* in the codebase OR *explicitly stated* by the user. If a principle can't be cited to one of those two sources, drop it. Don't propose universal truisms ("write good code"), don't pad to hit a quota.
 
@@ -24,11 +24,11 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 
 ## Hard Gates
 
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
+- ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask. The user reads one thing, decides one thing, moves on.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text input is reserved for genuinely open prompts (project-specific intent principles, alias notes, etc.).
 - Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed constitution — text only.
-- Do NOT dispatch subagents (`Task` / `Agent` tool). You're inline — you do the work.
+- Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT propose principles unsupported by codebase evidence OR explicit user input. Every principle traces to one or the other.
 - Do NOT exceed 7 principles in the final draft — fewer load-bearing ones beat a long list.
 - Do NOT include universal truisms ("write good code", "be consistent") — project-specific only.

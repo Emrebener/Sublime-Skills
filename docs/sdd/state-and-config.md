@@ -324,7 +324,7 @@ paths:
 ```yaml
 memory_file:
   path: "CLAUDE.md"        # or AGENTS.md, GEMINI.md, .agents.md, or absolute path
-  character_limit: 40000   # the widely-recommended soft cap for Claude Code
+  character_limit: 40000   # widely-recommended soft cap for agent memory files
 ```
 
 `path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 15 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.

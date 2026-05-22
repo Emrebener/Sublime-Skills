@@ -62,7 +62,7 @@ Stop after one glob per input. If nothing turns up for a given input, proceed wi
 
 **Empty-context case:** if none of these files exist (greenfield project, or one that doesn't capture conventions explicitly), that's a valid state — the review runs against the code itself. Do not halt; do not ask the user to produce convention files. You just won't have anchors for canonical names or stated principles; flag the gap in your candidates if it becomes load-bearing.
 
-Then use the Agent tool with `subagent_type=Explore` to walk the codebase. Don't run a rigid checklist — explore organically and note where *you* feel friction, using the tells above. Apply the deletion test to anything that smells shallow.
+Then dispatch an exploration subagent to walk the codebase. Don't run a rigid checklist — explore organically and note where *you* feel friction, using the tells above. Apply the deletion test to anything that smells shallow.
 
 ### 2. Present candidates
 

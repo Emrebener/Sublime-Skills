@@ -1,9 +1,9 @@
 # Sublime-Skills
 
-A skill family for agent harnesses (Claude Code, Codex, Gemini CLI, etc.).
-Covers spec-driven feature development, project bootstrap, architecture
-review, browser automation, search, and workflow utilities. Designed to be
-adopted by individuals and teams alike.
+A skill family for agent harnesses. Covers spec-driven feature
+development, project bootstrap, architecture review, browser automation,
+search, and workflow utilities. Designed to be adopted by individuals
+and teams alike.
 
 ## Structure
 

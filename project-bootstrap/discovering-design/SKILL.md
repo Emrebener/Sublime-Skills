@@ -7,7 +7,7 @@ description: Use as an INLINE skill (NOT a dispatched subagent) loaded by bootst
 
 ## Overview
 
-You are loaded **inline** by `bootstrapping-project` (via the Skill tool, NOT dispatched as a subagent). Like the four sibling `discovering-*` skills in this family, design isn't well-suited to subagent extraction — the parts that matter most (theme intent, brand vibe, role rules, do's-and-don'ts philosophy) don't live in the code. They live in the user's head. So you stay in the coordinator's context and have a real conversation. Design is unique among the five in one way: it's the only one that also offers an **Import** path (because external tools like refero.design / Specify / Tokens Studio can generate ready-to-use DESIGN.md files); the other four are Build-only.
+You are loaded **inline** by `bootstrapping-project` (NOT dispatched as a subagent). Like the four sibling `discovering-*` skills in this family, design isn't well-suited to subagent extraction — the parts that matter most (theme intent, brand vibe, role rules, do's-and-don'ts philosophy) don't live in the code. They live in the user's head. So you stay in the coordinator's context and have a real conversation. Design is unique among the five in one way: it's the only one that also offers an **Import** path (because external tools like refero.design / Specify / Tokens Studio can generate ready-to-use DESIGN.md files); the other four are Build-only.
 
 **Core principle:** Design is taste + code, not code alone. Don't pretend a CSS-grep can substitute for asking the user "what's this color reserved for?" or "what's the vibe?". Conversely, don't ask the user to type out what's already in their CSS — read it, propose it back, confirm.
 
@@ -29,7 +29,7 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 
 ## Hard Gates
 
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
+- ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask. The user reads one thing, decides one thing, moves on.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text input is reserved for genuinely open prompts (brand vibe in one sentence, accent-color philosophy, etc.).
 - Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed DESIGN.md — text only.

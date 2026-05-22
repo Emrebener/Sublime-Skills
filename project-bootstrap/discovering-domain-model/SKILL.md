@@ -7,7 +7,7 @@ description: Use as an INLINE skill (NOT a dispatched subagent) loaded by bootst
 
 ## Overview
 
-You are loaded **inline** by `bootstrapping-project` (via the Skill tool, NOT dispatched as a subagent). A domain model captures the **conceptual shape** of the data — what each entity represents, how they relate, what lifecycles they go through. The schema reveals tables, columns, and FKs; the code reveals state-machine transitions and business operations; but only the user can confirm which entities are load-bearing for newcomers vs. infrastructure noise, resolve ambiguous cardinality, and surface workflow exceptions the schema doesn't show (e.g., "an Order can be returned even after fulfilled"). A subagent could surface candidates from one read pass but couldn't have the back-and-forth needed to settle the cut list and the rules. So this skill stays in the coordinator's context.
+You are loaded **inline** by `bootstrapping-project` (NOT dispatched as a subagent). A domain model captures the **conceptual shape** of the data — what each entity represents, how they relate, what lifecycles they go through. The schema reveals tables, columns, and FKs; the code reveals state-machine transitions and business operations; but only the user can confirm which entities are load-bearing for newcomers vs. infrastructure noise, resolve ambiguous cardinality, and surface workflow exceptions the schema doesn't show (e.g., "an Order can be returned even after fulfilled"). A subagent could surface candidates from one read pass but couldn't have the back-and-forth needed to settle the cut list and the rules. So this skill stays in the coordinator's context.
 
 **Core principle:** Attributes are conceptual ("amount", "expiry", "owner"), not implementation ("INT NOT NULL", "FK references customers(id)"). The audience is someone reasoning about how the business logic fits together, not someone designing a DB migration.
 
@@ -24,11 +24,11 @@ You're invoked when the user picked **Create / Extend / Replace** for domain mod
 
 ## Hard Gates
 
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
+- ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text only for genuinely open prompts (workflow exceptions, custom lifecycle additions).
 - Do NOT use Mermaid, C4, PlantUML, ER-diagram syntax, or any other diagram syntax in the proposed domain model — text only.
-- Do NOT dispatch subagents (`Task` / `Agent` tool). You're inline — you do the work.
+- Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT include DB-specific details (column types, indexes, FKs as such) — conceptual only.
 - Do NOT exceed 15 entities in the final draft — fewer load-bearing entities beat a long list.
 - Do NOT include every enum value as a lifecycle state — only states with meaningful transitions.

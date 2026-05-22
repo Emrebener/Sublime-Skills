@@ -169,7 +169,7 @@ git commit -m "spec(NNN-short-name): initial draft"
 
 ## Stage 3 — Auto spec-review
 
-**Subagent:** `general-purpose` agent loaded with `reviewing-specs` skill
+**Subagent:** fresh subagent invoking `reviewing-specs`
 **Output:** structured findings report (returned to coordinator)
 
 The coordinator dispatches a fresh subagent with a prompt like:
@@ -177,7 +177,7 @@ The coordinator dispatches a fresh subagent with a prompt like:
 ```
 You are reviewing a spec for the SDD pipeline.
 
-Use the `reviewing-specs` skill via the Skill tool.
+Use the `reviewing-specs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
 CONTEXT_FILES:
@@ -268,7 +268,7 @@ On `yes`: optionally ask the user to specify a focus (e.g., "security implicatio
 
 ## Stage 6 — ADR maintenance
 
-**Subagent:** `general-purpose` agent loaded with `maintaining-adrs` skill
+**Subagent:** fresh subagent invoking `maintaining-adrs`
 **Output:** zero or more new ADR files at `docs/adr/NNNN-<title>.md`, possibly updates to existing ADRs (supersession markers)
 
 The coordinator dispatches with:
@@ -276,7 +276,7 @@ The coordinator dispatches with:
 ```
 You are maintaining ADRs for the SDD pipeline.
 
-Use the `maintaining-adrs` skill via the Skill tool.
+Use the `maintaining-adrs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
 ADR_DIR: docs/adr (or config override)
@@ -379,7 +379,7 @@ git commit -m "plan(NNN-short-name): initial draft"
 
 ## Stage 9 — Auto plan-review
 
-**Subagent:** `general-purpose` agent loaded with `reviewing-plans` skill
+**Subagent:** fresh subagent invoking `reviewing-plans`
 **Output:** structured findings report
 
 Same pattern as Stage 3. The subagent runs detection passes specific to plans:
@@ -515,7 +515,7 @@ On `yes`:
 
 ## Stage 14 — Generate handoff (optional, user-gated)
 
-**Subagent:** `general-purpose` agent loaded with `generating-handoff` skill
+**Subagent:** fresh subagent invoking `generating-handoff`
 **Output:** `docs/handoff/YYYY-MM-DD-<short-title>.md`
 
 The coordinator asks:
@@ -533,7 +533,7 @@ Dispatch:
 ```
 You are generating the handoff document for the SDD pipeline.
 
-Use the `generating-handoff` skill via the Skill tool.
+Use the `generating-handoff` skill.
 
 STATE_PATH: docs/specs/NNN-<short-name>/state.json
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
@@ -575,7 +575,7 @@ Record the handoff path in state file under `handoff_path` (absolute path if out
 
 ## Stage 15 — Maintain memory file (optional, user-gated)
 
-**Subagent:** `general-purpose` agent loaded with `maintaining-memory-file` skill
+**Subagent:** fresh subagent invoking `maintaining-memory-file`
 **Output:** possibly an updated agent memory file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents.md`); often, no update
 
 Most features don't change project-level truth. This stage exists because when they DO, keeping the memory file in sync is a real, valuable chore that's tedious to do manually — and a stale memory file actively misleads future agents.

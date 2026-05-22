@@ -1,9 +1,9 @@
 # Sublime-Skills
 
-A skill family for agent harnesses (Claude Code, Codex, Gemini CLI, etc.),
-grouped into category directories. Each skill lives in its own directory
-with a `SKILL.md`; this file summarizes what each one does. Designed to be
-adopted by individuals and teams alike.
+A skill family for agent harnesses, grouped into category directories.
+Each skill lives in its own directory with a `SKILL.md`; this file
+summarizes what each one does. Designed to be adopted by individuals
+and teams alike.
 
 ## Skills
 
@@ -36,6 +36,19 @@ A set of plain CLI scripts covering:
   key presses, tabs, dialogs, file uploads.
 - **Debugging** — console and network capture, performance traces,
   page-content extraction, screenshots.
+
+### [restrict-git-commands](workflow/restrict-git-commands/)
+
+A baseline policy preventing destructive git operations (`push`,
+`reset --hard`, `clean -f`, `branch -D`, `checkout .` / `restore .`) from
+being run without explicit user authorization. Works via instruction —
+load the skill at session start (or whenever about to run git commands)
+and the agent commits to asking before any irreversible operation, with
+the exact command and consequence named in each ask. A reference Claude
+Code `PreToolUse` hook script is bundled at
+`workflow/restrict-git-commands/scripts/block-dangerous-git.sh` as an
+optional drop-in for users who want deterministic harness-level
+enforcement on top of the instruction layer.
 
 ### [web-search](web-utilities/web-search/)
 
@@ -338,8 +351,8 @@ troubleshooting), see [`docs/bootstrap.md`](docs/bootstrap.md).
 
 The coordinator. Walks the user through each convention file: detect
 existing → ask `Skip / Extend / Replace` (or Create if missing) →
-load the matching `discovering-<topic>` skill inline (via the Skill
-tool) → the skill handles its own scan, conversation, and atomic write.
+load the matching `discovering-<topic>` skill inline → the skill
+handles its own scan, conversation, and atomic write.
 Then creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub
 READMEs; copies the canonical config scaffold at
 `project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
@@ -349,7 +362,7 @@ READMEs; copies the canonical config scaffold at
 #### [discovering-constitution](project-bootstrap/discovering-constitution/), [discovering-architecture](project-bootstrap/discovering-architecture/), [discovering-glossary](project-bootstrap/discovering-glossary/), [discovering-domain-model](project-bootstrap/discovering-domain-model/)
 
 Per-artifact inline conversational skills — loaded into the coordinator's
-own context via the Skill tool (NOT dispatched as subagents). Each does
+own context (NOT dispatched as subagents). Each does
 a silent code scan (per-skill targets: linter / CI / source patterns for
 the constitution; build files and infra config for the architecture;
 source identifiers and inline comments for the glossary; schemas and

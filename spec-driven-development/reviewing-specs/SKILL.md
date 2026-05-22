@@ -17,9 +17,9 @@ Independent fresh-eyes review of a spec document before it's locked in for plan-
 
 ## Hard Gates
 
-- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
-- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
-- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+- Do NOT use todo/task tools. The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools. Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents. You are a leaf skill.
 
 ## What You Get From the Coordinator
 

@@ -59,7 +59,7 @@ memory_file:
 
   # Soft cap on memory file size in characters. The skill warns at 90%
   # of this value and refuses to push past 100% (must prune first).
-  # 40000 is the widely-recommended Claude Code ceiling.
+  # 40000 is a widely-recommended ceiling for agent memory files.
   character_limit: 40000
 
 # ── Finishing (Stage 16) ────────────────────────────────────────────

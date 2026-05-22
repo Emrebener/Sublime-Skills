@@ -7,7 +7,7 @@ description: Use as the entry point for spec-driven feature development. Drives 
 
 ## Overview
 
-You are the coordinator for a spec-driven development run. You hold the workflow's shape; you delegate the work. Each stage either runs inline (via a phase-skill loaded with the Skill tool) or is dispatched to a subagent (via the Task / Agent tool).
+You are the coordinator for a spec-driven development run. You hold the workflow's shape; you delegate the work. Each stage either runs inline (via a phase-skill loaded by your harness) or is dispatched to a subagent.
 
 **Core principle:** You are a thin state machine + dispatcher. All real work happens in phase-skills or subagents. Your job is to know what stage we're in, dispatch the right thing, update state, advance.
 
@@ -19,8 +19,8 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 - Do NOT perform halt checks (config validation, git workspace, branch state, detached HEAD) inline — that's `preflight-checks`'s job. Stage 0 owns every pre-pipeline halt.
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the pipeline. Build the initial list right after the resume-check (Step 2 below), in Step 3: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
+- ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
+- ALWAYS use the harness's todo/task tool to track progress through the pipeline. Build the initial list right after the resume-check (Step 2 below), in Step 3: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
@@ -53,7 +53,7 @@ This is the very first thing to do, every time the coordinator is invoked. Skipp
 
 ### Step 1: Run inspecting-state
 
-Load `inspecting-state` via the Skill tool. It runs `scripts/discover-context.sh`, reads every active state file, validates against `scripts/state-schema.json`, and reports current branch + per-state branch match + pre-state interruption signals. **You do not perform state detection inline.**
+Load `inspecting-state` via your harness's skill mechanism. It runs `scripts/discover-context.sh`, reads every active state file, validates against `scripts/state-schema.json`, and reports current branch + per-state branch match + pre-state interruption signals. **You do not perform state detection inline.**
 
 ### Step 2: Decide Based on the Report
 
@@ -166,7 +166,7 @@ git commit -m "spec(NNN-short-name): initial draft"
 
 ### Stage 3 — Auto Spec-Review
 
-Dispatch a `general-purpose` subagent. Prompt includes: `SPEC_PATH`, `CONTEXT_FILES` (constitution + ADRs + architecture + glossary paths that exist), `REVIEW_FOCUS: first-pass`, and "Use the `reviewing-specs` skill."
+Dispatch a fresh subagent. Prompt includes: `SPEC_PATH`, `CONTEXT_FILES` (constitution + ADRs + architecture + glossary paths that exist), `REVIEW_FOCUS: first-pass`, and "Use the `reviewing-specs` skill."
 
 Process findings via `receiving-review-findings` (load it inline). It handles evaluate/fix/push-back/escalate, including the cap-2 fix-loop escalation protocol.
 
@@ -189,7 +189,7 @@ If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVI
 
 ### Stage 6 — ADR Maintenance
 
-Dispatch a `general-purpose` subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (from config `paths.adr_dir` or default), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `maintaining-adrs` skill."
+Dispatch a fresh subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (from config `paths.adr_dir` or default), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `maintaining-adrs` skill."
 
 If ADRs were created or superseded, commit them and record `adr_results` in state. Zero ADRs is a valid outcome.
 
@@ -271,7 +271,7 @@ If no: add `handoff` to `stages_skipped`. Advance to Stage 15.
 
 If yes, resolve `HANDOFF_DIR`: read `paths.handoff_dir` from config. If it starts with `/` or `~`, treat as absolute (expand `~`); set `OUTSIDE_REPO=true` if the resolved path falls outside `git rev-parse --show-toplevel`. Otherwise repo-relative, `OUTSIDE_REPO=false`.
 
-Dispatch a `general-purpose` subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, `OUTSIDE_REPO`, and "Use the `generating-handoff` skill."
+Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, `OUTSIDE_REPO`, and "Use the `generating-handoff` skill."
 
 After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT commit. Otherwise:
 
@@ -295,7 +295,7 @@ If yes, resolve `CHARACTER_LIMIT` from `memory_file.character_limit` (default 40
 
 Read `EXISTING_CONTENT` from `MEMORY_FILE_PATH` (empty string if file doesn't exist yet but a path is configured).
 
-Dispatch a `general-purpose` subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT`, `EXISTING_CONTENT`, and "Use the `maintaining-memory-file` skill."
+Dispatch a fresh subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT`, `EXISTING_CONTENT`, and "Use the `maintaining-memory-file` skill."
 
 The subagent returns one of:
 - **updated** — memory file was written. Commit it:
@@ -315,14 +315,14 @@ Load `finishing-sdd`. Follow it. After finishing: SDD run is done.
 
 ## Loading Skills
 
-Use the Skill tool with the skill name. Example: `Skill(skill="writing-specs")`. If installed under a namespace (e.g., `spec-driven-development:writing-specs`), use the namespaced name. Load phase-skills only when their stage is active — don't pre-load.
+Load each phase-skill via your harness's skill mechanism, using the skill's name. If installed under a namespace (e.g., `spec-driven-development:writing-specs`), use the namespaced name. Load phase-skills only when their stage is active — don't pre-load.
 
 ## Subagent Dispatch
 
-Use the Task / Agent tool with `subagent_type=general-purpose`. Always:
+Dispatch fresh subagents (no inherited context) via your harness's subagent dispatch mechanism. Always:
 
 - Pass content inline (don't make subagents re-read large files unless necessary)
-- Tell the subagent which skill to use (via Skill tool)
+- Tell the subagent which skill to use
 - Specify the return format expected
 - Never run multiple implementation subagents in parallel — sequential only
 

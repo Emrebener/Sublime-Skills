@@ -50,7 +50,7 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 ## sdd-coordinator
 
 **Type:** Orchestrator (entry point)
-**Loaded:** by the user (via the Skill tool) at the start of every SDD session
+**Loaded:** by the user at the start of every SDD session
 **Stage:** drives all 16 stages
 
 **Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, runs `inspecting-state`, decides whether to start fresh or resume, then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
@@ -800,7 +800,7 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
-2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline via the Skill tool. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
+2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
 3. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs.
 4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
@@ -814,7 +814,7 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 ### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
 
 **Type:** Inline conversational skills
-**Loaded:** by `bootstrapping-project` into its own context via the Skill tool when the per-file loop reaches each slot
+**Loaded:** by `bootstrapping-project` into its own context when the per-file loop reaches each slot
 **Stage:** N/A
 
 **Purpose:** Deep, focused per-file analysis with sustained user interaction. Each skill performs a silent code scan, announces findings, asks targeted questions about things the code can't reveal, drafts the file, runs a tweak loop (cap 3 iterations), and atomically writes itself. The coordinator just records the outcome string.
@@ -1043,7 +1043,7 @@ sdd-coordinator (entry; user-invoked)
 
 project-bootstrap family (outside SDD pipeline; user-invoked manually)
 ├── bootstrapping-project (coordinator)
-│       ↓ loads inline via Skill tool (one per convention file, sequential):
+│       ↓ loads inline (one per convention file, sequential):
 │   ├── discovering-constitution   (inline, conversational)
 │   ├── discovering-architecture   (inline, conversational)
 │   ├── discovering-glossary       (inline, conversational)

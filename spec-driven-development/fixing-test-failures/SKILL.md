@@ -28,9 +28,9 @@ You are the fixer subagent. The tester ran feature-level tests and reported spec
 - **Verify with the tester's reproduction.** A fix isn't done until the exact reproduction the tester provided now passes.
 - **No silent design decisions.** If a fix requires choosing between alternatives the failure doesn't determine, report `NEEDS_CONTEXT` — don't pick silently.
 - **No partial DONE.** If you fixed some failures but not all, status MUST be `BLOCKED` — never claim DONE for a partial fix.
-- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
-- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
-- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+- Do NOT use todo/task tools. The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools. Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents. You are a leaf skill.
 
 ## Checklist
 

@@ -11,7 +11,7 @@ Execute the plan task-by-task. Per task: fresh implementer subagent → spec-com
 
 **Core principle:** Fresh subagent per task (no context pollution) + two-stage review (spec compliance first, then code quality) = high quality, fast iteration.
 
-**Each subagent loads a corresponding skill via the Skill tool:**
+**Each subagent loads a corresponding skill:**
 - Implementer → `implementing-task` skill
 - Spec-compliance reviewer → `reviewing-task-compliance` skill
 - Code-quality reviewer → `reviewing-task-quality` skill
@@ -82,7 +82,7 @@ Set `current_stage: "implementing"` (unconditionally). Write the state file atom
 
 ### 2b. Sync the todo tool
 
-Create one todo per plan task using whichever todo/task tool the current harness provides (e.g., `TodoWrite` in Claude Code's older harness, `TaskCreate` in newer harnesses, `todo` in Codex). Use whichever is available — there's no canonical name across platforms.
+Create one todo per plan task using the harness's todo/task tool.
 
 On resume: if the harness preserved todos from a prior session, reconcile their statuses to match `state.tasks`. If the harness didn't preserve todos, create them fresh and immediately mark `completed`/`in_progress` ones to match the state file.
 
@@ -107,7 +107,7 @@ First, update the state file to mark this task as in progress:
 
 (Atomic write: write to `state.json.tmp`, then `mv`.)
 
-Use the **Task / Agent tool** to dispatch a `general-purpose` subagent with the prompt at `./implementer-prompt.md`. Fill in placeholders:
+Dispatch a fresh subagent with the prompt at `./implementer-prompt.md`. Fill in placeholders:
 
 - `{TASK_ID}`
 - `{TASK_TEXT}` — full task text from the plan
@@ -133,7 +133,7 @@ Never silently ignore a BLOCKED or NEEDS_CONTEXT.
 
 ### 3c. Spec-Compliance Review
 
-Dispatch a `general-purpose` subagent with `./spec-compliance-reviewer-prompt.md`. Fill in:
+Dispatch a fresh subagent with `./spec-compliance-reviewer-prompt.md`. Fill in:
 
 - `{TASK_ID}`
 - `{TASK_TEXT}` — same task text as the implementer received
@@ -174,7 +174,7 @@ Once both reviewers have approved (or only Minor code-quality findings remain):
 
 ## Step 4: Final Review
 
-After every task is complete, dispatch one more `general-purpose` subagent with the same code-quality-reviewer prompt but with:
+After every task is complete, dispatch one more fresh subagent with the same code-quality-reviewer prompt but with:
 
 - `{TASK_ID}` = "final"
 - `{BASE_SHA}` = first commit on this feature branch

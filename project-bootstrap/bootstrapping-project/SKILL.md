@@ -7,7 +7,7 @@ description: Use to set up a project for spec-driven development - walks the use
 
 ## Overview
 
-You are the coordinator for project bootstrap. You hold the workflow's shape. The five convention files (constitution, architecture, glossary, domain, design) are each handled by a dedicated `discovering-<topic>` skill loaded inline into your context via the Skill tool. Each discovering-X skill performs its own code scan, conversation with the user, and atomic write — you don't reach inside its work, you just route to it. After all five files are settled, you copy the config scaffold, edit it to reflect what was actually created, validate it, and commit.
+You are the coordinator for project bootstrap. You hold the workflow's shape. The five convention files (constitution, architecture, glossary, domain, design) are each handled by a dedicated `discovering-<topic>` skill loaded inline into your context. Each discovering-X skill performs its own code scan, conversation with the user, and atomic write — you don't reach inside its work, you just route to it. After all five files are settled, you copy the config scaffold, edit it to reflect what was actually created, validate it, and commit.
 
 **Core principle:** Per-artifact discovery is a back-and-forth with the user, not a one-shot extraction. Code reveals *what*; the user reveals *why*. Each discovering-X skill orchestrates that conversation. Your job is the surrounding workflow (detection, mode choice, config, commit) — not the per-artifact discussion.
 
@@ -26,11 +26,11 @@ You are the coordinator for project bootstrap. You hold the workflow's shape. Th
 - Do NOT regenerate the config YAML from scratch — copy the scaffold verbatim, then Edit specific keys
 - Do NOT commit until `validate-config.sh` passes
 - Do NOT run discovering-X skills in parallel — load them sequentially, one file at a time, so the user can reason about each
-- Do NOT dispatch any discovering-X skill as a subagent (`Task` / `Agent` tool). All five are inline; load them via the Skill tool.
+- Do NOT dispatch any discovering-X skill as a subagent. All five are inline; load them via your harness's skill mechanism.
 - Do NOT bypass a discovering-X skill — even if you "know what the proposal would be," the per-file conversation is the skill's job, not yours.
 - Do NOT overwrite an existing convention file without explicit user direction (Replace mode requires affirmative user choice)
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool (`TodoWrite` in Claude Code's older harness, `TaskCreate` / `TaskUpdate` in newer harnesses, `todo` in Codex, or any harness equivalent) to track progress through the bootstrap. Build the initial list right after Step 1 (Detect): one todo per convention file (constitution, architecture, glossary, domain, design) plus one each for supporting directories, config copy, config edit-to-reflect-reality, validate-config, gitignore, and the final commit. Mark `in_progress` when you start an item and `completed` immediately after — don't batch updates. Bootstrap is short but multi-step, and the user is watching this list to know which file you're working on.
+- ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
+- ALWAYS use the harness's todo/task tool to track progress through the bootstrap. Build the initial list right after Step 1 (Detect): one todo per convention file (constitution, architecture, glossary, domain, design) plus one each for supporting directories, config copy, config edit-to-reflect-reality, validate-config, gitignore, and the final commit. Mark `in_progress` when you start an item and `completed` immediately after — don't batch updates. Bootstrap is short but multi-step, and the user is watching this list to know which file you're working on.
 
 ## Checklist
 
@@ -106,7 +106,7 @@ Record the chosen mode. On **Skip**: continue to the next file.
 
 ### 2c. Load the Matching `discovering-X` Skill Inline
 
-For modes Create, Extend, or Replace, route to the per-file skill via the Skill tool. All five convention files use the same uniform mechanism — no subagent dispatch, ever.
+For modes Create, Extend, or Replace, route to the per-file skill, loading it inline. All five convention files use the same uniform mechanism — no subagent dispatch, ever.
 
 | Convention file | Skill loaded (inline) |
 |---|---|
@@ -118,7 +118,7 @@ For modes Create, Extend, or Replace, route to the per-file skill via the Skill 
 
 **How to load:**
 
-Use the Skill tool to load the matching `discovering-<topic>` skill. Pass these inputs (the skill's documented input convention):
+Load the matching `discovering-<topic>` skill inline (via your harness's skill mechanism). Pass these inputs (the skill's documented input convention):
 
 ```
 Load skill: discovering-<topic>
@@ -217,7 +217,7 @@ Step 5 below still runs unconditionally — it edits specific keys in `config.ym
 
 ## Step 5: Edit Config to Reflect Reality
 
-For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): set the corresponding `context.<name>_path` in `.sublime-skills/config.yml` to `null` via the Edit tool.
+For each convention file the user **skipped** (whether the file existed and they chose Skip, or it didn't exist and they declined to create one): set the corresponding `context.<name>_path` in `.sublime-skills/config.yml` to `null` with a targeted in-place edit (do not regenerate the file).
 
 For each convention file **created/extended/replaced**: if the final path differs from the scaffold default, update the corresponding key to the actual path.
 
@@ -338,7 +338,7 @@ If that happens:
 | Mistake | Fix |
 |---|---|
 | Performing the per-file analysis or discussion in the coordinator | Load the matching discovering-X skill; it owns the scan + conversation. |
-| Dispatching a discovering-X skill as a subagent | All five are inline — load via the Skill tool, never Task/Agent. A subagent dispatch would break the interactive Q&A flow. |
+| Dispatching a discovering-X skill as a subagent | All five are inline — load them in the coordinator's own context. A subagent dispatch would break the interactive Q&A flow. |
 | Running multiple discovering-X skills in parallel | Sequential, one file at a time, so the user can reason about each. |
 | Re-doing the user discussion or write after a discovering-X returns | The skill already discussed + wrote internally — your job is to record the outcome and move on. |
 | Writing convention files directly from the coordinator | The discovering-X skill is the single source of truth for its file's content. |
@@ -353,7 +353,7 @@ If that happens:
 
 - About to load two discovering-X skills in parallel → STOP; sequential only
 - About to do the per-file scan or discussion yourself inline in the coordinator → STOP; that's the discovering-X skill's job
-- About to dispatch a discovering-X via Task/Agent → STOP; all five are inline — Skill tool only
+- About to dispatch a discovering-X as a subagent → STOP; all five are inline — load them in the coordinator's own context
 - About to write a convention file from the coordinator → STOP; the discovering-X skill writes
 - About to commit before `validate-config.sh` passes → STOP
 - About to overwrite an existing file without the user picking Replace → STOP

@@ -7,7 +7,7 @@ description: Use as an INLINE skill (NOT a dispatched subagent) loaded by bootst
 
 ## Overview
 
-You are loaded **inline** by `bootstrapping-project` (via the Skill tool, NOT dispatched as a subagent). A glossary captures the project's canonical vocabulary — domain words that recur across the codebase and have a project-flavored meaning. The code reveals which terms exist and where they appear, but only the user can confirm which ones are load-bearing for a newcomer, whether two names refer to the same thing, and whether a definition lifted from inline comments matches current intent. A subagent could surface candidates from one read pass but couldn't have the back-and-forth needed to settle the cut list. So this skill stays in the coordinator's context.
+You are loaded **inline** by `bootstrapping-project` (NOT dispatched as a subagent). A glossary captures the project's canonical vocabulary — domain words that recur across the codebase and have a project-flavored meaning. The code reveals which terms exist and where they appear, but only the user can confirm which ones are load-bearing for a newcomer, whether two names refer to the same thing, and whether a definition lifted from inline comments matches current intent. A subagent could surface candidates from one read pass but couldn't have the back-and-forth needed to settle the cut list. So this skill stays in the coordinator's context.
 
 **Core principle:** The bar for inclusion is — would someone new to the project misuse this term without a definition? Generic programming terms (function, variable, class) belong in textbooks, not here.
 
@@ -24,11 +24,11 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 
 ## Hard Gates
 
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
+- ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text only for genuinely open prompts (aliases, definition refinements).
 - Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed glossary — text only.
-- Do NOT dispatch subagents (`Task` / `Agent` tool). You're inline — you do the work.
+- Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT propose generic programming terms (function, class, database, API) — domain-specific only.
 - Do NOT exceed 30 terms in the final draft — quality over quantity.
 - Do NOT write definitions longer than 2 sentences each.

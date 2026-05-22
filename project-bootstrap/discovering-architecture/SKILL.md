@@ -7,7 +7,7 @@ description: Use as an INLINE skill (NOT a dispatched subagent) loaded by bootst
 
 ## Overview
 
-You are loaded **inline** by `bootstrapping-project` (via the Skill tool, NOT dispatched as a subagent). Architecture facts come from two places — the code (layout, Dockerfiles, k8s manifests, dependency files, env vars) and the user's head (what's deliberately OUT of scope, why a relationship is N:N rather than 1:N, which integrations are critical-path vs nice-to-have, deployment topology not visible in repo). A subagent could extract the first half from one read pass but couldn't have the back-and-forth needed for the second. So this skill stays in the coordinator's context.
+You are loaded **inline** by `bootstrapping-project` (NOT dispatched as a subagent). Architecture facts come from two places — the code (layout, Dockerfiles, k8s manifests, dependency files, env vars) and the user's head (what's deliberately OUT of scope, why a relationship is N:N rather than 1:N, which integrations are critical-path vs nice-to-have, deployment topology not visible in repo). A subagent could extract the first half from one read pass but couldn't have the back-and-forth needed for the second. So this skill stays in the coordinator's context.
 
 **Core principle:** Architecture is observed, not aspirational. Describe what the code actually is, not what someone wishes it was. If there are clear smells (a service half-extracted, a monolith hiding behind microservice naming), surface them to the user — don't paper over them, don't editorialize either.
 
@@ -24,11 +24,11 @@ You're invoked when the user picked **Create / Extend / Replace** for architectu
 
 ## Hard Gates
 
-- ALWAYS use the harness's interactive question tool (`AskUserQuestion` in Claude Code, or any harness equivalent) for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
+- ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text only for genuinely open prompts (boundaries, non-code facts).
 - Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed file — text only.
-- Do NOT dispatch subagents (`Task` / `Agent` tool). You're inline — you do the work.
+- Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT speculate about architecture that isn't visible in the code OR explicitly stated by the user. No "we should have...", just "what is" or "what the user told me".
 - Do NOT include code snippets longer than 2-3 lines — this is overview, not implementation.
 - Do NOT claim a service exists when only its env var is set. Require SDK import OR docker-compose entry OR k8s manifest, OR the user explicitly confirming it.

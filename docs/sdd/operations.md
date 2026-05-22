@@ -24,7 +24,7 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 
 - **Fresh context per dispatch.** The subagent inherits no conversation history. The coordinator builds the prompt from scratch.
 - **Full content inline, not file paths to re-read.** The coordinator pastes the relevant content (e.g., task text from the plan, file paths from the state) into the prompt rather than making the subagent re-read large files.
-- **Specify the skill to use.** The dispatch prompt names the skill the subagent should invoke via the Skill tool.
+- **Specify the skill to use.** The dispatch prompt names the skill the subagent should invoke.
 - **Specify return format.** The subagent knows what shape of output is expected.
 - **Never dispatch in parallel for the same task or artifact.** Sequential only. Especially for implementers — parallel implementers would conflict.
 
@@ -49,7 +49,7 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 ```
 You are <role> for the SDD pipeline.
 
-Use the `<skill-name>` skill (via the Skill tool) to perform your work.
+Use the `<skill-name>` skill to perform your work.
 
 <INPUTS — filled-in placeholders>
 

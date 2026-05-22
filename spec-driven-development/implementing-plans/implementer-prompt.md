@@ -7,7 +7,7 @@ You are implementing Task {TASK_ID} as part of a larger plan.
 
 ## Sub-Skill
 
-Use the `implementing-task` skill (via the Skill tool) before you begin. It tells you the protocol for this role.
+Use the `implementing-task` skill before you begin. It tells you the protocol for this role.
 
 You are a leaf agent — do NOT dispatch sub-subagents. If you need help, report NEEDS_CONTEXT or BLOCKED; the controller fans out, not you.
 

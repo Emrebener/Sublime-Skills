@@ -28,9 +28,9 @@ Your job: read what this run produced (spec, plan, ADRs), decide whether **anyth
 - Do NOT write narrative ("we built X for Y reason") — agents don't need the story, they need the rules.
 - Do NOT exceed the character cap. If your additions would push the file past the cap, you must either tighten existing content or omit your additions.
 - Do NOT modify any file other than the memory file.
-- Do NOT use todo/task tools (`TodoWrite`, `TaskCreate`, `TaskUpdate`, `TaskList`, or any harness equivalent). The todo list is shared with the controller; your entries pollute it.
-- Do NOT use user-interaction tools (`AskUserQuestion` or harness equivalent). Return findings to the controller; the controller handles user discussion.
-- Do NOT dispatch sub-subagents (`Task` / `Agent` tool). You are a leaf skill.
+- Do NOT use todo/task tools. The todo list is shared with the controller; your entries pollute it.
+- Do NOT use user-interaction tools. Return findings to the controller; the controller handles user discussion.
+- Do NOT dispatch sub-subagents. You are a leaf skill.
 
 ## What You Get From the Coordinator
 

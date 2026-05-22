@@ -11,7 +11,7 @@ Feature-level verification, separate from the per-task unit tests that ran durin
 
 **Core principle:** The coordinator does NOT test itself. If the tester subagent reports MCP unavailability, the coordinator surfaces a manual test plan to the user — it does not improvise.
 
-**Each subagent loads a corresponding skill via the Skill tool:**
+**Each subagent loads a corresponding skill:**
 - Tester → `testing-feature` skill
 - Fixer → `fixing-test-failures` skill
 
@@ -52,7 +52,7 @@ Pass this classification to the tester subagent.
 
 ## Step 2: Dispatch Tester
 
-Use the **Task / Agent tool** to dispatch a `general-purpose` subagent with the prompt at `./tester-prompt.md`. Fill placeholders:
+Dispatch a fresh subagent with the prompt at `./tester-prompt.md`. Fill placeholders:
 
 - `{FEATURE_TYPE}` — UI / backend / library / mixed
 - `{SPEC_PATH}` — for acceptance scenarios
@@ -93,7 +93,7 @@ The tester returns a list of failing scenarios with:
 - What actually happened
 - Where in the code the issue likely lives (file:line if identifiable)
 
-Dispatch a **fresh** general-purpose subagent with `./fixer-prompt.md`. Fill placeholders:
+Dispatch a **fresh** subagent with `./fixer-prompt.md`. Fill placeholders:
 
 - `{FAILURES}` — the failure list returned by the tester, verbatim (one block per failure with: story, scenario, expected, actual, likely location, reproduction)
 - `{BRANCH}` — current branch name
