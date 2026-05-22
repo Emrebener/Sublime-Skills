@@ -112,7 +112,6 @@ if not isinstance(data, dict):
 # Known schema — used both for overlay key-recognition and validation.
 context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path", "design_path"]
 known_blocks = {
-    "paths": {"spec_dir", "adr_dir", "handoff_dir"},
     "context": set(context_keys),
     "branching": {"branch_pattern"},
     "grill": {"question_cap"},
@@ -163,8 +162,13 @@ if os.path.isfile(local_path):
                 merged.update(content)
                 data[block] = merged
 
+# Reject unknown top-level blocks (catches schema drift like a stale paths: block)
+for block in data.keys():
+    if block not in known_blocks:
+        fail(f"unknown top-level block: {block}")
+
 # Required top-level blocks
-required_blocks = ["paths", "context", "branching", "grill", "memory_file"]
+required_blocks = ["context", "branching", "grill", "memory_file"]
 for block in required_blocks:
     if block not in data:
         fail(f"missing top-level block: {block}")
@@ -177,14 +181,6 @@ def get(block, key):
     if isinstance(b, dict):
         return b.get(key, "__MISSING__")
     return "__MISSING__"
-
-# ── paths block ────────────────────────────────────────────────────
-for key in ["spec_dir", "adr_dir", "handoff_dir"]:
-    v = get("paths", key)
-    if v == "__MISSING__":
-        fail(f"paths.{key}: missing")
-    elif not isinstance(v, str) or not v.strip():
-        fail(f"paths.{key}: must be a non-empty string, got {v!r}")
 
 # ── context block ──────────────────────────────────────────────────
 for key in context_keys:
