@@ -8,7 +8,7 @@
 # Source of truth: .sublime-skills/config.yml at the repo root, with
 # .sublime-skills/config-local.yml overlaid per-key when present.
 # - context.<name>_path values name the project's convention files
-# - paths.spec_dir and paths.adr_dir resolve the spec and ADR directories
+# - spec_dir (docs/specs) and adr_dir (docs/adr) are hardcoded (no longer configurable)
 # The script reads ONLY from these files — there is no fallback search. If
 # both are absent or a key is unset in both, the corresponding output is null.
 #
@@ -77,9 +77,9 @@ DESIGN="$(resolve_context_path design_path)"
 README=""
 [ -f "README.md" ] && README="README.md"
 
-# Resolve spec_dir and adr_dir from layered config (no implicit defaults).
-SPEC_DIR="$(read_scalar paths spec_dir)"
-ADR_DIR="$(read_scalar paths adr_dir)"
+# Hardcoded artifact locations (no longer configurable via .sublime-skills/config.yml).
+SPEC_DIR="docs/specs"
+ADR_DIR="docs/adr"
 
 # All ADRs under <adr_dir>/ (sorted by filename for deterministic output).
 # If adr_dir is unset or doesn't exist, the array is empty.
