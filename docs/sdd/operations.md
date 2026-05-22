@@ -32,7 +32,7 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 
 | Stage | What's dispatched | Prompt template |
 |---|---|---|
-| 3, 4 | Spec reviewer | Inline in `sdd-coordinator` (calls `reviewing-specs`) |
+| 3, 5 | Spec reviewer | Inline in `sdd-coordinator` (calls `reviewing-specs`) |
 | 6 | ADR maintainer | Inline in `sdd-coordinator` (calls `maintaining-adrs`) |
 | 9, 10 | Plan reviewer | Inline in `sdd-coordinator` (calls `reviewing-plans`) |
 | 12 (per task) | Implementer | `spec-driven-development/implementing-plans/implementer-prompt.md` (calls `implementing-task`) |
@@ -256,7 +256,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that ends with a commit (Stages 2, 5, 6, 7, 8, 12, 14, 15, 16, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that ends with a commit (Stages 2, 4, 6, 7, 8, 12, 14, 15, 16, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 

@@ -6,7 +6,7 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 
 | Artifact | Path | Producer | Schema validator |
 |---|---|---|---|
-| Spec | `docs/specs/NNN-<short-name>/spec.md` | `writing-specs` (Stage 2), updated by `grilling-specs` (Stage 5) | `validate-spec.sh` |
+| Spec | `docs/specs/NNN-<short-name>/spec.md` | `writing-specs` (Stage 2), updated by `grilling-specs` (Stage 4) | `validate-spec.sh` |
 | Plan | `docs/specs/NNN-<short-name>/plan.md` | `writing-plans` (Stage 8) | `validate-plan.sh` |
 | ADR | `docs/adr/NNNN-<kebab-title>.md` | `maintaining-adrs` (Stage 6) | (no automated validator) |
 | Handoff | `docs/handoff/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 14) | `validate-handoff.sh` |
@@ -128,7 +128,7 @@ Add only when relevant; omit entirely if not (don't leave "N/A"):
 
 ### Auto-managed section (added by the grill)
 
-If a grill session (Stage 5) ran, this section is auto-managed:
+If a grill session (Stage 4) ran, this section is auto-managed:
 
 ```markdown
 ## Clarifications

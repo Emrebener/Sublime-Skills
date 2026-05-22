@@ -14,8 +14,8 @@ This document explains each stage in detail: what runs, what it produces, how fa
 | 1 | Discovering requirements | Inline via `discovering-requirements` | No | No (in-memory only) |
 | 2 | Writing the spec | Inline via `writing-specs` | No | `spec.md`, `state.json` |
 | 3 | Auto spec-review | Subagent via `reviewing-specs` | No | No (returns findings) |
-| 4 | 2nd spec-review | Subagent via `reviewing-specs` | **Yes** | No (returns findings) |
-| 5 | Grill session | Inline via `grilling-specs` | **Yes** | `spec.md` (updates inline) |
+| 4 | Grill session | Inline via `grilling-specs` | **Yes** | `spec.md` (updates inline) |
+| 5 | 2nd spec-review | Subagent via `reviewing-specs` | **Yes** | No (returns findings) |
 | 6 | ADR maintenance | Subagent via `maintaining-adrs` | No | `docs/adr/NNNN-*.md` (zero or more) |
 | 7 | User spec approval | Inline (coordinator) | No | Updates ADR statuses to Accepted |
 | 8 | Writing the plan | Inline via `writing-plans` | No | `plan.md`, `state.json` |
@@ -212,28 +212,7 @@ If the coordinator pushes back on a finding, the rationale is logged in the stat
 
 ---
 
-## Stage 4 — 2nd spec-review (optional, user-gated)
-
-**Subagent:** same as Stage 3, with `REVIEW_FOCUS: second-pass`
-**Output:** structured findings report
-
-The coordinator asks:
-
-> "Spec auto-review passed. Want a second-pass review for extra rigor? (yes/no, default no)"
-
-On `no`: `spec_second_review` is added to `stages_skipped`. Skip to Stage 5.
-
-On `yes`: optionally ask the user to specify a focus (e.g., "security implications", "edge cases", "API design"). Dispatch a fresh `reviewing-specs` subagent with `REVIEW_FOCUS: second-pass — focus on <whatever>`. Process findings via `receiving-review-findings` exactly like Stage 3.
-
-**Why a second pass?** Two reasons:
-1. A different angle catches issues the first pass missed.
-2. The user explicitly chose to invest more rigor — that signal matters; the workflow honors it.
-
-**Why not always run a 2nd pass?** Diminishing returns. For most features the first pass is enough.
-
----
-
-## Stage 5 — Grill session (optional, user-gated)
+## Stage 4 — Grill session (optional, user-gated)
 
 **Skill:** `grilling-specs` (inline)
 **Output:** updated `spec.md` (atomic per-answer save)
@@ -242,7 +221,7 @@ The coordinator asks:
 
 > "Want a grill session to stress-test the spec? It'll ask scoped questions and update the spec inline. (yes/no, default no)"
 
-On `no`: `spec_grill` added to `stages_skipped`. Skip to Stage 6.
+On `no`: `spec_grill` added to `stages_skipped`. Skip to Stage 5.
 
 On `yes`: load `grilling-specs`. The skill:
 
@@ -250,9 +229,9 @@ On `yes`: load `grilling-specs`. The skill:
 2. Builds an internal queue of prioritized questions across categories (goal sharpness, story priority rationale, acceptance testability, FR coverage, SC measurability, entity completeness, edge case depth, constraint rigor, integration risk, constitution/ADR fit, out-of-scope explicitness).
 3. Asks questions one at a time, each with a recommended answer.
 4. **After every accepted answer:**
-   - Adds a Clarifications log entry in the spec
-   - Applies the substance to the appropriate spec section
-   - **Saves the spec immediately (atomic)** so an interruption doesn't lose anything
+   - Always adds a Clarifications log entry in the spec (audit trail and cross-session resume anchor)
+   - Picks a disposition: **Substantive change** (edits the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
+   - **Saves the spec immediately (atomic)** even when only the Clarifications log changed — that's the per-answer durable record that keeps cross-session resume working
 5. Stops when: user says done, all high-impact areas resolved, OR hits the cap (default 10 questions; configurable; hard ceiling 20).
 
 **Why inline (not subagent)?** Grilling is a multi-turn user conversation. Subagents can't have back-and-forth with the user — they take a prompt and return a result. So this stage runs in the coordinator's session.
@@ -263,6 +242,27 @@ On `yes`: load `grilling-specs`. The skill:
 git add docs/specs/NNN-<short-name>/spec.md
 git commit -m "spec(NNN-short-name): grill session updates"
 ```
+
+---
+
+## Stage 5 — 2nd spec-review (optional, user-gated)
+
+**Subagent:** same as Stage 3, with `REVIEW_FOCUS: second-pass`
+**Output:** structured findings report
+
+The coordinator asks:
+
+> "Want a second-pass review for extra rigor? (yes/no, default no)"
+
+On `no`: `spec_second_review` is added to `stages_skipped`. Skip to Stage 6.
+
+On `yes`: optionally ask the user to specify a focus (e.g., "security implications", "edge cases", "API design"). Dispatch a fresh `reviewing-specs` subagent with `REVIEW_FOCUS: second-pass — focus on <whatever>`. Process findings via `receiving-review-findings` exactly like Stage 3.
+
+**Why a second pass?** Two reasons:
+1. A different angle catches issues the first pass missed — especially relevant now that the spec may have been substantively edited in the grill.
+2. The user explicitly chose to invest more rigor — that signal matters; the workflow honors it.
+
+**Why not always run a 2nd pass?** Diminishing returns. For most features the first pass plus the optional grill is enough.
 
 ---
 
@@ -398,7 +398,7 @@ The coordinator processes findings via `receiving-review-findings`. Fix-loop cap
 
 ## Stage 10 — 2nd plan-review (optional, user-gated)
 
-Same pattern as Stage 4. Asked: `"Want a second-pass plan review? (yes/no, default no)"`. If yes, dispatch with `REVIEW_FOCUS: second-pass`.
+Same pattern as Stage 5. Asked: `"Want a second-pass plan review? (yes/no, default no)"`. If yes, dispatch with `REVIEW_FOCUS: second-pass`.
 
 ---
 

@@ -40,7 +40,7 @@ preflight:
   # skill ensures .worktrees/ is gitignored before creating one.
   use_worktree: false
 
-# ── Grill (Stage 5) ─────────────────────────────────────────────────
+# ── Grill (Stage 4) ─────────────────────────────────────────────────
 grill:
   # Soft cap on questions per grill session. Hard ceiling is 20 even with
   # an override.

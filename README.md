@@ -88,7 +88,7 @@ invocation (via `inspecting-state`), resumes interrupted runs, loads
 phase-skills inline for interactive stages, dispatches subagents for
 fresh-context stages (reviews, ADR maintenance, per-task implementation,
 testing, handoff). Holds state updates atomic at stage boundaries, never
-mid-stage. Surfaces user-gated optional stages (2nd review pass, grill,
+mid-stage. Surfaces user-gated optional stages (grill, 2nd review pass,
 feature testing). Critically: never tests the feature itself — if the
 tester subagent reports MCP unavailability, the coordinator surfaces a
 manual test plan rather than improvising.
@@ -141,11 +141,12 @@ both the mandatory first pass and the optional second pass.
 
 Optional bounded grill that interviews the user about weak/unclear/
 underspecified areas of the spec, with a recommended answer per
-question. Every accepted answer is **applied to the spec inline**
-(atomic per-answer save) — the grill is not a pointless interview;
-findings always land. Stop conditions: user signals done, all
-high-impact areas resolved, or hard cap (default 10, configurable, hard
-ceiling 20).
+question. Every accepted answer is logged inline with an atomic
+per-answer save; substantive answers also edit the affected spec
+sections, while answers that just confirm the spec as-is are log-only —
+the grill produces only actionable changes, no manufactured edits.
+Stop conditions: user signals done, all high-impact areas resolved, or
+hard cap (default 10, configurable, hard ceiling 20).
 
 #### [maintaining-adrs](spec-driven-development/maintaining-adrs/)
 
@@ -307,7 +308,7 @@ cadence, pruning, and anti-patterns to avoid.
 #### [receiving-review-findings](spec-driven-development/receiving-review-findings/)
 
 Inline skill loaded by the coordinator whenever a reviewer subagent
-returns findings on a spec or plan (Stages 3, 4, 9, 10). Borrows from
+returns findings on a spec or plan (Stages 3, 5, 9, 10). Borrows from
 superpowers' `receiving-code-review`: no performative agreement, verify
 before fixing, push back with technical reasoning when the reviewer is
 wrong, track push-backs in state file, surface to user when findings

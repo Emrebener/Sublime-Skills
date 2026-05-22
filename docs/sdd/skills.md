@@ -12,10 +12,10 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 - `preflight-checks` — Stage 0
 - `discovering-requirements` — Stage 1
 - `writing-specs` — Stage 2
-- `reviewing-specs` — Stages 3, 4 (subagent)
-- `grilling-specs` — Stage 5
+- `reviewing-specs` — Stages 3, 5 (subagent)
+- `grilling-specs` — Stage 4
 - `maintaining-adrs` — Stage 6 (subagent)
-- `receiving-review-findings` — Stages 3, 4, 9, 10 (inline)
+- `receiving-review-findings` — Stages 3, 5, 9, 10 (inline)
 - `writing-plans` — Stage 8
 - `reviewing-plans` — Stages 9, 10 (subagent)
 - `implementing-plans` — Stage 12 (orchestrates per-task subagents)
@@ -223,8 +223,8 @@ Preflight aborted.
 ## reviewing-specs
 
 **Type:** Subagent skill (dispatched in fresh context)
-**Loaded:** by the dispatched subagent at Stages 3, 4
-**Stage:** 3 (mandatory first-pass), 4 (optional second-pass)
+**Loaded:** by the dispatched subagent at Stages 3, 5
+**Stage:** 3 (mandatory first-pass), 5 (optional second-pass)
 
 **Purpose:** Independent fresh-eyes review of the spec before plan writing. Read-only.
 
@@ -265,8 +265,8 @@ Preflight aborted.
 ## grilling-specs
 
 **Type:** Phase skill (inline; conversational)
-**Loaded:** by the coordinator at Stage 5, only if user opted in
-**Stage:** 5 (optional)
+**Loaded:** by the coordinator at Stage 4, only if user opted in
+**Stage:** 4 (optional)
 
 **Purpose:** Optional bounded stress-test of the spec. Asks scoped, prioritized questions one at a time with recommended answers, and **applies each accepted answer to the spec inline**.
 
@@ -291,9 +291,9 @@ Preflight aborted.
 - One question per message; the recommendation is always shown
 
 **After each accepted answer:**
-1. Append `- Q: ... → A: ...` to the Clarifications log section (created if missing)
-2. Apply the substance to the appropriate spec section
-3. **Save the spec immediately (atomic write)** — never batch
+1. Append `- Q: ... → A: ...` to the Clarifications log section (created if missing) — always, regardless of body-edit disposition
+2. Pick a disposition: **Substantive change** (edit the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
+3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; per-answer save is what keeps cross-session resume working
 4. Move to next question
 
 **Stop conditions:**
@@ -346,7 +346,7 @@ Preflight aborted.
 
 **Type:** Inline skill (process review output)
 **Loaded:** by the coordinator after each reviewer subagent returns
-**Stages:** 3, 4, 9, 10
+**Stages:** 3, 5, 9, 10
 
 **Purpose:** Establishes how the coordinator consumes findings from a spec or plan reviewer. Borrows from superpowers' `receiving-code-review` philosophy.
 
@@ -1008,11 +1008,11 @@ sdd-coordinator (entry; user-invoked)
 ├── discovering-requirements    (Stage 1)
 ├── writing-specs               (Stage 2; uses validate-spec.sh)
 │
-├── dispatch → reviewing-specs  (Stages 3, 4; subagent)
+├── dispatch → reviewing-specs  (Stages 3, 5; subagent, first-pass + optional 2nd)
 │       ↓
 │   receiving-review-findings   (inline; process findings)
 │
-├── grilling-specs              (Stage 5; optional)
+├── grilling-specs              (Stage 4; optional)
 │
 ├── dispatch → maintaining-adrs (Stage 6; subagent)
 │

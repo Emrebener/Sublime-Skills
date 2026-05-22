@@ -1,6 +1,6 @@
 ---
 name: receiving-review-findings
-description: Use inline by the SDD coordinator when a reviewer subagent returns its findings for a spec or plan (Stages 3, 4, 9, 10). Guides how to evaluate findings, decide what to fix vs push back on, and avoid performative agreement.
+description: Use inline by the SDD coordinator when a reviewer subagent returns its findings for a spec or plan (Stages 3, 5, 9, 10). Guides how to evaluate findings, decide what to fix vs push back on, and avoid performative agreement.
 ---
 
 # Receiving Review Findings
@@ -17,7 +17,7 @@ Review feedback is *input to evaluate*, not orders to follow. The coordinator's 
 
 The coordinator loads this skill inline whenever a reviewer subagent returns output, in any of:
 - Stage 3 — auto spec-review findings
-- Stage 4 — optional 2nd spec-review findings
+- Stage 5 — optional 2nd spec-review findings
 - Stage 9 — auto plan-review findings
 - Stage 10 — optional 2nd plan-review findings
 

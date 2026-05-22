@@ -55,7 +55,7 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 State.json is **committed alongside the relevant artifact**:
 
 - Stage 2: committed with `spec.md` in `spec(NNN): initial draft`
-- Stage 5: committed with updated `spec.md` in `spec(NNN): grill session updates`
+- Stage 4: committed with updated `spec.md` in `spec(NNN): grill session updates`
 - Stage 6: committed with new ADRs in `docs(adr): NNNN from spec NNN`
 - Stage 7: committed if any spec/ADR edits happened during approval
 - Stage 8: committed with `plan.md` in `plan(NNN): initial draft`
@@ -109,7 +109,7 @@ If the session dies between "stage starts" and "stage completes":
 Re-running a stage is safe because:
 - Stage 2 (writing-specs): re-renders the spec.md (idempotent given the same understanding)
 - Stage 3/9 (reviewers): re-dispatches the reviewer (subagent is fresh anyway)
-- Stage 5 (grill): the user can decide to skip if previous grill already happened
+- Stage 4 (grill): the user can decide to skip if previous grill already happened
 - Stage 6 (ADRs): subagent checks for duplicates against existing ADRs
 - Stage 8 (writing-plans): re-renders the plan.md
 - Stage 12 (implementation): `tasks` map tells the loop which tasks are done
@@ -187,7 +187,7 @@ preflight:
   # checkout while an SDD run is in progress.
   use_worktree: false
 
-# ── Grill (Stage 5) ─────────────────────────────────────────────────
+# ── Grill (Stage 4) ─────────────────────────────────────────────────
 grill:
   # Soft cap on questions per grill session. Hard ceiling is 20 even
   # with an override.
@@ -429,7 +429,7 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
     "plan_written", "plan_auto_reviewed", "plan_approved"
   ],
   "stages_skipped": [
-    "spec_second_review", "spec_grill",
+    "spec_grill", "spec_second_review",
     "plan_second_review"
   ],
   "preflight": {

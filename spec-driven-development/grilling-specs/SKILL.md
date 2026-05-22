@@ -9,7 +9,7 @@ description: Use during the optional grill stage of an SDD pipeline run, after s
 
 Relentlessly interview the user about the spec to surface and resolve weaknesses — but bounded, scoped, and applied. Every accepted answer updates the spec file immediately. The point isn't to interrogate for its own sake; it's to tighten the spec before plan-writing.
 
-**Core principle:** Every answer that lands updates the spec. A grill that doesn't change the document is a grill that wasted the user's time.
+**Core principle:** The grill produces only actionable changes. Every spec edit is justified by an answer; every accepted answer is logged. Some answers won't warrant a body edit — that's a fine outcome, not a failure.
 
 **Announce at start:** "I'm using the grilling-specs skill to stress-test the spec."
 
@@ -17,7 +17,7 @@ Relentlessly interview the user about the spec to surface and resolve weaknesses
 
 - Do NOT ask more questions than the configured cap (default 10).
 - Do NOT ask about areas already adequately covered.
-- Do NOT proceed to the next question until the current answer is applied to the spec and saved.
+- Do NOT ask the next question until the current answer is processed (logged, plus body edit if warranted) and saved.
 - Do NOT introduce new design decisions on your own — propose options and let the user pick.
 
 ## Checklist
@@ -123,14 +123,31 @@ For each question:
 - Always show a recommendation. Don't ask the user to do your thinking.
 - After their answer: if "yes" / "recommended" / "suggested", use your stated recommendation. Otherwise validate the answer (and disambiguate inline if needed — that doesn't count as a new question).
 
-## Step 5: Apply the Answer Inline
+## Step 5: Process the Answer
 
-After every accepted answer, update the spec file:
+After every accepted answer, take these steps before asking the next question.
+
+### 5a. Log it (always)
+
+The Clarifications log is the audit trail and the cross-session resume anchor — it runs for every accepted answer, regardless of whether the body changes.
 
 1. Add (or extend) a `## Clarifications` section just below the Goal section if it doesn't exist
 2. Add (or extend) a `### Session YYYY-MM-DD` subheading for today's grill
 3. Append a bullet: `- Q: <question> → A: <final answer>`
-4. **Apply the substance** to the appropriate section(s) of the spec:
+
+### 5b. Decide if a body edit is warranted
+
+Pick exactly one disposition for the answer:
+
+| Disposition | When it applies | What you do |
+|---|---|---|
+| **Substantive change** | The answer changes what the spec says, adds something missing, removes something wrong, or tightens something vague | Edit the affected section(s) per the mapping in 5c |
+| **Confirms spec is already correct** | The answer settles a question without requiring any change to the body — the existing wording was right | Log only; do not edit the body |
+| **Out of scope / deferred** | The answer says "not here" — belongs in the plan, a future feature, or out-of-scope | Log it; optionally add a line to Out-of-Scope, but no other body change |
+
+Default to **Substantive change** when uncertain. But do not manufacture a body edit just to satisfy the old "must update" rule — if the honest disposition is "confirms as correct," that's a valid outcome.
+
+### 5c. If substantive, apply to the right section
 
 | Question category | Where to apply |
 |---|---|
@@ -146,11 +163,13 @@ After every accepted answer, update the spec file:
 | Constitution fit | Edit the offending FR/story to comply |
 | Out-of-scope | Edit the Out-of-Scope list |
 
-5. **Save the spec immediately** using the atomic write pattern: write the full new spec content to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. Don't batch multiple answers before saving — interruption loses them, and the atomic move prevents half-written files.
+If the substantive change contradicts earlier wording, **replace the contradicted text** — don't leave both.
 
-6. If the new clarification contradicts earlier wording, **replace the contradicted text**. Don't leave both.
+### 5d. Save atomically
 
-7. Then ask the next question (or stop, per Step 6).
+Write the full new spec content to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. Do this even when only the Clarifications log changed — that's the per-answer durable record that keeps cross-session resume working. Don't batch multiple answers before saving.
+
+Then ask the next question (or stop, per Step 6).
 
 ## Step 6: Stop Conditions
 
@@ -178,8 +197,9 @@ Grill complete.
 
 | Mistake | Fix |
 |---|---|
-| Asking without applying the answer to the spec | Apply immediately, save, then move on |
-| Batching multiple answers before saving | Interruption loses everything — save per answer |
+| Asking without processing the answer per Step 5 | Log it, decide on body-edit disposition, save, then move on |
+| Manufacturing a body edit because the rule used to say "must update" when the honest answer is "no change needed" | Log the Q&A and move on — "confirms as correct" is a valid disposition |
+| Batching multiple answers before saving | Cross-session resume loses them — save per answer |
 | Asking about plan-level details (function names, file paths) | Out of scope; move on |
 | Going past the cap | Hard ceiling at 20. If the spec still feels weak, it needs a rewrite |
 | Leaving the contradicted earlier wording in place | Edit it out; the clarification replaces it |

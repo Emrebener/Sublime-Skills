@@ -41,7 +41,7 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 | `memory_file_updated` | boolean | Stage 15 | `true` if the memory file was updated this run; `false` if no update was needed or the stage was skipped. |
 | `memory_file_path` | string | Stage 15 (only if updated) | Path to the memory file that was updated. May be repo-relative or absolute. |
 | `reviewer_pushbacks` | array of objects | Any stage where the coordinator pushed back | `[{ "stage": string, "finding": string, "reason": string }, ...]`. Empty array `[]` is the initial value. |
-| `spec_auto_review_iterations` | integer | Stage 3 (and 4 if run) | Fix-loop iterations consumed (0-2). Hard cap at 2. |
+| `spec_auto_review_iterations` | integer | Stage 3 (and 5 if run) | Fix-loop iterations consumed (0-2). Hard cap at 2. |
 | `plan_auto_review_iterations` | integer | Stage 9 (and 10 if run) | Fix-loop iterations consumed (0-2). Hard cap at 2. |
 
 ## Field Ownership (who writes what)
@@ -74,8 +74,8 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 | 1 | `discovering` | `discovering` | — |
 | 2 | `spec_writing` | `spec_written` | — |
 | 3 | `spec_auto_review` | `spec_auto_reviewed` | — |
-| 4 | `spec_second_review` | `spec_second_reviewed` | `spec_second_review` |
-| 5 | `spec_grill` | `spec_grilled` | `spec_grill` |
+| 4 | `spec_grill` | `spec_grilled` | `spec_grill` |
+| 5 | `spec_second_review` | `spec_second_reviewed` | `spec_second_review` |
 | 6 | `adr_maintenance` | `adrs_maintained` | — |
 | 7 | `spec_approval` | `spec_approved` | — |
 | 8 | `plan_writing` | `plan_written` | — |
@@ -119,7 +119,7 @@ This is a typical state during Stage 12 with 3 tasks done, 1 in progress, 3 pend
     "spec_auto_reviewed", "adrs_maintained", "spec_approved",
     "plan_written", "plan_auto_reviewed", "plan_approved"
   ],
-  "stages_skipped": ["spec_second_review", "spec_grill", "plan_second_review"],
+  "stages_skipped": ["spec_grill", "spec_second_review", "plan_second_review"],
   "preflight": {
     "worktree_path": null,
     "original_branch": "main"

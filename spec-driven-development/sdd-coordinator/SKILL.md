@@ -33,8 +33,8 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 1 | Discovering requirements | Inline via `discovering-requirements` | No |
 | 2 | Writing the spec | Inline via `writing-specs` | No |
 | 3 | Auto spec-review | Subagent uses `reviewing-specs`; findings via `receiving-review-findings` | No |
-| 4 | Optional 2nd spec-review | Subagent uses `reviewing-specs`; findings via `receiving-review-findings` | **Yes — ask user, default no** |
-| 5 | Optional grill | Inline via `grilling-specs` | **Yes — ask user, default no** |
+| 4 | Optional grill | Inline via `grilling-specs` | **Yes — ask user, default no** |
+| 5 | Optional 2nd spec-review | Subagent uses `reviewing-specs`; findings via `receiving-review-findings` | **Yes — ask user, default no** |
 | 6 | ADR maintenance | Subagent uses `maintaining-adrs` | No |
 | 7 | User spec approval + commit | Inline | No |
 | 8 | Writing the plan | Inline via `writing-plans` | No |
@@ -108,8 +108,8 @@ Stage name mapping (lookup for `current_stage` advance and `stages_completed` ap
 | 1 | `discovering` | `discovering` |
 | 2 | `spec_writing` | `spec_written` |
 | 3 | `spec_auto_review` | `spec_auto_reviewed` |
-| 4 | `spec_second_review` | `spec_second_reviewed` |
-| 5 | `spec_grill` | `spec_grilled` |
+| 4 | `spec_grill` | `spec_grilled` |
+| 5 | `spec_second_review` | `spec_second_reviewed` |
 | 6 | `adr_maintenance` | `adrs_maintained` |
 | 7 | `spec_approval` | `spec_approved` |
 | 8 | `plan_writing` | `plan_written` |
@@ -170,13 +170,7 @@ Dispatch a `general-purpose` subagent. Prompt includes: `SPEC_PATH`, `CONTEXT_FI
 
 Process findings via `receiving-review-findings` (load it inline). It handles evaluate/fix/push-back/escalate, including the cap-2 fix-loop escalation protocol.
 
-### Stage 4 — Optional 2nd Spec-Review (User-Gated)
-
-Ask: "Spec auto-review passed. Want a second-pass review for extra rigor? (yes/no, default no)"
-
-If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVIEW_FOCUS: second-pass — focus on <user-specified topic or "independent angle">`. Process via `receiving-review-findings`.
-
-### Stage 5 — Optional Grill (User-Gated)
+### Stage 4 — Optional Grill (User-Gated)
 
 Ask: "Want a grill session to stress-test the spec? (yes/no, default no)"
 
@@ -186,6 +180,12 @@ If yes: load `grilling-specs`. Follow it. Commit after:
 git add docs/specs/NNN-<short-name>/spec.md
 git commit -m "spec(NNN-short-name): grill session updates"
 ```
+
+### Stage 5 — Optional 2nd Spec-Review (User-Gated)
+
+Ask: "Want a second-pass review for extra rigor? (yes/no, default no)"
+
+If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVIEW_FOCUS: second-pass — focus on <user-specified topic or "independent angle">`. Process via `receiving-review-findings`.
 
 ### Stage 6 — ADR Maintenance
 
@@ -240,7 +240,7 @@ Dispatch with: `PLAN_PATH`, `SPEC_PATH`, `CONTEXT_FILES`, `REVIEW_FOCUS: first-p
 
 ### Stage 10 — Optional 2nd Plan-Review (User-Gated)
 
-Same pattern as Stage 4.
+Same pattern as Stage 5.
 
 ### Stage 11 — User Plan Approval
 

@@ -32,7 +32,7 @@ A 17-stage pipeline sounds heavy (Stages 0-16). For trivial changes it might be 
 - "Trivial" changes that turn out to be non-trivial don't get the rigor they need
 - Optional stages compound: if every stage is optional, the pipeline degenerates to a chat
 
-The pipeline as designed has **5 user-gated optional stages** (2nd spec-review, grill, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 13, 14, 15). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
+The pipeline as designed has **5 user-gated optional stages** (grill, 2nd spec-review, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 13, 14, 15). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
 
 **Why this is OK in practice:** for genuinely small changes (a typo fix, a config bump), you wouldn't invoke SDD at all. SDD is for features that warrant structured development. The pipeline is calibrated for that scale.
 
@@ -272,7 +272,7 @@ Why we made it config-driven instead of project-specific (e.g., a `.github/` set
 
 Why a separate skill (instead of inline in the coordinator):
 
-- **Used in 4 places** (Stages 3, 4, 9, 10). DRY argument.
+- **Used in 4 places** (Stages 3, 5, 9, 10). DRY argument.
 - **Borrowed wisdom.** `superpowers:receiving-code-review` codifies a lot of hard-won "how to receive feedback without theater" rules. Adopting them as a skill makes them load-bearing.
 - **Anti-performative-agreement is non-obvious.** "You're absolutely right!" is the default for an LLM. Explicitly forbidding it requires explicit instruction.
 - **Centralized push-back logic.** When the coordinator pushes back on a finding, the rationale is logged in `reviewer_pushbacks` in the state file. Consistent across stages.
@@ -307,8 +307,8 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 |---|---|---|
 | Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 17-stage pipeline with explicit stage boundaries |
 | ADR step | None | Stage 6, dedicated skill |
-| Optional grill | None | Stage 5, dedicated skill |
-| 2nd review | None | Optional Stages 4 + 10 |
+| Optional grill | None | Stage 4, dedicated skill |
+| 2nd review | None | Optional Stages 5 + 10 |
 | State / resume | TodoWrite for tasks, no explicit cross-session state | state.json in git, `inspecting-state`, explicit resume protocol |
 | Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 13 with browser/DB MCP awareness |
 | Handoff doc | None | Stage 14, dedicated skill |
