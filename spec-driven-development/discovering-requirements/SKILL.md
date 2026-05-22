@@ -163,6 +163,7 @@ The coordinator will invoke `writing-specs` next.
 
 ## Red Flags
 
+- About to start asking the user clarifying questions without having Read the project's constitution + ADRs (when present) → STOP; you'll either re-ask settled questions or steer the user toward decisions that violate stated principles
 - Felt the urge to write `spec.md` already → stop; that's the next stage
 - About to propose a design decision that contradicts an existing ADR without flagging it → flag it explicitly, get user buy-in to override
 - About to ask a 10th question on the same dimension → step back; either you don't have enough context to know what to ask, or you're overthinking it

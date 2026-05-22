@@ -49,12 +49,18 @@ You're hunting for friction, not pattern-matching names. Concrete tells:
 
 ### 1. Explore
 
-First, do a deliberate check for two **opt-in** inputs — use them if they exist, never require them:
+First, do a deliberate check for project context. These files are opt-in for projects (they may or may not exist), but **if they do exist, you MUST read them before presenting candidates** — skipping them produces vocabulary drift, re-litigated ADRs, and refactors that contradict stated principles. All three waste the user's time when you present.
 
-- **A domain glossary** — the project's definitions of its real-world nouns. Check the repo root for `CONTEXT.md`, `GLOSSARY.md`, `DOMAIN.md`, then `docs/` for the same names. If those miss, glob once for `*glossary*` / `*domain-model*` (case-insensitive). It gives you the project's real names for things.
-- **Architecture decision records (ADRs)** — records of past architecture decisions and their rationale. Check `docs/adr/`, `docs/architecture/decisions/`, `adr/`. If those miss, glob once for `*adr*`. Read the ones relevant to the area you're reviewing; they record decisions you should not blindly re-litigate.
+Check well-known locations:
 
-Stop after one glob per input — if nothing turns up, proceed without it. Don't hunt exhaustively.
+- **Domain glossary** — the project's real names for things. Check the repo root for `CONTEXT.md`, `GLOSSARY.md`, `DOMAIN.md`, then `docs/` for the same names. If those miss, glob once for `*glossary*` / `*domain-model*` (case-insensitive). Use canonical terms in your candidates; don't invent synonyms.
+- **Architecture decision records (ADRs)** — past architecture decisions and their rationale. Check `docs/adr/`, `docs/architecture/decisions/`, `adr/`. If those miss, glob once for `*adr*`. Read the ones relevant to the area you're reviewing; they record decisions you should not blindly re-litigate.
+- **Architecture overview** — the project's existing high-level structure. Check `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`. Tells you what the project considers settled before you propose to move things around.
+- **Constitution / principles** — non-negotiable project rules. Check `constitution.md`, `docs/constitution.md`. Any refactor you propose must respect the listed principles.
+
+Stop after one glob per input. If nothing turns up for a given input, proceed without it — don't hunt exhaustively.
+
+**Empty-context case:** if none of these files exist (greenfield project, or one that doesn't capture conventions explicitly), that's a valid state — the review runs against the code itself. Do not halt; do not ask the user to produce convention files. You just won't have anchors for canonical names or stated principles; flag the gap in your candidates if it becomes load-bearing.
 
 Then use the Agent tool with `subagent_type=Explore` to walk the codebase. Don't run a rigid checklist — explore organically and note where *you* feel friction, using the tells above. Apply the deletion test to anything that smells shallow.
 

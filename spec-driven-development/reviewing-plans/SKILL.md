@@ -175,6 +175,7 @@ Coverage: <N>/<M> FRs covered
 
 ## Red Flags
 
+- About to write findings without having Read the constitution + ADRs from `CONTEXT_FILES` → STOP; Detection Pass G (Constitution / ADR Alignment) is CRITICAL-severity and you'll miss it
 - About to skip the spec-coverage table — STOP; that table is the most concrete check this review does
 - About to flag 10+ findings on a normal-sized plan → STOP and re-calibrate
 - Spotted a placeholder ("TBD", "implement later") in a task code step but flagged it as MEDIUM → it's CRITICAL; the implementer cannot proceed past it

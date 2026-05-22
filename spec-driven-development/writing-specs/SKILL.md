@@ -51,15 +51,25 @@ docs/specs/NNN-<short-name>/
 
 ## Step 2: Load Project Context
 
-Skip this step if the coordinator already passed you the project context (discovering-requirements ran the script in Stage 1 — the coordinator can hand the results forward).
+If discovery (Stage 1) already Read these files in this session, you can skip re-Reading — but you MUST still have constitution + ADRs + glossary contents in your working context before writing the spec.
 
-Otherwise, run the shared discovery script:
+Otherwise, run the discovery script and **Read every file it returns a non-null path for** before composing the spec:
 
 ```bash
 ./spec-driven-development/scripts/discover-context.sh
 ```
 
-Re-Read only what you need. The spec should use the project's domain vocabulary (from glossary if present) and should not contradict the constitution or prior ADRs.
+Required reads when present (skip files the JSON returns as `null`):
+
+- `constitution` — non-negotiable principles the spec MUST comply with; violations get flagged CRITICAL by reviewing-specs (Stage 3)
+- All `adrs` — prior decisions you must respect, not re-litigate; silently contradicting a settled ADR is CRITICAL
+- `glossary` / `domain` — canonical domain vocabulary; synonym proliferation is HIGH/MEDIUM (vocabulary drift)
+- `architecture` — situates the feature within existing structure
+- `readme` — fallback for high-level project understanding
+
+These reads are load-bearing, not padding — the next stage's auto-review checks the spec against them. A spec written without reading them will fail review.
+
+**Empty-context case:** if every context field in the JSON comes back `null` (greenfield project, no bootstrap yet), that's a valid state — proceed without context. Do not halt; do not ask the user to produce files. Note the empty-context state in your final report and move on.
 
 ## Step 3: Write spec.md
 
@@ -276,6 +286,8 @@ If using EARS, mark the story with `**Acceptance criteria (EARS):**` instead of 
 
 ## Red Flags
 
+- About to start writing the spec without having Read constitution + ADRs (when present) → STOP; that's the failure mode the auto-review (Stage 3) flags as CRITICAL and you'd ship a spec that fails review
+- About to use a synonym for a glossary term ("customer" instead of the project's canonical "User") → STOP; vocabulary drift is a review finding
 - About to add a Mermaid block → delete
 - About to write "the developer should..." → wrong document; that's the plan
 - Found a real gap mid-write → stop, return to discovery, don't paper over

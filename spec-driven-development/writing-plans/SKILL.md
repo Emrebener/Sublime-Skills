@@ -43,16 +43,22 @@ Read `docs/specs/NNN-<short-name>/spec.md` in full. Note:
 
 ## Step 2: Load Project Context
 
-Skip if the coordinator already passed you the context. Otherwise run:
+Run the discovery script (skip re-Reads if these files are already in your working context from an earlier stage) and **Read every file it returns a non-null path for** before decomposing into tasks:
 
 ```bash
 ./spec-driven-development/scripts/discover-context.sh
 ```
 
-- Constitution → tasks must comply
-- ADRs (especially newly written ones from Stage 6) → tasks should reflect the chosen approaches
-- ARCHITECTURE.md → fit the plan into the existing structure; follow established patterns
-- Glossary → use canonical terms in task descriptions
+Required reads when present (skip files the JSON returns as `null`):
+
+- `constitution` — tasks MUST comply; violations are flagged CRITICAL by reviewing-plans (Stage 9)
+- All `adrs` — especially the newly accepted ones from Stage 6 — tasks must reflect the chosen approaches; silent contradiction is CRITICAL
+- `architecture` — fit the plan into the existing structure; follow established file/module patterns
+- `glossary` / `domain` — use canonical terms in task descriptions and code identifiers
+
+Plans written without these reads typically fail review on constitution/ADR alignment, or surface as NEEDS_CONTEXT from the per-task implementers asking questions the convention files would have answered.
+
+**Empty-context case:** if every context field in the JSON comes back `null` (greenfield project; no constitution, ADRs, architecture, or glossary), that's a valid state — proceed without them. Do not halt; do not ask the user to produce files. The plan can still be written; the auto-review just won't have alignment checks to run against.
 
 ## Step 3: Write the Plan Header
 
@@ -356,6 +362,8 @@ If a section doesn't apply, omit it entirely — don't leave "N/A" placeholders.
 
 ## Red Flags
 
+- About to write tasks without having Read constitution + ADRs (when present) → STOP; reviewing-plans (Stage 9) checks task alignment with these and flags violations CRITICAL
+- About to write a task that contradicts a newly-accepted ADR from Stage 6 → STOP; re-Read the ADRs and revise the task
 - Plan is longer than ~1500 lines → likely too big; check if the spec needed decomposition
 - Found a real spec gap → stop, return to coordinator, do not patch with assumptions
 - Task is hard to write because the implementation is genuinely unclear → that's a sign the spec is underspecified; flag it to the coordinator rather than guessing

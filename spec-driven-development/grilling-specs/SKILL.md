@@ -32,17 +32,22 @@ Relentlessly interview the user about the spec to surface and resolve weaknesses
 
 ## Step 1: Load Context
 
-Run the discovery script if the coordinator hasn't already passed you the context. Read what's present:
+Run the discovery script and **Read every file it returns a non-null path for** before building the question queue:
 
 ```bash
 ./spec-driven-development/scripts/discover-context.sh
 ```
 
-The grill needs:
-- The current spec
-- Constitution (if any)
-- Glossary (if any)
-- Relevant ADRs (especially any cited or contradicted by the spec)
+Required reads (skip files the JSON returns as `null`):
+
+- The current spec — the artifact you're grilling
+- `constitution` — so you don't propose anything the project already forbids
+- All `adrs` — so you don't ask the user to re-decide what's already settled
+- `glossary` / `domain` — so question wording uses canonical vocabulary
+
+Skipping these turns the grill into the worst version of itself: asking the user to re-settle things their own project already settled, with a bounded budget (default 10 questions) you can't afford to waste.
+
+**Empty-context case:** if every convention field in the JSON comes back `null` (no constitution, ADRs, glossary, or domain), that's a valid state — the grill runs against the spec alone. Do not halt; do not ask the user to produce files. You just lose the ability to cross-check questions against project principles.
 
 ## Step 2: Read the Spec and Identify Weak Spots
 
@@ -183,6 +188,9 @@ Grill complete.
 
 ## Red Flags
 
+- About to start asking questions without having Read constitution + ADRs (when present) → STOP; you'll burn the question budget re-asking what those files already settle
+- About to ask a question on a topic an ADR already settled → STOP; you didn't read the ADRs. Read them, then rebuild the queue.
+- About to use a synonym for a glossary term in a question → STOP; use the canonical term so the user sees you've read the project's vocabulary
 - Asked the same question worded two ways → you're stretching the cap; stop instead
 - About to introduce a design decision without offering options → step back; surface alternatives
 - Spec file getting longer than 800 lines from grill edits → the spec is over-stuffed; recommend decomposition to the coordinator
