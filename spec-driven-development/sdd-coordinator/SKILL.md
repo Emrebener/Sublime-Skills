@@ -56,12 +56,10 @@ Do this first, every time the coordinator is invoked.
 
 ### Step 1: Resume or Fresh Start
 
-Glob for active state files under the configured spec directory:
+Glob for active state files by scanning `docs/specs/*/state.json`:
 
 ```bash
-SPEC_DIR=$(./spec-driven-development/scripts/get-config-value.sh paths spec_dir)
-SPEC_DIR="${SPEC_DIR:-docs/specs}"
-ls "$SPEC_DIR"/*/state.json 2>/dev/null
+ls docs/specs/*/state.json 2>/dev/null
 ```
 
 - **No state files found** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 2.
@@ -176,7 +174,7 @@ If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVI
 
 ### Stage 6 — ADR Maintenance
 
-Dispatch a fresh subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (from config `paths.adr_dir` or default), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `maintaining-adrs` skill."
+Dispatch a fresh subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (hardcoded `docs/adr`), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `maintaining-adrs` skill."
 
 If ADRs were created or superseded, record `adr_results` in state. Zero ADRs is a valid outcome. **Do NOT commit** the new ADR files — `choosing-feature-branch` (Stage 12) will batch-commit them.
 
