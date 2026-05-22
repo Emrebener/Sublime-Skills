@@ -305,11 +305,27 @@ block_exists() {
 }
 
 # Required blocks
-for block in paths context branching grill memory_file; do
+for block in context branching grill memory_file; do
   if ! block_exists "$block"; then
     record_fail "missing top-level block: $block"
   fi
 done
+
+# Reject unknown top-level blocks (catches schema drift like a stale paths: block)
+unknown_blocks=$(awk '
+  /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ {
+    match($0, /^([A-Za-z_][A-Za-z0-9_]*):/, m)
+    if (m[1] != "context" && m[1] != "branching" && m[1] != "grill" && m[1] != "memory_file") {
+      print m[1]
+    }
+  }
+' "$CONFIG" 2>/dev/null)
+if [ -n "$unknown_blocks" ]; then
+  while IFS= read -r b; do
+    [ -z "$b" ] && continue
+    record_fail "unknown top-level block: $b"
+  done <<< "$unknown_blocks"
+fi
 
 # Required scalar keys per block
 declare_required() {
@@ -326,7 +342,6 @@ declare_required() {
   done
 }
 
-declare_required paths spec_dir adr_dir handoff_dir
 declare_required context constitution_path architecture_path glossary_path domain_path design_path
 declare_required branching branch_pattern
 declare_required grill question_cap
