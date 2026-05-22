@@ -17,6 +17,28 @@ Every skill must also have a short summary entry in `README.md`, under its
 "Skills" section — add one whenever a skill is created or collected, and
 keep it current when the skill changes.
 
+## Tool-agnostic authoring
+
+Skills target any agent harness, not a specific one. When writing or
+editing skill content:
+
+- Use neutral phrasing for runtime mechanisms: "the harness's todo/task
+  tool", "the harness's interactive question tool", "dispatch a fresh
+  subagent", "load via your harness's skill mechanism".
+- Do NOT prescribe specific tool names. No `TodoWrite`, `AskUserQuestion`,
+  `Task` / `Agent` / `Skill` tool, no `subagent_type=general-purpose`, no
+  naming `Read` / `Edit` / `Bash` tools by their harness-specific labels.
+- Factual mappings (e.g., "CLAUDE.md — Claude Code's preferred name" in
+  the memory-file conventions table) and factual data patterns (e.g.,
+  OpenAI / Anthropic API key shapes in redaction rules, `OPENAI_*` /
+  `ANTHROPIC_*` env-var examples) are fine when they help users identify
+  their file or recognize a pattern — that's documentation, not
+  prescription.
+- One skill, `workflow/restrict-git-commands`, ships a Claude Code-specific
+  `PreToolUse` hook script as an optional reference layer. Its primary
+  SKILL.md still works via instruction on any harness; the hook is a
+  drop-in for users who want deterministic enforcement.
+
 ## Multi-step skill families
 
 Where a category contains a coordinated workflow (currently
