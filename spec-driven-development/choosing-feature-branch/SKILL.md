@@ -34,7 +34,7 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern` and `s
 1. Asks the user explicitly which branch the SDD planning commits should land on
 2. If the user picks "create new branch," runs `git checkout -b <name>` from current HEAD
 3. Batch-commits the SDD planning artifacts in three thematic commits, using path-scoped `git add` (never `git add .` / `git add -A`)
-4. Updates `state.json` (`current_stage: implementing`, append `branch_chosen` to `stages_completed`, write `branch` if it changed)
+4. Updates `state.json` (`current_stage: implementing`, append `branch_chosen` to `stages_completed`)
 5. Returns the resulting branch name to the coordinator
 
 ### What this skill aborts on
@@ -178,7 +178,7 @@ Where `N` is the count of ADRs.
 
 ### Commit 3 — Plan + state.json update
 
-Before this commit, update `state.json` (current_stage stays `plan_approval` for now; `branch` field updates if the branch changed; mark this commit's existence by NOT including it in `stages_completed` yet — that happens after Step 5).
+Before this commit, update `state.json` (`current_stage` stays `plan_approval` for now; mark this commit's existence by NOT including it in `stages_completed` yet — that happens after Step 5).
 
 ```bash
 git add "docs/specs/<FEATURE_ID>/plan.md" "docs/specs/<FEATURE_ID>/state.json"
@@ -199,7 +199,6 @@ After all required commits land:
 1. Update `state.json` atomically (write `.tmp`, then `mv`):
    - `current_stage: "implementing"`
    - Append `"branch_chosen"` to `stages_completed`
-   - Update `branch` if it changed from the input `CURRENT_BRANCH`
    - Update `updated_at` to current ISO-8601 UTC
 
 2. Commit this final state.json update **separately** as part of the implementation stage's first commit — do NOT make a fourth commit here. (Commit 3 above already includes a state.json snapshot from before this update; the very next commit in Stage 13 will include the updated state.)

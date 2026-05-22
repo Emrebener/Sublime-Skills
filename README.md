@@ -72,8 +72,8 @@ optional feature testing → handoff doc → memory file → finish**. Coordinat
 by `sdd-coordinator`, which is the only entry point the user invokes —
 every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
-skill families), resumable across sessions via a per-feature state file
-at `docs/specs/NNN-name/state.json`, and configurable via `.sublime-skills/config.yml`
+skill families), resumable after an interruption via a per-feature state
+file at `docs/specs/NNN-name/state.json`, and configurable via `.sublime-skills/config.yml`
 (path overrides, finishing mode, harness tool names). Specs and plans
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `docs/handoff/YYYY-MM-DD-<title>.md`.
@@ -96,15 +96,15 @@ Shared scripts at `spec-driven-development/scripts/`:
 #### [sdd-coordinator](spec-driven-development/sdd-coordinator/)
 
 Entry point for SDD runs. Thin state machine + dispatcher — knows the
-18-stage pipeline, reads the per-feature state file first on every
-invocation (via `inspecting-state`), resumes interrupted runs, loads
-phase-skills inline for interactive stages, dispatches subagents for
-fresh-context stages (reviews, ADR maintenance, per-task implementation,
-testing, handoff). Holds state updates atomic at stage boundaries, never
-mid-stage. Surfaces user-gated optional stages (grill, 2nd review pass,
-feature testing). Critically: never tests the feature itself — if the
-tester subagent reports MCP unavailability, the coordinator surfaces a
-manual test plan rather than improvising.
+18-stage pipeline, checks for an existing per-feature state file on
+every invocation and offers to resume, loads phase-skills inline for
+interactive stages, dispatches subagents for fresh-context stages
+(reviews, ADR maintenance, per-task implementation, testing, handoff).
+Holds state updates atomic at stage boundaries, never mid-stage.
+Surfaces user-gated optional stages (grill, 2nd review pass, feature
+testing). Critically: never tests the feature itself — if the tester
+subagent reports MCP unavailability, the coordinator surfaces a manual
+test plan rather than improvising.
 
 #### [preflight-checks](spec-driven-development/preflight-checks/)
 
@@ -335,15 +335,6 @@ before fixing, push back with technical reasoning when the reviewer is
 wrong, track push-backs in state file, surface to user when findings
 need human judgment. Per-task reviews stay handled by
 `implementing-plans` (different dynamic — fresh implementer re-dispatch).
-
-#### [inspecting-state](spec-driven-development/inspecting-state/)
-
-Read-only utility. Locates all SDD state files, validates each against
-the schema, checks git for pre-state-file interruption signals, and
-produces a structured report. Used by the coordinator as its very first
-action on every invocation (replaces what used to be the coordinator's
-inline resume-detection logic — cleaner separation). Also directly
-invokable by the user to check status without entering the pipeline.
 
 ### project-bootstrap (separate family)
 

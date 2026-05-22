@@ -73,36 +73,19 @@ From Stage 13 onward, state.json is committed alongside the stage's artifact:
 
 **Squash-merge implication:** if the project squashes on merge, the state file's churn collapses into a single final commit. By the time the feature lands in main, only the spec, plan, ADRs, and handoff persist; the state file is gone.
 
-**Mid-pipeline kill risk.** Through Stages 0–11 the state file is uncommitted. If the session dies and the user runs `git stash` or switches branches before Stage 12, the uncommitted artifacts can be displaced. `inspecting-state` flags uncommitted runs in its report so users know to be careful with git operations during that window.
+**Mid-pipeline kill risk.** Through Stages 0–11 the state file is uncommitted. If the session dies and the user runs `git stash` or switches branches before Stage 12, the uncommitted artifacts can be displaced. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
 
 ### Resume protocol
 
-The coordinator's first action on every invocation is to load `inspecting-state`, which produces a structured report. Based on the report:
+The coordinator's first action on every invocation is a quick glob for active state files at `<spec_dir>/*/state.json`:
 
-**Case: 0 active runs, on main/master, clean tree**
-- Treat as fresh start
-- Confirm intent: "Start a new feature?"
+**No state files found** — fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
 
-**Case: 0 active runs, on a non-default branch (no state file)**
-- Pre-state-file interruption suspected (preflight ran but writing-specs didn't)
-- Ask user: resume from Stage 1, start fresh, or abandon
-- Never silently pick
+**One state file found** — ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, ask whether to start a fresh feature (leaves the existing state file alone) or abort.
 
-**Case: 1 active run, valid state**
-- Announce: "Resuming feature X at stage Y"
-- Confirm with user: "Resume? (yes/no)"
-- On yes: jump to the appropriate stage based on `current_stage`
-- On no: ask what user wants (start fresh / inspect state / abandon)
+**Multiple state files found** — list them; ask which to resume, or to start fresh. Multiple active runs are unusual; let the user pick.
 
-**Case: 2+ active runs**
-- List all of them with their stages
-- Ask user which to resume
-- Never silently pick
-
-**Case: Malformed state**
-- Show user what's broken (parse error, missing required fields, etc.)
-- Offer: repair (user-guided), discard and start fresh, or abort coordinator
-- Never silently overwrite
+The state file is in-session orchestration record-keeping. It enables resuming an interrupted run when the user re-invokes `sdd-coordinator` shortly after. It is not designed for cross-machine recovery, multi-user handoff, or recovery from arbitrary destructive git operations.
 
 ### Mid-stage interruption
 
@@ -135,15 +118,6 @@ On resume:
 - Continues the loop
 
 Per-task work is fully isolated; re-dispatching is safe. No need for fine-grained per-step state.
-
-### Cross-machine resume
-
-If a user pulls the feature branch on a different machine and re-invokes the coordinator:
-- The state file comes along with the branch (it's committed)
-- `inspecting-state` finds it
-- Coordinator resumes normally
-
-Provided git history is intact, cross-machine resume works without ceremony.
 
 ---
 
@@ -250,7 +224,7 @@ Each skill that depends on config reads it explicitly. The pattern is:
 2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent in both files, that's the answer.
 3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
 
-The coordinator caches the config once at session start (after `inspecting-state`) and passes relevant values into each skill dispatch.
+The coordinator caches the config once at session start (after the resume check) and passes relevant values into each skill dispatch.
 
 ### Common overrides
 
@@ -356,7 +330,6 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
   "short_name": "user-auth",
   "started_at": "2026-05-20T14:32:00Z",
   "updated_at": "2026-05-20T16:45:00Z",
-  "branch": "feat/user-auth",
   "spec_path": "docs/specs/003-user-auth/spec.md",
   "plan_path": "docs/specs/003-user-auth/plan.md",
   "current_stage": "implementing",
@@ -396,10 +369,10 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
 }
 ```
 
-**What the next session sees:**
+**What the next invocation sees:**
 
-1. Coordinator runs `inspecting-state`. Report: "1 active run found: 003-user-auth at stage `implementing`. Tasks: 3 completed, 1 in_progress, 3 pending."
-2. Coordinator confirms with user: "Resume SDD run for 003-user-auth at task T004? (yes/no)"
+1. Coordinator globs for state files; finds `docs/specs/003-user-auth/state.json`.
+2. Coordinator confirms with user: "Resume `003-user-auth` at `implementing`?"
 3. On yes: coordinator loads `implementing-plans`. The skill notes T004 is in_progress, re-dispatches T004 with a fresh implementer subagent.
 4. T004 completes, coordinator marks it complete in state file, moves on to T005.
 
@@ -409,15 +382,6 @@ No re-reading the entire history; the state file is enough.
 
 ## Validating state file integrity
 
-`inspecting-state` validates each state file it finds. Issues it flags:
+The state file is the contract that lets the coordinator resume — if it's malformed the coordinator can't reliably continue. The schema in `scripts/state-schema.md` / `state-schema.json` defines what valid means: required fields present, enum values from the documented sets, stage progression consistent (e.g., `current_stage: "implementing"` implies `plan_approved` is in `stages_completed`).
 
-- **Unparseable JSON** → reports the parse error
-- **Missing required fields** → reports which are missing
-- **Inconsistent state** — e.g., `tasks` is non-empty but `plan_path` is null (plan stage should have come first)
-- **Stage progression violation** — e.g., `current_stage: "implementing"` but `stages_completed` doesn't include `plan_approved`
-
-For each issue, the report includes specific evidence (line numbers, field paths, expected vs actual).
-
-The coordinator decides what to do with the report (offers user repair / discard / abort options).
-
-`inspecting-state` itself never modifies the state file. Repair, if requested, is the coordinator's job (with user guidance).
+In practice, malformed state is rare — every writer uses the atomic `.tmp → mv` pattern, so a half-written file never replaces the previous good one. If it does happen (the user hand-edited the file, or some external tool corrupted it), the coordinator surfaces the issue to the user rather than guessing. Repair is the user's call, not the coordinator's.

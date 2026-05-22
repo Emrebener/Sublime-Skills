@@ -2,7 +2,7 @@
 
 **Location:** `<spec_dir>/<feature_id>/state.json` (default `<spec_dir>` is `docs/specs`).
 
-This is the **single source of truth** for the state file schema. The coordinator, `inspecting-state`, and any other skill that touches the state file MUST match this definition. Drift between this file and a skill's local schema is a bug; fix this file first, then the skill.
+This is the **single source of truth** for the state file schema. The coordinator and any other skill that touches the state file MUST match this definition. Drift between this file and a skill's local schema is a bug; fix this file first, then the skill.
 
 A machine-readable JSON Schema version lives alongside this file at `state-schema.json` for objective validation.
 
@@ -21,7 +21,6 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 | `work_type` | string | `"feature"` or `"fix"`. Captured at Stage 1 by `discovering-requirements`; used by `choosing-feature-branch` (Stage 12) to derive the suggested branch prefix. |
 | `started_at` | string (ISO-8601 UTC) | When Stage 2 first initialized this state file. |
 | `updated_at` | string (ISO-8601 UTC) | Last write timestamp. Updated on every atomic write. |
-| `branch` | string | The branch this run lives on. Initially the branch the user invoked SDD on; may change at Stage 12 if the user opts to create a feature branch. |
 | `spec_path` | string | Repo-relative path to `spec.md`. Default: `<spec_dir>/<feature_id>/spec.md`. |
 | `current_stage` | string | One of the enum values in the Stage Name Mapping table below. |
 | `stages_completed` | array of strings | Stages finished successfully, in chronological order. Each value from the Stage Name Mapping table's "stages_completed entry" column. |
@@ -52,7 +51,6 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 |---|---|---|
 | `feature_id`, `short_name`, `started_at`, `spec_path` | `writing-specs` (Stage 2 init) | Set once at Stage 2; never updated after. |
 | `work_type` | `discovering-requirements` (Stage 1; captured in-memory) + persisted by `writing-specs` (Stage 2 init) | Set once; never updated after. |
-| `branch` | `writing-specs` (init) + `choosing-feature-branch` (may update at Stage 12) | Stage 2 records the branch SDD was invoked on; Stage 12 updates it if the user creates a feature branch. |
 | `updated_at` | Every writer | Touched on each atomic write. |
 | `current_stage` | Coordinator | Advanced at every stage boundary. |
 | `stages_completed` | Coordinator | Appended to after each stage succeeds. |
@@ -114,7 +112,6 @@ This is a typical state during Stage 13 with 3 tasks done, 1 in progress, 3 pend
   "work_type": "feature",
   "started_at": "2026-05-20T14:32:00Z",
   "updated_at": "2026-05-20T16:45:00Z",
-  "branch": "feat/user-auth",
   "spec_path": "docs/specs/003-user-auth/spec.md",
   "plan_path": "docs/specs/003-user-auth/plan.md",
   "current_stage": "implementing",
@@ -154,10 +151,10 @@ This is a typical state during Stage 13 with 3 tasks done, 1 in progress, 3 pend
 
 ## Validation
 
-`inspecting-state` validates each state file it finds against this schema and reports:
-- **Unparseable JSON** → reports the parse error
-- **Missing required fields** → reports which are missing
-- **Invalid enum values** — e.g., `current_stage` not in the Stage Name Mapping; `tasks.T###` not in `pending|in_progress|completed`; `test_status` not in the documented set
-- **Inconsistent state** — e.g., `tasks` is non-empty but `plan_path` is null (plan stage should have come first); `current_stage` says `implementing` but `stages_completed` doesn't include `plan_approved`
+This schema is the contract. A consumer that wants to verify a state file should check:
+- JSON parses
+- All required fields present
+- Enum values valid (`current_stage` from the Stage Name Mapping; `tasks.T###` in `pending|in_progress|completed`; `test_status` from the documented set)
+- Stage progression is consistent (e.g., `current_stage: implementing` implies `plan_approved` is in `stages_completed`)
 
 For machine-readable validation, see `state-schema.json` (JSON Schema Draft 2020-12).

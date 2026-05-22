@@ -39,7 +39,7 @@ Read `docs/specs/<feature_id>/state.json`. Confirm:
 - The file parses as JSON.
 - `stages_completed` is an array containing `implementation_complete`.
 
-If either check fails: surface the issue and halt. Common reasons: malformed JSON (rare; would have been caught earlier by `inspecting-state`), or the user invoked finishing prematurely (before implementation finished).
+If either check fails: surface the issue and halt. Common reasons: malformed JSON (rare), or the user invoked finishing prematurely (before implementation finished).
 
 Additionally, check `test_status`:
 
@@ -59,7 +59,7 @@ SDD run complete: <feature_id>
   Short name:        <short_name>
   Started:           <started_at>
   Updated:           <updated_at>
-  Branch:            <branch>
+  Branch:            <git branch --show-current>
 
   Artifacts:
     Spec:            <spec_path>

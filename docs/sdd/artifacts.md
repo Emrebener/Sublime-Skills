@@ -10,7 +10,7 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 | Plan | `docs/specs/NNN-<short-name>/plan.md` | `writing-plans` (Stage 8) | `validate-plan.sh` |
 | ADR | `docs/adr/NNNN-<kebab-title>.md` | `maintaining-adrs` (Stage 6) | (no automated validator) |
 | Handoff | `docs/handoff/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 14) | `validate-handoff.sh` |
-| State | `docs/specs/NNN-<short-name>/state.json` | `writing-specs` initializes; coordinator + other skills update | (no automated validator; `inspecting-state` checks schema) |
+| State | `docs/specs/NNN-<short-name>/state.json` | `writing-specs` initializes; coordinator + other skills update | (schema at `scripts/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
 

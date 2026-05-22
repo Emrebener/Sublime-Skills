@@ -44,9 +44,9 @@ The alternative would be one giant coordinator skill that contains all phase log
 
 - **Coordinator context bloat:** if every phase's instructions are loaded into the coordinator's context, the coordinator carries 5000+ lines of skill content at all times. Most of it is irrelevant to the current stage.
 - **Coupling:** changes to phase logic require editing the coordinator, increasing risk of unintended side effects.
-- **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `writing-specs`, `reviewing-specs`) can be invoked outside the pipeline if needed. The user can run `inspecting-state` directly.
+- **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `writing-specs`, `reviewing-specs`) can be invoked outside the pipeline if needed.
 
-The trade-off is more skill files to maintain (21 skills + 6 shared scripts + 2 schema files = 29 files) and the coordinator loading skills just-in-time. We judged this worth it.
+The trade-off is more skill files to maintain (20 skills + 6 shared scripts + 2 schema files = 28 files) and the coordinator loading skills just-in-time. We judged this worth it.
 
 **Concrete benefit:** the coordinator's SKILL.md is ~450 lines. The combined skills are ~5000 lines, but at any given moment only the active phase-skill is loaded. The coordinator stays a state machine + dispatcher.
 
@@ -132,7 +132,7 @@ Two alternatives we considered:
 
 We chose committed state because:
 
-- **Cross-machine resume.** If you pull the feature branch on a different machine, state comes with it. You can resume from anywhere.
+- **Durability across interruptions.** The state file survives a fresh shell, a working-tree reset, or simply coming back to the project later — the coordinator globs it up and offers to resume.
 - **Auditability.** Git log shows when state advanced, alongside the spec/plan changes that drove the advance.
 - **Squash-merge eats the noise.** If the project squashes on merge, state file churn collapses into one final commit — no main-branch pollution.
 
@@ -303,7 +303,7 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 | ADR step | None | Stage 6, dedicated skill |
 | Optional grill | None | Stage 4, dedicated skill |
 | 2nd review | None | Optional Stages 5 + 10 |
-| State / resume | Harness todo tool for tasks, no explicit cross-session state | state.json in git, `inspecting-state`, explicit resume protocol |
+| State / resume | Harness todo tool for tasks, no explicit cross-session state | state.json in git, explicit resume protocol |
 | Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 13 with browser/DB MCP awareness |
 | Handoff doc | None | Stage 14, dedicated skill |
 | Self-containment | Family of skills that depend on each other (and on some that aren't always available) | No external skill dependencies |
@@ -338,7 +338,6 @@ SDD takes the Superpowers shape (spec → plan → implementation with reviews),
 - Receiving-review-findings skill for consistent handling across stages
 - Abort-only preflight for safety
 - Validation scripts (`validate-*.sh`) for schema correctness
-- `inspecting-state` skill for read-only status checks
 - Stricter `[NO-TDD]` criteria
 - No-diagrams policy
 

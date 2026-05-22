@@ -35,25 +35,16 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-Every invocation of `sdd-coordinator` begins with the same three actions, regardless of whether this is a fresh run or a resume. Each step has one dedicated job — **state lookup**, then **routing**, then **todo list**. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
+Every invocation of `sdd-coordinator` begins with a quick resume check, then a todo-list build, then the pipeline. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
 
-1. **Invoke `inspecting-state`** to find active SDD runs. This skill returns a structured report listing every state file under `<spec_dir>/*/state.json` (resolved from `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.md` and `.json`), reports the current branch alongside each state's `branch` field, and surfaces pre-state-file interruption signals — but only when the current branch matches an SDD pattern (`feat/*` or `fix/*`) AND no active state files exist anywhere. No halts; just a report.
+1. **Resume check.** Glob `<spec_dir>/*/state.json` (with `<spec_dir>` resolved from `paths.spec_dir` via `scripts/get-config-value.sh`):
+   - **No files found** → fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
+   - **One file found** → ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, ask whether to start a fresh feature (leaving the existing state file alone) or abort.
+   - **Multiple files found** → list them; ask which to resume, or to start fresh. Multiple active runs is unusual; just let the user pick.
 
-2. **Decide routing based on the report** — interactive decisions only (resume vs fresh start, which active run to resume, repair vs discard malformed state). The coordinator does NOT halt here on bad config / dirty workspace / detached HEAD — those land in Stage 0.
+   No halts here. Bad-config / not-a-repo / detached-HEAD all fall through to Stage 0.
 
-   | Report says | Coordinator does |
-   |---|---|
-   | 0 active runs + no pre-state interruption signals | Confirm fresh-start intent, then proceed to Stage 0 |
-   | 0 active runs + pre-state interruption flagged | Ask user: resume from Stage 1, start fresh, or abandon. Never silently pick. |
-   | 1 active run + current branch matches `state.branch` | Confirm `"Resuming feature X at stage Y"`. On yes, jump to the appropriate stage. |
-   | 1 active run + current branch does NOT match `state.branch` | **Do NOT silently resume.** Ask: switch to the state's branch and resume, start a new feature on this branch (state file stays), or abort. Never auto-checkout branches. |
-   | 2+ active runs + current branch matches one | Offer to resume the matching one, or pick a different one, or start fresh on this branch. |
-   | 2+ active runs + current branch matches none | List them with their branches; ask which to resume or start fresh on the current branch. |
-   | Malformed state file | Show the issues. Offer: repair (user-guided), discard, or abort. |
-
-   **Rules across all routing:** the coordinator NEVER runs `git checkout` to switch branches on its own — if the user picks "switch and resume," it instructs them to switch and re-invoke (or, with explicit consent in this session, runs the checkout). Detached HEAD with active state aborts inside Stage 0 (`preflight-checks`), not here.
-
-3. **Build the progress todo list** for the user's view.
+2. **Build the progress todo list** for the user's view.
 
 After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `scripts/get-config-value.sh` for use throughout the rest of the run.
 
@@ -63,7 +54,7 @@ Through Stages 2–11, SDD writes files (spec, plan, ADRs, state.json) but does 
 
 **Why:** Stage 12 is where the user decides which branch the work lives on. Committing earlier would force SDD to make a branch decision up front (or land commits on `main`/wherever the user happened to be).
 
-**Tradeoff:** if you `git stash`, `git restore`, or change branches mid-pipeline (Stages 0–11), the uncommitted SDD artifacts may be displaced. The `inspecting-state` skill flags uncommitted runs in its report so you know to be careful. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
+**Tradeoff:** if you `git stash`, `git restore`, or change branches mid-pipeline (Stages 0–11), the uncommitted SDD artifacts may be displaced. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
 
 ---
 
@@ -138,12 +129,12 @@ The skill walks through (and skips dimensions already covered by the user's init
 **Skill:** `writing-specs` (inline)
 **Output:** `docs/specs/NNN-<short-name>/spec.md`, `docs/specs/NNN-<short-name>/state.json`
 
-The coordinator passes the in-memory understanding from Stage 1 plus the preflight outcomes (current branch) to this skill. The skill:
+The coordinator passes the in-memory understanding from Stage 1 to this skill. The skill:
 
 1. Resolves the feature directory: scans `<spec_dir>/` (default `docs/specs/`) for the highest existing `NNN`, picks `NNN+1` (or `001` if none exist). Composes with the short name.
 2. Loads project context (skip if coordinator already passed it).
 3. Renders the spec following the opinionated structure (see [artifacts.md](artifacts.md) for the full spec format). Writes atomically — composes content, writes to `<spec_path>.tmp`, then `mv`.
-4. Initializes the state file with the preflight outcomes and the spec path.
+4. Initializes the state file with the feature ID, work type, paths, and initial stage markers.
 5. Runs `scripts/validate-spec.sh` against the new file. Fixes any CRITICAL issues until it passes. Validator catches duplicate FR/SC IDs, placeholders, missing sections, and forbidden diagram syntax.
 6. Runs an inline fresh-eyes self-review for semantic issues the validator can't catch (internal consistency, testability, ambiguity, vocabulary drift).
 7. Returns the spec path to the coordinator, **including the validator's PASS line verbatim** in the report. Coordinator re-runs the validator before committing; if results disagree, the stage halts.
@@ -154,8 +145,7 @@ The coordinator passes the in-memory understanding from Stage 1 plus the preflig
 {
   "feature_id": "NNN-<short-name>",
   "current_stage": "spec_writing",
-  "stages_completed": ["preflight", "discovering"],
-  "branch": "<current branch from preflight>"
+  "stages_completed": ["preflight", "discovering"]
 }
 ```
 
@@ -227,9 +217,9 @@ On `yes`: load `grilling-specs`. The skill:
 2. Builds an internal queue of prioritized questions across categories (goal sharpness, story priority rationale, acceptance testability, FR coverage, SC measurability, entity completeness, edge case depth, constraint rigor, integration risk, constitution/ADR fit, out-of-scope explicitness).
 3. Asks questions one at a time, each with a recommended answer.
 4. **After every accepted answer:**
-   - Always adds a Clarifications log entry in the spec (audit trail and cross-session resume anchor)
+   - Always adds a Clarifications log entry in the spec (audit trail and resume anchor)
    - Picks a disposition: **Substantive change** (edits the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
-   - **Saves the spec immediately (atomic)** even when only the Clarifications log changed — that's the per-answer durable record that keeps cross-session resume working
+   - **Saves the spec immediately (atomic)** even when only the Clarifications log changed — that's the per-answer durable record that lets a resumed grill pick up cleanly
 5. Stops when: user says done, all high-impact areas resolved, OR hits the cap (default 10 questions; configurable; hard ceiling 20).
 
 **Why inline (not subagent)?** Grilling is a multi-turn user conversation. Subagents can't have back-and-forth with the user — they take a prompt and return a result. So this stage runs in the coordinator's session.
@@ -688,14 +678,12 @@ The pipeline doesn't prescribe a clean "loop back to earlier stage" mechanism fo
 
 ## Resume semantics in detail
 
-`inspecting-state` and the coordinator's resume protocol cover:
+The coordinator's resume protocol covers two cases:
 
-- **Mid-stage interruption**: the state file's `current_stage` shows the in-progress stage; `stages_completed` doesn't yet include that stage. The coordinator re-runs that stage from the start (the stage's work is idempotent-ish — re-writing a spec.md or re-dispatching a reviewer is safe).
+- **Mid-stage interruption**: the state file's `current_stage` shows the in-progress stage; `stages_completed` doesn't yet include that stage. On re-invocation, the coordinator asks whether to resume and (on yes) re-runs that stage from the start — the stages's work is idempotent-ish (re-writing a spec.md or re-dispatching a reviewer is safe).
 
 - **Mid-task interruption (Stage 13)**: the `tasks` map shows `T003: "in_progress"`. The coordinator re-dispatches T003 from the start. Per-task work is fully isolated; re-dispatching is safe.
 
-- **Pre-state-file interruption (between Stage 0 and Stage 2)**: no state file exists. `inspecting-state` detects this via the git-branch signal (non-default branch + no matching state). The coordinator asks the user whether to resume from Stage 1 or start fresh.
-
-- **Cross-machine resumption**: pull the feature branch, re-invoke the coordinator. State file comes with the branch.
+Resume is designed for picking up an interrupted run inside the same conversation (or shortly after, with `state.json` on disk as the bridge). Cross-machine resumption, multi-run juggling, and branch-mismatch recovery are explicitly out of scope — they're rare in practice and add complexity that doesn't pay for itself.
 
 See [state-and-config.md](state-and-config.md) for the full state file schema and lifecycle.

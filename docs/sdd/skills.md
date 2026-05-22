@@ -1,12 +1,11 @@
 # Skills Reference
 
-The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
 **Orchestration:**
 - `sdd-coordinator` — entry point; state machine + dispatcher
-- `inspecting-state` — read-only state inspection
 
 **Workflow stages (in pipeline order):**
 - `preflight-checks` — Stage 0
@@ -54,16 +53,16 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 **Loaded:** by the user at the start of every SDD session
 **Stage:** drives all 18 stages
 
-**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, runs `inspecting-state`, decides whether to start fresh or resume, then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
+**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, does a quick resume check (globs for an existing state file and asks whether to resume), then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
 
 **Key rules:**
-- ALWAYS runs `inspecting-state` first on every invocation
+- ALWAYS does the resume check (state-file glob + ask) first on every invocation
 - Never advances past a user-approval gate (Stages 7, 11) without explicit user yes
 - Never auto-skips optional stages (4, 5, 10, 13) — always asks
 - Never tests the feature itself when `testing-implementation` reports MCP_UNAVAILABLE
 - State updates are atomic and happen at stage boundaries only
 
-**Reads:** `.sublime-skills/config.yml`, output of `inspecting-state`, every artifact the pipeline produces
+**Reads:** `.sublime-skills/config.yml`, any existing state file, every artifact the pipeline produces
 **Writes:** state file (atomic), commits at stage transitions, ADR status flips on approval
 
 **Common mistakes the skill warns against:**
@@ -71,47 +70,6 @@ The SDD family is 21 skills coordinated by `sdd-coordinator`. The project-bootst
 - Updating state mid-stage
 - Doing phase-skill work inline instead of loading the phase-skill or dispatching a subagent
 - Multiple implementer subagents in parallel (sequential only)
-
----
-
-## inspecting-state
-
-**Type:** Read-only utility
-**Loaded:** by the coordinator at the start of every invocation; directly by the user when they want to check status
-**Stage:** entry / on-demand
-
-**Purpose:** Single source of truth for "what SDD state currently exists in this repo." Finds all `<spec_dir>/*/state.json` files (honoring `paths.spec_dir`), validates each against the canonical schema (`scripts/state-schema.json`), checks git for pre-state-file interruption signals, and reports.
-
-**Key rules:**
-- STRICTLY read-only. Does not modify any file.
-- Does NOT decide "resume vs start fresh" — only reports facts. The coordinator interprets.
-- Does NOT dispatch subagents.
-
-**Pre-state interruption detection** (tightened to eliminate false positives): flagged ONLY when all three are true — zero active state files exist anywhere, current branch matches an SDD pattern (`feat/*` or `fix/*`), and the branch isn't `main`/`master`/`develop`/`release/*`/`hotfix/*`. This avoids firing on unrelated branches like `chore/cleanup` or `wip/anything`.
-
-**Reads:** all state files (validated against `state-schema.json`), git branch info
-**Writes:** nothing (returns a report)
-
-**Report format:**
-
-```markdown
-## SDD State Report
-**Active runs found:** N
-**Pre-state interruption suspected:** yes|no
-**Current branch:** ...
-
-### Run 1: <feature_id>
-- Path, short_name, started, updated, branch, **branch match with current (yes|no)**, current_stage, stages_completed/skipped, tasks summary, test_status, ADR count, validation status
-
-### Pre-State Interruption Signals (if applicable)
-
-### Summary
-<One sentence — what coordinator/user should do next, including the branch-match disposition>
-```
-
-The "Branch match with current" field per run lets the coordinator route correctly when current branch and state.branch disagree (per the coordinator's resume decision table).
-
-**User invocation:** "Use the inspecting-state skill to show me what SDD runs are in progress."
 
 ---
 
@@ -292,7 +250,7 @@ Preflight aborted.
 **After each accepted answer:**
 1. Append `- Q: ... → A: ...` to the Clarifications log section (created if missing) — always, regardless of body-edit disposition
 2. Pick a disposition: **Substantive change** (edit the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
-3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; per-answer save is what keeps cross-session resume working
+3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; per-answer save is what lets a resumed grill pick up cleanly
 4. Move to next question
 
 **Stop conditions:**
@@ -1004,13 +962,12 @@ Examples:
 
 **Location:** `spec-driven-development/scripts/state-schema.md`, `spec-driven-development/scripts/state-schema.json`
 
-**Purpose:** Single source of truth for the state file schema. The coordinator, `inspecting-state`, and any other skill that touches the state file MUST match this definition. If a skill diverges from these files, fix the skill (or update these files if the change is intentional) — drift between them is a bug.
+**Purpose:** Single source of truth for the state file schema. The coordinator and any other skill that touches the state file MUST match this definition. If a skill diverges from these files, fix the skill (or update these files if the change is intentional) — drift between them is a bug.
 
 The `.md` file is the readable reference (field tables, ownership, lifecycle, worked example). The `.json` file is for objective validation: a JSON Schema validator (e.g., `ajv`, `python -m jsonschema`) can check a state file against it directly.
 
 Cross-references in this repo:
 - `sdd-coordinator/SKILL.md` links to it for state schema details
-- `inspecting-state/SKILL.md` uses it as the source for validation
 - `docs/sdd/state-and-config.md` references it as canonical
 
 ---
@@ -1019,7 +976,6 @@ Cross-references in this repo:
 
 ```
 sdd-coordinator (entry; user-invoked)
-├── inspecting-state            (Step 1 of every invocation)
 ├── preflight-checks            (Stage 0)
 ├── discovering-requirements    (Stage 1)
 ├── writing-specs               (Stage 2; uses validate-spec.sh)

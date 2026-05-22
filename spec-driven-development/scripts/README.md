@@ -166,12 +166,12 @@ a general-purpose YAML library.
 `.md` is human-readable (field tables, lifecycle, worked example) and the
 `.json` is JSON Schema Draft 2020-12 for objective validation.
 
-Skills that read or write the state file (sdd-coordinator, inspecting-state,
-writing-specs, writing-plans, implementing-plans, testing-implementation,
-generating-handoff, receiving-review-findings, finishing-sdd) MUST match this
-schema. Drift between a skill's behavior and these files is a bug; fix the
-schema files first if the change is intentional, or fix the skill if it
-diverged accidentally.
+Skills that read or write the state file (sdd-coordinator, writing-specs,
+writing-plans, implementing-plans, testing-implementation, generating-handoff,
+receiving-review-findings, finishing-sdd) MUST match this schema. Drift
+between a skill's behavior and these files is a bug; fix the schema files
+first if the change is intentional, or fix the skill if it diverged
+accidentally.
 
 If a JSON Schema validator is available in your environment (`ajv`,
 `python -m jsonschema`, etc.), you can validate a state file against the schema
@@ -183,5 +183,5 @@ python -m jsonschema -i docs/specs/003-user-auth/state.json \
   spec-driven-development/scripts/state-schema.json
 ```
 
-`inspecting-state` performs a structural validation pass; this script-level
-check is an additional independent verification.
+The schema files are the contract; running a JSON Schema validator against a
+state file is the most reliable check for drift.

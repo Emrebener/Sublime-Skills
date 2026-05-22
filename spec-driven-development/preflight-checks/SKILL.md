@@ -163,8 +163,6 @@ Preflight complete.
 - Status: ready
 ```
 
-The current branch is the "starting branch" — the coordinator passes it to `writing-specs` (Stage 2) which records it in `state.json` as `branch`. It may change at Stage 12 if the user creates a feature branch then.
-
 ### On abort
 
 ```

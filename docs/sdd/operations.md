@@ -561,7 +561,7 @@ The cap is hard — the coordinator does NOT dispatch a 3rd auto-iteration under
 ### State file malformed after a crash
 
 **Cause:** something killed the session mid-atomic-write (rare but possible).
-**Fix:** the coordinator detects this via `inspecting-state` and shows you the parse error. Options:
+**Fix:** the coordinator detects this when it reads the state file and shows you the parse error. Options:
 - Attempt repair (user-guided): edit the JSON manually until it parses
 - Discard state and start fresh (loses pipeline progress; spec/plan/code are still in git)
 - Abort coordinator
@@ -578,7 +578,7 @@ There's no clean "loop back to earlier stage" mechanism for this — it's delibe
 ### Multiple active SDD runs
 
 **Cause:** you started feature A, paused it, started feature B (on a different branch), and now both have state files.
-**Fix:** `inspecting-state` lists them. The coordinator asks which to resume. You can also use `inspecting-state` directly to see status without entering the pipeline.
+**Fix:** the coordinator's resume check finds both and asks you which to resume.
 
 ### Resume after a long time
 
@@ -610,16 +610,6 @@ If you notice this pattern, file a follow-up to tighten the coordinator's instru
 
 **Cause:** platform error, model error, timeout, malformed output that doesn't match the expected format.
 **Fix:** follow the Subagent Failure Protocol above. The coordinator retries at most once, then surfaces to user with four options (retry manually / skip if non-mandatory / abort SDD / provide result manually).
-
-### Resume tried to switch you to a different branch
-
-**Cause:** the active SDD state file's `branch` field doesn't match your current branch, and you said "resume."
-**Fix:** the coordinator does NOT auto-checkout. It asks you what to do:
-- Switch back to the SDD branch yourself (`git checkout <state.branch>`) and re-invoke
-- Start a new feature on the current branch (the existing state stays put for later)
-- Abort
-
-If you wanted to do something else entirely (e.g., that other branch was an accidental detour), use `inspecting-state` to confirm what state files exist, then decide.
 
 ### Multiple-tier review told me to write content my task didn't list
 

@@ -85,7 +85,7 @@ The Clarifications section is auto-managed by the grilling-specs skill if invoke
 
 ## Step 4: Initialize State File
 
-Write `docs/specs/NNN-<short-name>/state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`). See `sdd-coordinator` for the full state schema. Use the preflight outcomes the coordinator passed in (current branch).
+Write `docs/specs/NNN-<short-name>/state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`). See `sdd-coordinator` for the full state schema.
 
 **Do NOT commit.** The spec.md and state.json stay uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits them on the user's chosen branch alongside the plan and ADRs.
 
@@ -100,7 +100,6 @@ Initial state when this skill writes the file:
   "updated_at": "<ISO-8601 timestamp>",
   "spec_path": "docs/specs/NNN-<short-name>/spec.md",
   "plan_path": null,
-  "branch": "<current-branch from coordinator>",
   "current_stage": "spec_writing",
   "stages_completed": ["preflight", "discovering"],
   "stages_skipped": [],

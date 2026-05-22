@@ -1,6 +1,6 @@
 # Spec-Driven Development (SDD) — Documentation
 
-A reliable, resumable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 22 coordinated skills (sdd-coordinator + 21 phase/subagent skills) plus 6 shared scripts and 2 state-schema files.
+A reliable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 21 coordinated skills (sdd-coordinator + 20 phase/subagent skills) plus 6 shared scripts and 2 state-schema files. A per-feature state file makes interrupted runs resumable within the same conversation.
 
 This document set is the canonical reference. The skill files under `spec-driven-development/<skill>/SKILL.md` are the operational specs that the AI executes; these docs are the human-readable explanations of how everything fits together.
 
@@ -26,7 +26,7 @@ finishing (merge / PR / keep / discard)
 
 Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + per-task spec-compliance review + per-task code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
 
-Everything is resumable: a per-feature state file at `docs/specs/NNN-<short-name>/state.json` tracks current stage and per-task progress, committed alongside the spec and plan in git. If a session dies, the next session reads the state file first and picks up where it left off.
+Interrupted runs are resumable inside the same conversation: a per-feature state file at `docs/specs/NNN-<short-name>/state.json` tracks current stage and per-task progress, committed alongside the spec and plan in git. The coordinator checks for an existing state file on every invocation and offers to resume.
 
 ---
 
@@ -61,9 +61,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 7. Generate a handoff doc
 8. Wrap up (merge / PR / keep / discard) per your config or interactive choice
 
-**Resuming an interrupted run:** just invoke `sdd-coordinator` again. It reads state first; if it finds an active run, it asks if you want to resume.
-
-**Checking status without entering the pipeline:** invoke `inspecting-state` directly. It reports all active runs without making any changes.
+**Resuming an interrupted run:** just invoke `sdd-coordinator` again. It checks for an existing state file at the start of every invocation and asks whether to resume.
 
 ---
 
@@ -116,7 +114,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 ## Key design properties at a glance
 
 - **Self-contained.** No runtime dependencies on external skill families (superpowers, kiro, spec-kit, etc.).
-- **Resumable.** Per-feature state file in git lets any session pick up where any other session left off.
+- **Resumable.** Per-feature state file in git lets an interrupted conversation pick up where it left off (re-invoke `sdd-coordinator`; it offers to resume).
 - **Coordinator is thin.** It's a state machine + dispatcher; all real work lives in dedicated phase-skills or subagents.
 - **Fresh context per task.** Per-task implementation uses fresh subagents (implementer + 2 reviewers). The coordinator's context stays clean.
 - **Abort-fast preflight.** No magic cleanup. If the repo isn't in a fit state, the user fixes it manually.
