@@ -1,6 +1,6 @@
 ---
 name: generating-handoff
-description: Use when dispatched as a subagent during the handoff stage of an SDD pipeline run, after implementation and testing complete and before finishing. Reads the entire SDD context (spec, plan, ADRs, state file, git log) and writes a redacted handoff document at docs/handoff/YYYY-MM-DD-<short-title>.md that lets a fresh agent (or human) continue the work.
+description: Use when dispatched as a subagent during the handoff stage of an SDD pipeline run, after implementation and testing complete and before finishing. Reads the entire SDD context (spec, plan, ADRs, state file, git log) and writes a redacted handoff document at $HOME/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md (path provided by the coordinator) that lets a fresh agent (or human) continue the work.
 ---
 
 # Generating Handoff
@@ -37,8 +37,7 @@ The dispatch prompt includes:
 - `BRANCH` — feature branch name
 - `BASE_SHA` — first commit on this branch
 - `HEAD_SHA` — current HEAD
-- `HANDOFF_DIR` — directory where the handoff goes. Default `docs/handoff` (repo-relative). Overridable via `.sublime-skills/config.yml` → `paths.handoff_dir`. **The override may be an absolute path** (e.g., `/home/user/sdd-handoffs/` or `~/notes/sdd/`) to write the handoff outside the repo — useful for keeping handoffs out of project history.
-- `OUTSIDE_REPO` — boolean. Set by the coordinator. `true` if `HANDOFF_DIR` resolves to a location outside the repo's working tree; `false` otherwise. When `true`, the handoff is NOT staged or committed by the coordinator (file lives outside git's control).
+- `HANDOFF_DIR` — absolute directory provided by the coordinator under `$HOME/.sublime-skills/handoffs/<repo-basename>/`. Treat it as an opaque write destination; no relative/absolute detection logic.
 
 ## Checklist
 
@@ -109,9 +108,7 @@ Filename: `YYYY-MM-DD-<short-title>.md`
 
 Full path: `<HANDOFF_DIR>/YYYY-MM-DD-<short-title>.md`
 
-`HANDOFF_DIR` may be:
-- A repo-relative path (e.g., `docs/handoff`) — the handoff will be staged and committed alongside the run.
-- An absolute path (e.g., `/home/user/sdd-handoffs/` or `~/notes/sdd/`) — the handoff lives outside the repo. Expand `~` to the user's home directory before writing. Create the directory with `mkdir -p` if it doesn't exist.
+`HANDOFF_DIR` is the absolute path provided by the coordinator. No tilde expansion or path-shape detection is needed. The coordinator has already created the directory; the skill writes the file directly into it.
 
 If a file at that exact path already exists (rare but possible — same-day re-run, or same short name as a previous handoff), append `-<N>` where `<N>` is the next available integer.
 
@@ -144,14 +141,11 @@ Return to the coordinator:
 
 ```
 Handoff written: <output-path>
-- Outside repo: true | false
 - Redactions performed: <count>
 - Source artifacts referenced: spec, plan, <N> ADRs
 - Git span: <BASE_SHA>..<HEAD_SHA> (<N> commits, <M> files changed)
 - Validation: passed
 ```
-
-The `Outside repo` flag tells the coordinator whether to attempt `git add` + commit (false = inside repo, commit it; true = outside repo, skip commit).
 
 ---
 
