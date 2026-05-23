@@ -67,7 +67,7 @@ Before starting the per-file loop, build the progress todo list with the harness
 7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
-10. `.gitignore` housekeeping
+10. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
 11. Commit
 
 Mark each `in_progress` when you start it and `completed` the instant it's done. Never batch — the user reads this list to follow along with what you're doing.
@@ -174,8 +174,7 @@ or manually by anyone with a decision worth capturing.
 ```markdown
 # Specs
 
-Each subdirectory is one feature, with `spec.md`, `plan.md`, and
-`state.json` (SDD pipeline state, deleted on completion).
+Each subdirectory is one feature, containing `spec.md` and `plan.md`.
 
 Directory pattern: `NNN-kebab-name/` (zero-padded 3 digits).
 ```
@@ -188,7 +187,18 @@ If any of these READMEs already exist with the same content, skip them. If they 
 mkdir -p .sublime-skills
 [ -f .sublime-skills/config.yml ] || cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
 [ -f .sublime-skills/config-local.yml ] || touch .sublime-skills/config-local.yml
+if [ ! -f .sublime-skills/.gitignore ]; then
+  cat > .sublime-skills/.gitignore <<'EOF'
+# Per-developer config overlay (each developer's own; not committed)
+config-local.yml
+
+# SDD per-run state file (local-only orchestration metadata; never committed)
+state.json
+EOF
+fi
 ```
+
+`.sublime-skills/.gitignore` is created as a two-entry file: `config-local.yml` (per-developer overlay) and `state.json` (per-run SDD state). It's committed (the ignore is project-wide convention). On a re-run, the file is left alone — see Step 7 for the append-if-missing logic that catches users who may have removed one of the entries.
 
 Both lines are idempotent — they create the file when it's missing, and leave any existing content alone on a re-run. This protects the user's hand-edits to either file across multiple bootstrap invocations.
 
@@ -235,20 +245,26 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` Housekeeping
 
-If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, append it:
+Ensure `.sublime-skills/.gitignore` contains both required entries. Step 4 created the file when missing; this step handles the re-run case where a developer may have removed an entry:
 
 ```bash
-# Check first
-grep -qE '^\.sublime-skills/config-local\.yml$' .gitignore 2>/dev/null || {
-  echo "" >> .gitignore
-  echo "# SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)" >> .gitignore
-  echo ".sublime-skills/config-local.yml" >> .gitignore
+GIT_IGNORE=.sublime-skills/.gitignore
+[ -f "$GIT_IGNORE" ] || touch "$GIT_IGNORE"
+
+grep -qE '^config-local\.yml$' "$GIT_IGNORE" || {
+  echo "" >> "$GIT_IGNORE"
+  echo "# Per-developer config overlay (each developer's own; not committed)" >> "$GIT_IGNORE"
+  echo "config-local.yml" >> "$GIT_IGNORE"
+}
+
+grep -qE '^state\.json$' "$GIT_IGNORE" || {
+  echo "" >> "$GIT_IGNORE"
+  echo "# SDD per-run state file (local-only orchestration metadata; never committed)" >> "$GIT_IGNORE"
+  echo "state.json" >> "$GIT_IGNORE"
 }
 ```
 
-`.sublime-skills/config.yml` itself is committed (it's project-wide config).
-
-Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline; no gitignore entry needed.
+Both `.sublime-skills/config.yml` and `.sublime-skills/.gitignore` itself are committed (project-wide convention). The root `.gitignore` is NOT modified by this skill any more — all SDD-related ignores live under `.sublime-skills/`.
 
 ## Step 8: Commit
 
@@ -281,6 +297,7 @@ Directories:
 
 Config:
 - .sublime-skills/config.yml created and validated (PASS)
+- .sublime-skills/.gitignore created with state.json and config-local.yml entries
 - Skipped files have their context.<name>_path set to null
 
 Next steps:
