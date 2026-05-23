@@ -200,7 +200,7 @@ fi
 
 `.sublime-skills/.gitignore` is created as a two-entry file: `config-local.yml` (per-developer overlay) and `state.json` (per-run SDD state). It's committed (the ignore is project-wide convention). On a re-run, the file is left alone — see Step 7 for the append-if-missing logic that catches users who may have removed one of the entries.
 
-Both lines are idempotent — they create the file when it's missing, and leave any existing content alone on a re-run. This protects the user's hand-edits to either file across multiple bootstrap invocations.
+All three patterns are idempotent — they create the file when it's missing, and leave any existing content alone on a re-run. This protects the user's hand-edits to any of these files across multiple bootstrap invocations.
 
 The `cp` of the scaffold is a verbatim copy of `project-bootstrap/scaffolds/config.yml`. **Do NOT regenerate the YAML.** The scaffold is the single source of truth for the config's shape and defaults; the bootstrap never produces config YAML from scratch.
 
@@ -271,7 +271,7 @@ Both `.sublime-skills/config.yml` and `.sublime-skills/.gitignore` itself are co
 ```bash
 git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         docs/adr/ docs/specs/ \
-        .sublime-skills/config.yml [.gitignore]
+        .sublime-skills/config.yml .sublime-skills/.gitignore
 git commit -m "chore: initialize SDD project context"
 ```
 
