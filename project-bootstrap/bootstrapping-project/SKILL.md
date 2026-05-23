@@ -38,7 +38,7 @@ Proceed through these in order:
 
 1. Detect existing setup via discovery script
 2. For each convention file (constitution → architecture → glossary → domain → design): detect → ask → load the matching `discovering-<topic>` skill inline → record outcome
-3. Create supporting directories (`docs/adr/`, `docs/specs/`, `docs/handoff/`) with stub READMEs
+3. Create supporting directories (`docs/adr/`, `docs/specs/`) with stub READMEs
 4. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml` (preserving any existing local overrides)
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
 6. Run `validate-config.sh`; fix-and-retry on FAIL (cap 3 attempts)
@@ -63,7 +63,7 @@ Before starting the per-file loop, build the progress todo list with the harness
 3. Glossary (`docs/GLOSSARY.md`)
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
-6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
+6. Create `docs/adr/`, `docs/specs/` with READMEs
 7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
@@ -149,7 +149,7 @@ Continue to the next convention file in the order. Repeat until all five are set
 ## Step 3: Create Supporting Directories
 
 ```bash
-mkdir -p docs/adr docs/specs docs/handoff
+mkdir -p docs/adr docs/specs
 ```
 
 Write each stub README:
@@ -178,23 +178,6 @@ Each subdirectory is one feature, with `spec.md`, `plan.md`, and
 `state.json` (SDD pipeline state, deleted on completion).
 
 Directory pattern: `NNN-kebab-name/` (zero-padded 3 digits).
-```
-
-**`docs/handoff/README.md`:**
-
-```markdown
-# Handoff Documents
-
-Generated at the end of each SDD pipeline run (Stage 14). Each handoff
-summarizes what was built, references the source artifacts (spec, plan,
-ADRs), and gives a fresh agent enough context to continue work — for
-example, when iterating on PR feedback in a new session.
-
-Filename pattern: `YYYY-MM-DD-<kebab-title>.md`. Sortable by date.
-
-Handoff docs are written by the `generating-handoff` skill. They redact
-secrets (API keys, tokens, passwords, JWTs, private keys) so they're
-safe to share or commit.
 ```
 
 If any of these READMEs already exist with the same content, skip them. If they exist with different content, ask the user before overwriting.
@@ -271,7 +254,7 @@ Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SD
 
 ```bash
 git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
-        docs/adr/ docs/specs/ docs/handoff/ \
+        docs/adr/ docs/specs/ \
         .sublime-skills/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
 ```
@@ -295,7 +278,6 @@ Convention files:
 Directories:
 - docs/adr/ (with README)
 - docs/specs/ (with README)
-- docs/handoff/ (with README)
 
 Config:
 - .sublime-skills/config.yml created and validated (PASS)
