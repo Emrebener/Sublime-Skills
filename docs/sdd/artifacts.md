@@ -9,7 +9,7 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 | Spec | `docs/specs/NNN-<short-name>/spec.md` | `writing-specs` (Stage 2), updated by `grilling-specs` (Stage 4) | `validate-spec.sh` |
 | Plan | `docs/specs/NNN-<short-name>/plan.md` | `writing-plans` (Stage 8) | `validate-plan.sh` |
 | ADR | `docs/adr/NNNN-<kebab-title>.md` | `maintaining-adrs` (Stage 6) | (no automated validator) |
-| Handoff | `docs/handoff/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 14) | `validate-handoff.sh` |
+| Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 15) | `validate-handoff.sh` |
 | State | `docs/specs/NNN-<short-name>/state.json` | `writing-specs` initializes; coordinator + other skills update | (schema at `scripts/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
@@ -23,7 +23,6 @@ For state file schema details, see [state-and-config.md](state-and-config.md).
 - Path: `docs/specs/NNN-<short-name>/spec.md`
 - `NNN`: 3-digit zero-padded sequential number; allocated by scanning `docs/specs/` and picking the highest + 1
 - `<short-name>`: 2-4 kebab-case words derived from the feature description (e.g., `user-auth`, `export-csv`, `fix-payment-timeout`)
-- Path override: `.sublime-skills/config.yml` → `paths.spec_dir` (default `docs/specs`)
 
 ### Structure (required sections in order)
 
@@ -440,7 +439,6 @@ The reason line must match one of the [NO-TDD] allowed categories (see [operatio
 - Path: `docs/adr/NNNN-<kebab-title>.md`
 - `NNNN`: 4-digit zero-padded sequential number, allocated by scanning existing ADRs and picking highest + 1
 - `<kebab-title>`: 2-5 kebab-case words from the ADR title
-- Path override: `.sublime-skills/config.yml` → `paths.adr_dir` (default `docs/adr`)
 
 ### Format (locked)
 
@@ -566,10 +564,10 @@ Revocation is handled via a blocklist table (`session_blocklist`) with a TTL mat
 
 ### Path and naming
 
-- Path: `docs/handoff/YYYY-MM-DD-<kebab-title>.md`
+- Path: `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md`
 - `YYYY-MM-DD` — date of generation (UTC), enables sorting by date
 - `<kebab-title>` — 2-5 kebab-case words from the feature's short name or title
-- Path override: `.sublime-skills/config.yml` → `paths.handoff_dir` (default `docs/handoff`). May be repo-relative OR absolute (e.g., `/home/user/sdd-handoffs/`, `~/notes/sdd/`) to write outside the repo. Absolute paths are NOT committed; the path is recorded in `state.json` so the user/tooling can find the doc.
+- Handoffs live outside the repo by design and are not committed to source control. The absolute path is recorded in `state.json` so the user/tooling can find the doc.
 - Same-day re-runs: append `-<N>` (e.g., `2026-05-20-user-auth-2.md`)
 
 ### Structure (required sections)
