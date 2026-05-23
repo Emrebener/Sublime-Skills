@@ -76,8 +76,8 @@ When a state file is found, before offering resume, verify the files it referenc
 SPEC_PATH=$(jq -r '.spec_path // empty' .sublime-skills/state.json)
 PLAN_PATH=$(jq -r '.plan_path // empty' .sublime-skills/state.json)
 
-[ -n "$SPEC_PATH" ] && [ ! -f "$SPEC_PATH" ] && MISSING="$MISSING\n  - $SPEC_PATH"
-[ -n "$PLAN_PATH" ] && [ ! -f "$PLAN_PATH" ] && MISSING="$MISSING\n  - $PLAN_PATH"
+[ -n "$SPEC_PATH" ] && [ ! -f "$SPEC_PATH" ] && MISSING="$MISSING"$'\n'"  - $SPEC_PATH"
+[ -n "$PLAN_PATH" ] && [ ! -f "$PLAN_PATH" ] && MISSING="$MISSING"$'\n'"  - $PLAN_PATH"
 ```
 
 If either path is set in state but doesn't exist on disk, prompt the user via the harness's interactive question tool:
