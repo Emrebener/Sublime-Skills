@@ -53,10 +53,10 @@ The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootst
 **Loaded:** by the user at the start of every SDD session
 **Stage:** drives all 18 stages
 
-**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, does a quick resume check (globs for an existing state file and asks whether to resume), then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
+**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, does a quick resume check (`[ -f .sublime-skills/state.json ]` and asks whether to resume), then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
 
 **Key rules:**
-- ALWAYS does the resume check (state-file glob + ask) first on every invocation
+- ALWAYS does the resume check (state-file existence check + ask) first on every invocation
 - Never advances past a user-approval gate (Stages 7, 11) without explicit user yes
 - Never auto-skips optional stages (4, 5, 10, 13) — always asks
 - Never tests the feature itself when `testing-implementation` reports MCP_UNAVAILABLE
@@ -406,7 +406,7 @@ Preflight aborted.
 **Loaded:** by the coordinator at Stage 12
 **Stage:** 12
 
-**Purpose:** Decide which branch the SDD planning artifacts (spec, plan, ADRs, state.json) — uncommitted through Stages 2–11 — should land on. Optionally creates a feature branch with `git checkout -b`, then batch-commits the artifacts in three thematic commits.
+**Purpose:** Decide which branch the SDD planning artifacts (spec, plan, ADRs) — uncommitted through Stages 2–11 — should land on. Optionally creates a feature branch with `git checkout -b`, then batch-commits the artifacts in two thematic commits. `.sublime-skills/state.json` is gitignored and never included in commits.
 
 **3-way user prompt:**
 1. Create and switch to `<derived-name>` (recommended; derived from `branching.branch_pattern`)
@@ -414,11 +414,10 @@ Preflight aborted.
 3. Stay on the current branch — commits land here
 
 **Batch commits (in order, skipping any whose paths don't exist):**
-1. `docs(<feature_id>): spec` — spec.md + state.json
+1. `docs(<feature_id>): spec and plan` — spec.md + plan.md
 2. `docs(adr): N decisions for <feature_id>` — new ADRs from this run
-3. `docs(<feature_id>): plan` — plan.md + state.json (updated)
 
-**Path-scoping is mandatory.** Never `git add .` / `git add -A`. The user may have pre-existing dirty files (preflight allows them through); path-scoping protects them.
+**Path-scoping is mandatory.** Never `git add .` / `git add -A`, never `git add -f .sublime-skills/state.json`. The user may have pre-existing dirty files (preflight allows them through); path-scoping protects them, and `state.json` stays gitignored.
 
 **Aborts:**
 - `branch_creation_failed` (checkout failed; branch exists or invalid name)
@@ -746,18 +745,17 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 **Loaded:** by the coordinator at Stage 17
 **Stage:** 17
 
-**Purpose:** Close out the SDD run. Validate the state file, print a structured summary report of what the pipeline produced, delete `state.json`, commit the deletion. V1 explicitly does NOT manage source control — no merging, PR creation, or branch deletion. The user decides what to do with the feature branch.
+**Purpose:** Close out the SDD run. Validate the state file, print a structured summary report of what the pipeline produced, delete `.sublime-skills/state.json`. V1 explicitly does NOT manage source control — no merging, PR creation, or branch deletion. The user decides what to do with the feature branch.
 
 **Steps:**
-1. Read and validate `state.json`. Confirm `implementation_complete` is in `stages_completed`. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
+1. Read and validate `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed`. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
 2. Print summary: feature_id, short_name, branch, spec/plan/handoff paths, ADRs created, tasks completed, test_status, memory_file_updated.
-3. `git rm docs/specs/<feature_id>/state.json` + `git commit -m "chore(<feature_id>): SDD complete"` (path-scoped).
+3. `rm .sublime-skills/state.json` — plain `rm`, not `git rm`. No commit follows; the file is gitignored.
 
 **Hard rules:**
 - No merge / push / PR / branch deletion
 - No test re-run
-- Path-scoped `git add` only
-- Never `--no-verify` / `--no-gpg-sign`
+- No `git add` of `state.json` (gitignored; never force-add)
 
 ---
 
@@ -780,11 +778,11 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
 6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
-7. Ensure `.sublime-skills/config-local.yml` is gitignored.
+7. Ensure `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` entries (Step 4 creates the file; this step appends any missing entries).
 8. Single commit `chore: initialize SDD project context`.
 
 **Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
-**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; possibly `.gitignore` entry; one commit.
+**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; `.sublime-skills/config-local.yml` (empty); `.sublime-skills/.gitignore` (with `state.json` and `config-local.yml` entries); one commit.
 
 ### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
 
@@ -834,11 +832,11 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 | `glossary` | `context.glossary_path` | scalar; null = not used |
 | `domain` | `context.domain_path` | scalar; null = not used |
 | `design` | `context.design_path` | scalar; null = not used |
-| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | also drives `active_states` |
+| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | — |
 | `adr_dir` | fixed at `docs/adr` — emitted for debugging only | also drives `adrs` |
 | `readme` | (hardcoded `README.md`) | one universal location |
 | `adrs` | — | all `.md` files at `<adr_dir>/` |
-| `active_states` | — | all `state.json` at `<spec_dir>/*/state.json` |
+| `active_state` | — | `.sublime-skills/state.json` if present, else null |
 | `config` | — | path to `.sublime-skills/config.yml` if present |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
@@ -860,7 +858,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
   "adrs": ["docs/adr/0001-...", ...],
-  "active_states": ["docs/specs/003-user-auth/state.json", ...]
+  "active_state": ".sublime-skills/state.json" | null
 }
 ```
 
