@@ -15,6 +15,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do a quick resume check on every invocation (Step 1 below) before doing anything else
 - Do NOT perform halt checks (config validation, git workspace, detached HEAD) inline — that's `preflight-checks`'s job. Stage 0 owns every pre-pipeline halt.
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
@@ -341,12 +342,12 @@ Both protocols list the exact handling for each common failure mode. When in dou
 |---|---|
 | Skipping the resume check at session start | Always do the glob-and-ask check first |
 | Updating state mid-stage | Updates happen at stage boundaries (atomic) |
-| Letting state file get committed in its own noisy commits | Ride-along with relevant code/doc commits |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 | Skipping user-approval gates | Mandatory; never auto-proceed |
 | Auto-skipping an optional stage | Always ask user; never auto-skip or auto-include |
 | Doing phase-skill work inline | Load the phase-skill or dispatch the subagent |
 | Coordinator running feature tests when MCP_UNAVAILABLE | NEVER — surface to user with manual test plan |
-| Silently picking one of multiple active state files | Always ask user which to resume |
 
 ## Red Flags
 
@@ -355,6 +356,8 @@ Both protocols list the exact handling for each common failure mode. When in dou
 - About to auto-skip an optional stage → STOP; user decides
 - About to start two implementer subagents in parallel → STOP
 - About to test the feature yourself after MCP_UNAVAILABLE → STOP; not your job
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP
 
 ## Sibling Skills
 
