@@ -471,7 +471,7 @@ Preflight aborted.
 
 **Type:** Subagent skill (lightweight protocol)
 **Loaded:** by implementer subagents themselves when they start
-**Stage:** 12 (during per-task implementation)
+**Stage:** 13 (during per-task implementation)
 
 **Purpose:** Establish the implementer's protocol — scope discipline, TDD-by-default, status protocol, self-review, commit hygiene.
 
@@ -496,7 +496,7 @@ Preflight aborted.
 
 **Type:** Subagent skill (full protocol for the per-task spec-compliance reviewer)
 **Loaded:** by the spec-compliance reviewer subagent when it's dispatched
-**Stage:** 12 (per task)
+**Stage:** 13 (per task)
 
 **Purpose:** First-stage per-task review. Confirms the implementation matches the task spec exactly — no scope creep, no missing steps, no silent design decisions.
 
@@ -524,7 +524,7 @@ Preflight aborted.
 
 **Type:** Subagent skill (full protocol for the per-task code-quality reviewer)
 **Loaded:** by the code-quality reviewer subagent when it's dispatched
-**Stage:** 12 (per task, after spec compliance is Approved)
+**Stage:** 13 (per task, after spec compliance is Approved)
 
 **Purpose:** Second-stage per-task review. Catches code-quality issues that would harm the codebase if merged — assumes the previous reviewer verified scope.
 
@@ -586,7 +586,7 @@ Preflight aborted.
 
 **Type:** Subagent skill (full protocol for the tester subagent)
 **Loaded:** by the tester subagent when it's dispatched
-**Stage:** 13 (optional)
+**Stage:** 14 (optional)
 
 **Purpose:** Feature-level verification — does the implementation deliver what the spec promised end-to-end? Picks strategy by feature type and available tools.
 
@@ -617,7 +617,7 @@ Preflight aborted.
 
 **Type:** Subagent skill (full protocol for the fixer subagent)
 **Loaded:** by the fixer subagent when it's dispatched
-**Stage:** 13 (during fix loop, on tester FAIL)
+**Stage:** 14 (during fix loop, on tester FAIL)
 
 **Purpose:** Fix the specific failures the tester reported — narrowly scoped, verified by running the tester's exact reproduction.
 

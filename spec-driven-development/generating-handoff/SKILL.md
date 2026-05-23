@@ -193,7 +193,7 @@ Handoff written: <output-path>
 ## Test status
 
 <One paragraph reporting:
-- Whether feature-level testing ran (Stage 13)
+- Whether feature-level testing ran (Stage 14)
 - Result: passed / passed_after_fixes / skipped (and reason) / failed (escalated)
 - If failed/skipped: what was NOT verified that a fresh agent should manually check>
 

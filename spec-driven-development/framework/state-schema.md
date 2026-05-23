@@ -54,8 +54,8 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 |---|---|---|---|
 | `plan_path` | string | Stage 8 | Repo-relative path to `plan.md`. |
 | `adr_results` | array of objects | Stage 6 | `[{ "id": "ADR-NNNN", "title": string, "status": "Proposed"|"Accepted"|..., "path": string }, ...]`. Empty array if no ADRs created. |
-| `test_status` | string | Stage 13 | One of: `passed`, `passed_after_fixes`, `skipped_mcp_unavailable`, `skipped_user_choice`, `failed_escalated`, or `null` if Stage 13 hasn't run. |
-| `fix_iterations` | integer | Stage 13 | How many test-fix iterations ran (0-3). |
+| `test_status` | string | Stage 14 | One of: `passed`, `passed_after_fixes`, `skipped_mcp_unavailable`, `skipped_user_choice`, `failed_escalated`, or `null` if Stage 14 hasn't run. |
+| `fix_iterations` | integer | Stage 14 | How many test-fix iterations ran (0-3). |
 | `final_review_completed` | boolean | After Stage 13 final review | Set `true` by `implementing-plans` when the cross-cutting final code-quality review passes. |
 | `handoff_path` | string | Stage 15 | Absolute path to the generated handoff doc, located under `$HOME/.sublime-skills/handoffs/<repo-basename>/`. |
 | `memory_file_updated` | boolean | Stage 16 | `true` if the memory file was updated this run; `false` if no update was needed or the stage was skipped. |
@@ -80,7 +80,7 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 | `tasks` (per-task transitions) | `implementing-plans` Step 3 | `pending` → `in_progress` at task start; `in_progress` → `completed` at task finish. |
 | `plan_path` | `writing-plans` (Stage 8 init) | Set once. |
 | `adr_results` | Coordinator | Populated from `maintaining-adrs`' return value at Stage 6. |
-| `test_status`, `fix_iterations` | `testing-implementation` | Written when Stage 13 completes. |
+| `test_status`, `fix_iterations` | `testing-implementation` | Written when Stage 14 completes. |
 | `final_review_completed` | `implementing-plans` | Set to `true` after Stage 13's final review approves. |
 | `handoff_path` | Coordinator | Set after Stage 15 from the `generating-handoff` subagent's report. |
 | `memory_file_updated`, `memory_file_path` | Coordinator | Set after Stage 16 from the `maintaining-memory-file` subagent's report. |

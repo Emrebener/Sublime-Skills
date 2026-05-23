@@ -201,7 +201,7 @@ Once the final review is Approved, update the state file:
 }
 ```
 
-Leave the coordinator to advance `current_stage` after this skill returns (it sets `current_stage` to `"testing"` or `"finishing"` per user choice in Stage 13 prompt, and adds `"implementation_complete"` to `stages_completed`).
+Leave the coordinator to advance `current_stage` after this skill returns (it sets `current_stage` to `"testing"` or `"finishing"` per user choice in Stage 14 prompt, and adds `"implementation_complete"` to `stages_completed`).
 
 ## Step 6: Hand Off
 
@@ -216,7 +216,7 @@ Implementation complete.
 - Branch: <branch-name>
 ```
 
-The coordinator moves to Stage 13 (optional testing) or directly to Stage 14 (handoff generation) based on user choice. Finishing is now Stage 16.
+The coordinator moves to Stage 14 (optional testing) or directly to Stage 15 (handoff generation) based on user choice. Finishing is Stage 17.
 
 ## Continuous Execution
 

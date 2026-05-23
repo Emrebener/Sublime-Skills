@@ -94,7 +94,7 @@ The cost is a small amount of coordinator overhead (advance from Stage 1 to Stag
 
 ## Why per-task subagent dispatch
 
-For Stage 12 implementation, every task gets THREE fresh subagent dispatches: implementer, spec-compliance reviewer, code-quality reviewer.
+For Stage 13 implementation, every task gets THREE fresh subagent dispatches: implementer, spec-compliance reviewer, code-quality reviewer.
 
 This is expensive (subagent dispatch isn't free) and slow (sequential, not parallel). We do it because:
 
@@ -238,7 +238,7 @@ If you're tempted to use `[NO-TDD]` outside these categories, write the test. Th
 
 ## Why the coordinator doesn't test itself
 
-When Stage 13 tester returns `MCP_UNAVAILABLE` (no browser MCP for UI testing, no DB MCP for backend testing, etc.), the coordinator is forbidden from testing the feature itself, even if it has Bash, Playwright, curl, etc., available.
+When Stage 14 tester returns `MCP_UNAVAILABLE` (no browser MCP for UI testing, no DB MCP for backend testing, etc.), the coordinator is forbidden from testing the feature itself, even if it has Bash, Playwright, curl, etc., available.
 
 This is the highest-risk rationalization point in the pipeline. The reasoning the coordinator might use:
 - "I have Bash; let me just curl the endpoint"
@@ -313,7 +313,7 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 | Optional grill | None | Stage 4, dedicated skill |
 | 2nd review | None | Optional Stages 5 + 10 |
 | State / resume | Harness todo tool for tasks, no explicit cross-session state | state.json in git, explicit resume protocol |
-| Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 13 with browser/DB MCP awareness |
+| Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 14 with browser/DB MCP awareness |
 | Handoff doc | None | Stage 15, dedicated skill |
 | Self-containment | Family of skills that depend on each other (and on some that aren't always available) | No external skill dependencies |
 

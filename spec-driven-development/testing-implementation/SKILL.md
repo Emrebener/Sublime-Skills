@@ -22,7 +22,7 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 ## Hard Gates
 
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
-- Do NOT skip Stage 13 if the user said yes — run it
+- Do NOT skip Stage 14 if the user said yes — run it
 - The coordinator does NOT attempt to test the feature itself under any circumstance. If the tester subagent can't test, the coordinator surfaces the result to the user. It does not pick up the toolkit and try.
 - Fix loop caps at **3 iterations**. After the third failed fix, escalate to user.
 - Do NOT dispatch multiple tester subagents in parallel for the same feature

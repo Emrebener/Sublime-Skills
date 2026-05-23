@@ -28,14 +28,14 @@ grill:
   # an override.
   question_cap: 10
 
-# ── Memory file maintenance (Stage 15) ──────────────────────────────
-# Stage 15 is user-prompted at runtime (yes/no, default yes). These
+# ── Memory file maintenance (Stage 16) ──────────────────────────────
+# Stage 16 is user-prompted at runtime (yes/no, default yes). These
 # values configure WHICH file is maintained and the size budget — they
 # don't toggle the stage itself.
 memory_file:
   # Explicit memory file path. null means: auto-detect at repo root in
   # this order: CLAUDE.md, AGENTS.md, GEMINI.md, .agents.md (first match
-  # wins). If neither config nor auto-detect finds a path, Stage 15 is
+  # wins). If neither config nor auto-detect finds a path, Stage 16 is
   # skipped without prompting.
   path: null
 
