@@ -575,18 +575,23 @@ The atomic write pattern (write to `.tmp` then `mv`) makes this rare — typical
 
 There's no clean "loop back to earlier stage" mechanism for this — it's deliberately a judgment call.
 
-### Multiple active SDD runs
+### Existing state when starting a fresh feature
 
-**Cause:** you started feature A, paused it, started feature B (on a different branch), and now both have state files.
-**Fix:** the coordinator's resume check finds both and asks you which to resume.
+**Cause:** an SDD run was abandoned mid-pipeline. `.sublime-skills/state.json` still references it. You now want to start a different feature.
+**Fix:** the coordinator's resume check detects the existing state and asks: "Resume `<feature_id>` at `<current_stage>`?". On no, it prompts "Discard this state and start fresh, or abort?". On Discard, the coordinator runs `rm .sublime-skills/state.json` and proceeds to Stage 0 for the new feature.
+
+If you genuinely need multiple concurrent runs (rare), use git worktrees — each worktree has its own `.sublime-skills/state.json` and they're naturally isolated.
 
 ### Resume after a long time
 
 **Cause:** weeks or months have passed since the last SDD session on this feature.
-**Fix:** the coordinator still resumes normally — state file is in git. But:
-- Read the handoff doc first if one was generated
-- Re-read the spec and plan; some context may have changed since
-- Consider whether the spec/plan needs updates before continuing
+**Fix:** the coordinator still resumes if `.sublime-skills/state.json` is present on disk. But:
+- Cross-session continuity is best-effort — the state file is not committed, so a clone on a different machine has no state.
+- Read the handoff doc first if one was generated.
+- Re-read the spec and plan; some context may have changed since.
+- Consider whether the spec/plan needs updates before continuing.
+
+If the state file is missing (deleted, on a different machine, after a fresh clone), start a new run rather than trying to reconstruct.
 
 ### Coordinator wants to do a phase-skill's work inline
 
