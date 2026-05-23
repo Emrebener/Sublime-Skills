@@ -1,6 +1,6 @@
 ---
 name: choosing-feature-branch
-description: Use after plan approval (Stage 11) and before implementation (Stage 13). Asks the user where the feature branch should live, optionally creates a feature branch from current HEAD, then batch-commits all SDD planning artifacts (spec, plan, ADRs, state.json) on the chosen branch in three path-scoped thematic commits.
+description: Use after plan approval (Stage 11) and before implementation (Stage 13). Asks the user where the feature branch should live, optionally creates a feature branch from current HEAD, then batch-commits all SDD planning artifacts (spec, plan, ADRs) on the chosen branch in two path-scoped thematic commits.
 ---
 
 # Choosing Feature Branch
@@ -11,7 +11,7 @@ Stage 12 of the SDD pipeline. By this point the spec, plan, and ADRs have all be
 
 1. Decides where the work will live (a freshly-created feature branch, or the current branch — the user picks).
 2. Optionally runs `git checkout -b` to create and switch to the feature branch (the uncommitted artifacts travel with the working tree).
-3. Batch-commits the SDD planning artifacts on the resulting branch in three thematic, path-scoped commits.
+3. Batch-commits the SDD planning artifacts on the resulting branch in two thematic, path-scoped commits.
 
 After this skill, the pipeline resumes normal per-stage commits in Stage 13 (implementation) and beyond.
 
@@ -33,8 +33,8 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern` and `s
 
 1. Asks the user explicitly which branch the SDD planning commits should land on
 2. If the user picks "create new branch," runs `git checkout -b <name>` from current HEAD
-3. Batch-commits the SDD planning artifacts in three thematic commits, using path-scoped `git add` (never `git add .` / `git add -A`)
-4. Updates `state.json` (`current_stage: implementing`, append `branch_chosen` to `stages_completed`)
+3. Batch-commits the SDD planning artifacts in two thematic commits, using path-scoped `git add` (never `git add .` / `git add -A`)
+4. Updates `.sublime-skills/state.json` on disk (`current_stage: implementing`, append `branch_chosen` to `stages_completed`); this state write is never committed
 5. Returns the resulting branch name to the coordinator
 
 ### What this skill aborts on
@@ -43,10 +43,11 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern` and `s
 |---|---|---|
 | Branch creation failed | `branch_creation_failed` | `git checkout -b` fails (branch already exists, invalid name, sandbox refused) |
 | User declined | `user_declined` | User said abort at any prompt |
-| Commit failed | `commit_failed` | Any of the three commits fails (hook rejection, signing failure, missing identity). Per the Commit Failure Protocol in `sdd-coordinator`. |
+| Commit failed | `commit_failed` | Either commit fails (hook rejection, signing failure, missing identity). Per the Commit Failure Protocol in `sdd-coordinator`. |
 
 ### What this skill never does
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Never `git add .` or `git add -A` — only explicit paths (the user's pre-existing dirty files must stay untouched)
 - Never `git commit --amend`, `--no-verify`, `--force`, or signing bypasses
 - Never deletes branches
@@ -60,7 +61,7 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern` and `s
 2. Present the 3-way prompt
 3. Handle the user's choice (collision check + checkout if needed)
 4. Batch-commit the SDD planning artifacts
-5. Update `state.json` and return to coordinator
+5. Update `.sublime-skills/state.json` and return to coordinator
 
 ## Step 1: Derive Suggested Branch Name
 
@@ -71,10 +72,10 @@ PATTERN=$(./spec-driven-development/scripts/get-config-value.sh branching branch
 PATTERN="${PATTERN:-feat/{short-name}}"
 ```
 
-Read `work_type` from `state.json` (this skill runs at Stage 12 by which point Stage 2 has persisted the field). If `work_type == "fix"` and the pattern starts with `feat/`, swap it to `fix/`:
+Read `work_type` from `.sublime-skills/state.json` (this skill runs at Stage 12 by which point Stage 2 has persisted the field). If `work_type == "fix"` and the pattern starts with `feat/`, swap it to `fix/`:
 
 ```bash
-WORK_TYPE=$(jq -r '.work_type' "docs/specs/$FEATURE_ID/state.json")
+WORK_TYPE=$(jq -r '.work_type' ".sublime-skills/state.json")
 if [ "$WORK_TYPE" = "fix" ] && [ "${PATTERN#feat/}" != "$PATTERN" ]; then
   PATTERN="fix/${PATTERN#feat/}"
 fi
@@ -151,68 +152,51 @@ If invalid, explain and re-ask. After a valid name, repeat the collision check f
 
 No branch op. Proceed to Step 4.
 
-## Step 4: Batch Commit
+## Step 4: Batch-commit the SDD Planning Artifacts
 
-Execute three thematic commits, in order. Skip any commit whose paths don't exist (e.g., no ADRs were created).
+Execute two thematic commits, in order. Skip any commit whose paths don't exist (e.g., no ADRs were created).
 
-**Path-scoping is mandatory.** Never `git add .` or `git add -A`. The user's pre-existing dirty files (which `preflight-checks` allowed through) must remain untouched.
-
-### Commit 1 — Spec + initial state
+### Commit 1 — Spec and plan
 
 ```bash
-git add "docs/specs/<FEATURE_ID>/spec.md" "docs/specs/<FEATURE_ID>/state.json"
-git commit -m "docs(<FEATURE_ID>): spec"
+git add "docs/specs/<FEATURE_ID>/spec.md" "docs/specs/<FEATURE_ID>/plan.md"
+git commit -m "docs(<FEATURE_ID>): spec and plan"
 ```
 
-### Commit 2 — ADRs (skipped if none created)
+### Commit 2 — ADRs (skipped if no ADRs)
 
 Read the ADR paths from `state.adr_results` (an array of objects with a `path` field). If the array is empty, skip this commit.
 
 ```bash
-# Only the ADRs created during this run, not pre-existing ADRs
-git add <paths from state.adr_results>
+git add <each ADR path>...
 git commit -m "docs(adr): N decisions for <FEATURE_ID>"
 ```
 
-Where `N` is the count of ADRs.
-
-### Commit 3 — Plan + state.json update
-
-Before this commit, update `state.json` (`current_stage` stays `plan_approval` for now; mark this commit's existence by NOT including it in `stages_completed` yet — that happens after Step 5).
-
-```bash
-git add "docs/specs/<FEATURE_ID>/plan.md" "docs/specs/<FEATURE_ID>/state.json"
-git commit -m "docs(<FEATURE_ID>): plan"
-```
+**The state file is NOT staged in either commit.** `.sublime-skills/state.json` is permanently gitignored. Do not attempt `git add -f`, `--force`, or any other bypass — see the Hard Gates above.
 
 ### Commit failure handling
 
-If any commit fails:
+If either commit fails:
+
 - **Hook rejection / signing failure / missing identity:** ABORT with `commit_failed`. Show the error verbatim. The user fixes the underlying issue and re-invokes the coordinator (which can resume from Stage 12 since the state file is on disk; `stages_completed` does NOT yet include `branch_chosen`).
 - **NEVER bypass with `--no-verify`, `--no-gpg-sign`, or amend the previous commit.** Per the Commit Failure Protocol in `sdd-coordinator`.
-- **NEVER amend.** If commits 1 and 2 succeed but commit 3 fails, the partial commits stay in git. Fix the underlying issue (hook, identity, signing) and re-invoke the coordinator; it routes back to Stage 12 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
+- **NEVER amend.** If Commit 1 succeeds but Commit 2 fails, the partial commit stays in git. Fix the underlying issue (hook, identity, signing) and re-invoke the coordinator; it routes back to Stage 12 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
 
-## Step 5: Update State and Return
+## Step 5: Update State and Return to Coordinator
 
-After all required commits land:
+After the commits land, update `.sublime-skills/state.json` atomically (write `.tmp`, then `mv`):
 
-1. Update `state.json` atomically (write `.tmp`, then `mv`):
-   - `current_stage: "implementing"`
-   - Append `"branch_chosen"` to `stages_completed`
-   - Update `updated_at` to current ISO-8601 UTC
+```json
+{
+  "current_stage": "implementing",
+  "stages_completed": [..., "branch_chosen"],
+  "updated_at": "<ISO-8601 timestamp>"
+}
+```
 
-2. Commit this final state.json update **separately** as part of the implementation stage's first commit — do NOT make a fourth commit here. (Commit 3 above already includes a state.json snapshot from before this update; the very next commit in Stage 13 will include the updated state.)
+**No commit follows this state update.** `.sublime-skills/state.json` is gitignored; the write is on-disk only.
 
-   Actually simpler: include this state update in Commit 3 (above) by writing to `state.json` BEFORE running Commit 3's `git add`. That way Commit 3 captures the "branch chosen" state. Adjust the message slightly if desired, but the simple form is fine.
-
-3. Return to the coordinator:
-
-   ```
-   choosing-feature-branch complete.
-   - Branch: <BRANCH> (created | reused | unchanged)
-   - Commits made: <count> (spec | adr | plan; some may be skipped)
-   - Status: ready
-   ```
+Return to the coordinator with the chosen branch name and a summary of which commits landed.
 
 ## Reporting Back
 
@@ -221,7 +205,7 @@ After all required commits land:
 ```
 choosing-feature-branch complete.
 - Branch: feat/user-auth (created from main)
-- Commits made: 3 (spec, adr, plan)
+- Commits made: 2 (spec+plan, adr)
 - Status: ready
 ```
 
@@ -234,7 +218,7 @@ choosing-feature-branch aborted.
 - Message: <user-facing message>
 ```
 
-The coordinator surfaces the abort to the user and exits the pipeline. State.json on disk reflects whatever stage Step 5 reached; resuming the coordinator picks up at Stage 12 again.
+The coordinator surfaces the abort to the user and exits the pipeline. `.sublime-skills/state.json` on disk reflects whatever stage Step 5 reached; resuming the coordinator picks up at Stage 12 again.
 
 ## Common Mistakes
 
@@ -247,6 +231,8 @@ The coordinator surfaces the abort to the user and exits the pipeline. State.jso
 | Auto-picking the suggested branch name without asking | NEVER — Step 2's 3-way prompt is mandatory. |
 | Forgetting to check for branch collision | Check `git rev-parse --verify --quiet "$NAME"` before `git checkout -b`. |
 | Skipping the ADR commit when there are no ADRs | Correct behavior — skip Commit 2 entirely if `state.adr_results` is empty. |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -256,3 +242,5 @@ The coordinator surfaces the abort to the user and exits the pipeline. State.jso
 - About to amend a previous commit → STOP; let partial state stay; surface to user
 - About to create a branch named `main` or `master` → STOP; reject and re-ask
 - About to skip the user prompt and auto-pick → STOP; the 3-way question is mandatory
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP
