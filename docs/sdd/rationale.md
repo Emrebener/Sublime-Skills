@@ -160,7 +160,7 @@ If a project starts repeating the same guidance in every spec, that's the signal
 
 ## Why a handoff document
 
-The handoff doc is generated at Stage 14 (user-prompted, default yes). It's a redacted, summary-style document at `docs/handoff/YYYY-MM-DD-<title>.md`.
+The handoff doc is generated at Stage 15 (user-prompted, default yes). It's a redacted, summary-style document at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
 Why have it:
 
