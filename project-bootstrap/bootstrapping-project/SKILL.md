@@ -39,7 +39,7 @@ Proceed through these in order:
 1. Detect existing setup via discovery script
 2. For each convention file (constitution → architecture → glossary → domain → design): detect → ask → load the matching `discovering-<topic>` skill inline → record outcome
 3. Create supporting directories (`docs/adr/`, `docs/specs/`) with stub READMEs
-4. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml` (preserving any existing local overrides)
+4. Copy config scaffold to `.sublime-skills/config.yml`, create empty `.sublime-skills/config-local.yml` (preserving any existing local overrides), and create `.sublime-skills/.gitignore` with both entries
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
 6. Run `validate-config.sh`; fix-and-retry on FAIL (cap 3 attempts)
 7. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
