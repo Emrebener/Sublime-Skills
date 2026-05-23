@@ -42,7 +42,7 @@ Proceed through these in order:
 4. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml` (preserving any existing local overrides)
 5. Edit config to reflect reality (set `context.<name>_path` to null for skipped files; adjust if non-default paths)
 6. Run `validate-config.sh`; fix-and-retry on FAIL (cap 3 attempts)
-7. Ensure `.sublime-skills/config-local.yml` is gitignored
+7. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
 8. Single commit
 9. Report and direct user to `sdd-coordinator`
 
