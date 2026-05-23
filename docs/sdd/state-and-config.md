@@ -8,7 +8,7 @@ This document covers two things that aren't artifacts in the user-facing sense b
 
 ### What it is
 
-A JSON file at `docs/specs/NNN-<short-name>/state.json`, one per in-progress SDD run. It holds everything the coordinator needs to know to resume an interrupted pipeline from any stage.
+A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds everything the coordinator needs to know to resume an interrupted pipeline from any stage.
 
 ### Lifecycle
 
@@ -16,14 +16,14 @@ A JSON file at `docs/specs/NNN-<short-name>/state.json`, one per in-progress SDD
 |---|---|
 | 0 (Preflight) | Does NOT exist yet. Preflight outputs (current branch) are held in coordinator's in-memory dict. |
 | 1 (Discovery) | Still does not exist. Discovery outputs in memory. |
-| 2 (Writing spec) | **Created** by `writing-specs`, atomic write. Pre-populated with feature_id, branch, paths. **Uncommitted.** |
-| 3–11 | **Updated** at every stage boundary by the coordinator (atomic). **Uncommitted** throughout. |
-| 12 (Choosing branch) | **Batch-committed** alongside spec/plan/ADRs in three thematic commits on the chosen branch. |
-| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only — per-task code commits don't include state.json). Coordinator commits the final state.json once at end of Stage 13 (`chore(<feature_id>): mark implementation complete`). |
-| 14 (Testing) | Updated with `test_status` and `fix_iterations`. |
-| 15 (Handoff) | Updated with `handoff_path`. |
-| 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. |
-| 17 (Finishing) | **Deleted** + commit (`chore(<feature_id>): SDD complete`). |
+| 2 (Writing spec) | **Created** by `writing-specs` at `.sublime-skills/state.json`, atomic write. Pre-populated with feature_id, branch, paths. **Gitignored from the start.** |
+| 3–11 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
+| 12 (Choosing branch) | Updated atomically (current_stage: implementing). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. |
+| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). No state commit at the end of Stage 13. |
+| 14 (Testing) | Updated with `test_status` and `fix_iterations`. No state commit. |
+| 15 (Handoff) | Updated with `handoff_path`. No state commit. |
+| 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. No state commit (memory file itself is committed if updated). |
+| 17 (Finishing) | **Deleted** via plain `rm .sublime-skills/state.json`. No commit. |
 
 ### Atomic write pattern
 
@@ -31,10 +31,10 @@ Every write is atomic:
 
 ```bash
 # Write to .tmp, then atomically rename
-cat > docs/specs/NNN-name/state.json.tmp <<EOF
+cat > .sublime-skills/state.json.tmp <<EOF
 { ... }
 EOF
-mv docs/specs/NNN-name/state.json.tmp docs/specs/NNN-name/state.json
+mv .sublime-skills/state.json.tmp .sublime-skills/state.json
 ```
 
 This prevents partial writes from corrupting state if the session dies mid-write.
@@ -56,34 +56,35 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 
 ### Git policy
 
-State.json (and the other SDD planning artifacts: spec.md, plan.md, ADRs) is **uncommitted through Stages 2–11**. The `choosing-feature-branch` skill at Stage 12 batch-commits all of these on the user's chosen branch in three thematic, path-scoped commits:
+`.sublime-skills/state.json` is **permanently gitignored** via `.sublime-skills/.gitignore`. It is never committed at any stage. The rule is enforced by:
 
-- `docs(<feature_id>): spec` — spec.md + state.json
+1. The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed.
+2. Each state-touching skill has a Hard Gate prohibiting `git add -f` / `--force` / any other bypass.
+3. The canonical rule lives in `spec-driven-development/scripts/state-schema.md` under "Git policy (CRITICAL)".
+
+The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-11, then batch-committed by `choosing-feature-branch` at Stage 12 in two thematic commits:
+
+- `docs(<feature_id>): spec and plan` — spec.md + plan.md
 - `docs(adr): N decisions for <feature_id>` — ADRs (skipped if none)
-- `docs(<feature_id>): plan` — plan.md + state.json (updated)
 
-From Stage 13 onward, state.json is committed alongside the stage's artifact:
-
-- Stage 13 (implementation): per-task code commits are made by the implementer subagents and contain only code/tests — they do NOT include state.json. The `tasks` map is updated on disk between tasks (atomic write, no commit). The coordinator commits state.json once at the end of Stage 13 as `chore(<feature_id>): mark implementation complete`.
-- Stage 15 (handoff): state.json committed with `chore(<short-name>): record handoff path` (the handoff file itself lives outside the repo)
-- Stage 16 (memory file): committed with memory file in `docs(memory): update from <feature_id>` (only if memory file was updated; usually no commit)
-- Stage 17 (finishing): deletion is committed as `chore(<feature_id>): SDD complete`
+From Stage 13 onward, commits happen per stage by the active skill, alongside their own artifacts (code, memory file, etc.) — never with state.json.
 
 **All commits use path-scoped `git add`.** No `git add .` / `git add -A` — preflight allows dirty working trees, so path-scoping is what protects the user's pre-existing dirty files.
 
-**Squash-merge implication:** if the project squashes on merge, the state file's churn collapses into a single final commit. By the time the feature lands in main, only the spec, plan, ADRs, and handoff persist; the state file is gone.
+**Mid-pipeline branch operations are safer than before.** Because `.sublime-skills/state.json` is gitignored:
+- `git checkout other-branch` leaves the state file in place
+- `git stash -u` skips it (gitignored files aren't stashed even with `-u`)
+- Branch operations don't disturb state
 
-**Mid-pipeline kill risk.** Through Stages 0–11 the state file is uncommitted. If the session dies and the user runs `git stash` or switches branches before Stage 12, the uncommitted artifacts can be displaced. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
+The planning artifacts (spec.md, plan.md, ADRs) still need protection through Stages 2-11 — they're untracked, so the same `git stash` / `git checkout` warning applies to them.
 
 ### Resume protocol
 
-The coordinator's first action on every invocation is a quick glob for active state files at `docs/specs/*/state.json`:
+The coordinator's first action on every invocation is `[ -f .sublime-skills/state.json ]`:
 
-**No state files found** — fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
+**Missing** — fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
 
-**One state file found** — ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, ask whether to start a fresh feature (leaves the existing state file alone) or abort.
-
-**Multiple state files found** — list them; ask which to resume, or to start fresh. Multiple active runs are unusual; let the user pick.
+**Found** — verify referenced files still exist (the state's `spec_path` and `plan_path` under `docs/specs/<feature_id>/`); if any are missing, prompt the user to discard state or abort. Otherwise ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, prompt "Discard this state and start fresh, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
 
 The state file is in-session orchestration record-keeping. It enables resuming an interrupted run when the user re-invokes `sdd-coordinator` shortly after. It is not designed for cross-machine recovery, multi-user handoff, or recovery from arbitrary destructive git operations.
 
@@ -341,7 +342,7 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
 
 **What the next invocation sees:**
 
-1. Coordinator globs for state files; finds `docs/specs/003-user-auth/state.json`.
+1. Coordinator checks for `.sublime-skills/state.json`; finds it.
 2. Coordinator confirms with user: "Resume `003-user-auth` at `implementing`?"
 3. On yes: coordinator loads `implementing-plans`. The skill notes T004 is in_progress, re-dispatches T004 with a fresh implementer subagent.
 4. T004 completes, coordinator marks it complete in state file, moves on to T005.
