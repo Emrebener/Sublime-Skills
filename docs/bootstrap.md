@@ -55,7 +55,7 @@ When invoked, the coordinator announces itself ("I'm using the bootstrapping-pro
 ## Step 1: Detect existing setup
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 The script emits JSON. The coordinator caches it. For each convention file, the corresponding key (`constitution`, `architecture`, `glossary`, `domain`, `design`) is either:
@@ -341,7 +341,7 @@ to:
 ## Step 6: Validate
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh .sublime-skills/config.yml
+./spec-driven-development/framework/validate-config.sh .sublime-skills/config.yml
 ```
 
 | Exit code | Meaning | Coordinator action |
@@ -531,7 +531,7 @@ The bootstrap is **fast** — most users finish all five files in 15-30 minutes 
 
 **Cause:** the family currently has exactly five slots, hardcoded in the scaffold and the coordinator.
 
-**Fix:** adding a slot requires changes to four places: (1) `project-bootstrap/scaffolds/config.yml` adds `<new>_path`, (2) `spec-driven-development/scripts/validate-config.sh` adds the key to its allowed list, (3) `spec-driven-development/scripts/discover-context.sh` emits a `<new>` field in the JSON, (4) `bootstrapping-project/SKILL.md` adds the file to the per-file loop and routing table, and you need a new `discovering-<new>` skill. Not a small change, but mechanical. See the existing `design_path` addition in `git log` for a worked example.
+**Fix:** adding a slot requires changes to four places: (1) `project-bootstrap/scaffolds/config.yml` adds `<new>_path`, (2) `spec-driven-development/framework/validate-config.sh` adds the key to its allowed list, (3) `spec-driven-development/framework/discover-context.sh` emits a `<new>` field in the JSON, (4) `bootstrapping-project/SKILL.md` adds the file to the per-file loop and routing table, and you need a new `discovering-<new>` skill. Not a small change, but mechanical. See the existing `design_path` addition in `git log` for a worked example.
 
 ---
 

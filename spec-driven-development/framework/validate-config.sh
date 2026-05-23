@@ -7,7 +7,7 @@
 # overlay file (zero bytes or YAML null) is treated as "no overrides."
 #
 # Usage:
-#   ./spec-driven-development/scripts/validate-config.sh [config-path]
+#   ./spec-driven-development/framework/validate-config.sh [config-path]
 #
 # Default config-path: <repo-root>/.sublime-skills/config.yml
 #

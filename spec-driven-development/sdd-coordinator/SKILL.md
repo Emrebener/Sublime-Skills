@@ -117,7 +117,7 @@ Created in **Stage 2** (`writing-specs`). Stages 0-1 run before it exists; their
 
 ### State File Schema
 
-Canonical at `scripts/state-schema.md` (human) and `scripts/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins.
+Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins.
 
 **You write to** `current_stage`, `stages_completed`, `stages_skipped`, `updated_at`, `adr_results`, `handoff_path` at stage boundaries (atomic: write `.tmp`, then `mv`). Other fields are owned by their respective skills — don't touch them.
 
@@ -163,7 +163,7 @@ If a stage fails (subagent returns Issues Found, validator fails, etc.): handle 
 
 Load `preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, and warns (does not abort) on a dirty working tree. **It does NOT create branches** — branch decision happens at Stage 12 (`choosing-feature-branch`). State file does NOT yet exist.
 
-After preflight returns ready, the config is known-valid and you can use `scripts/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
+After preflight returns ready, the config is known-valid and you can use `framework/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
 
 On any abort (`config_missing` / `config_invalid` / `not_a_git_repo` / `detached_head` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
 
@@ -178,7 +178,7 @@ Load `writing-specs`. Pass it the in-memory discovery outputs (including `work_t
 **Validator enforcement:** `writing-specs` must return the validator's PASS line verbatim. Re-run yourself:
 
 ```bash
-./spec-driven-development/scripts/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
+./spec-driven-development/framework/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
 ```
 
 If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. **Do NOT commit** — the spec stays uncommitted in the working tree; `choosing-feature-branch` (Stage 12) will batch-commit it alongside the plan and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed.

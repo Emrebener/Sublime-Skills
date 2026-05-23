@@ -153,8 +153,8 @@ Three validators check artifact format before commit:
 
 ### `validate-spec.sh`
 
-**Path:** `spec-driven-development/scripts/validate-spec.sh`
-**Usage:** `./spec-driven-development/scripts/validate-spec.sh <path-to-spec.md>`
+**Path:** `spec-driven-development/framework/validate-spec.sh`
+**Usage:** `./spec-driven-development/framework/validate-spec.sh <path-to-spec.md>`
 
 **Critical checks (exit 1 if any fail):**
 - Required sections present: Header (`# Spec:`), Goal, User Stories, Functional Requirements, Success Criteria, Edge Cases, Assumptions, Out-of-Scope
@@ -172,8 +172,8 @@ Invoked by `writing-specs` as the first sub-step of its self-review. The skill m
 
 ### `validate-plan.sh`
 
-**Path:** `spec-driven-development/scripts/validate-plan.sh`
-**Usage:** `./spec-driven-development/scripts/validate-plan.sh <path-to-plan.md>`
+**Path:** `spec-driven-development/framework/validate-plan.sh`
+**Usage:** `./spec-driven-development/framework/validate-plan.sh <path-to-plan.md>`
 
 **Critical checks (exit 1 if any fail):**
 - Required sections: Header (`# Plan:`), Goal, Architecture, Tech Stack, File Structure
@@ -192,8 +192,8 @@ Invoked by `writing-plans` as first sub-step of self-review; coordinator re-runs
 
 ### `validate-handoff.sh`
 
-**Path:** `spec-driven-development/scripts/validate-handoff.sh`
-**Usage:** `./spec-driven-development/scripts/validate-handoff.sh <path-to-handoff.md>` (or `<path>.tmp` — the script strips trailing `.tmp` for the filename pattern check)
+**Path:** `spec-driven-development/framework/validate-handoff.sh`
+**Usage:** `./spec-driven-development/framework/validate-handoff.sh <path-to-handoff.md>` (or `<path>.tmp` — the script strips trailing `.tmp` for the filename pattern check)
 
 **Critical checks (exit 1 if any fail):**
 - Filename matches `YYYY-MM-DD-<kebab-title>.md` pattern (trailing `.tmp` is stripped before checking, so validation works on the staged file before atomic mv)

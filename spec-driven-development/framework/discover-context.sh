@@ -3,7 +3,7 @@
 # Outputs JSON to stdout listing the resolved paths (or null when absent).
 #
 # Usage:
-#   ./spec-driven-development/scripts/discover-context.sh
+#   ./spec-driven-development/framework/discover-context.sh
 #
 # Source of truth: .sublime-skills/config.yml at the repo root, with
 # .sublime-skills/config-local.yml overlaid per-key when present.

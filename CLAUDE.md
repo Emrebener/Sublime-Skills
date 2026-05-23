@@ -64,7 +64,7 @@ key set there shadows the matching key in `config.yml` when skills read
 config.
 
 All config access goes through the central scripts under
-`spec-driven-development/scripts/` — `get-config-value.sh` for single
+`spec-driven-development/framework/` — `get-config-value.sh` for single
 scalars, `discover-context.sh` for bulk paths, `validate-config.sh` for
 structural checks. Do not introduce inline YAML parsing in skill files;
 extend those scripts instead.

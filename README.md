@@ -78,7 +78,7 @@ file at `.sublime-skills/state.json`, and configurable via `.sublime-skills/conf
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
-Shared scripts at `spec-driven-development/scripts/`:
+Shared scripts at `spec-driven-development/framework/`:
 - `discover-context.sh` — reads project convention file paths from
   `.sublime-skills/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
   `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can

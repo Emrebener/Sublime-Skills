@@ -100,7 +100,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
     ├── sdd-coordinator/SKILL.md
     ├── preflight-checks/SKILL.md
     ├── ... (19 more skills)
-    └── scripts/
+    └── framework/
         ├── discover-context.sh
         ├── get-config-value.sh             # scalar config helper
         ├── validate-spec.sh

@@ -6,12 +6,12 @@
 # because the config schema is flat (block → scalar).
 #
 # Usage:
-#   ./scripts/get-config-value.sh <block> <key> [config-path]
+#   ./framework/get-config-value.sh <block> <key> [config-path]
 #
 # Example:
-#   ./scripts/get-config-value.sh finishing test_command
-#   ./scripts/get-config-value.sh branching branch_pattern
-#   ./scripts/get-config-value.sh grill question_cap
+#   ./framework/get-config-value.sh finishing test_command
+#   ./framework/get-config-value.sh branching branch_pattern
+#   ./framework/get-config-value.sh grill question_cap
 #
 # If [config-path] is supplied, the sibling overlay path is derived by
 # replacing the trailing `config.yml` (or any `*.yml` filename) with

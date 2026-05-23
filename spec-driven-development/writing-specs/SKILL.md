@@ -57,7 +57,7 @@ If discovery (Stage 1) already Read these files in this session, you can skip re
 Otherwise, run the discovery script and **Read every file it returns a non-null path for** before composing the spec:
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Required reads when present (skip files the JSON returns as `null`):
@@ -86,7 +86,7 @@ The Clarifications section is auto-managed by the grilling-specs skill if invoke
 
 ## Step 4: Initialize State File
 
-Write `.sublime-skills/state.json` using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`). See `scripts/state-schema.md` for the full state schema (and the "Git policy (CRITICAL)" section — state.json is permanently gitignored and must never be committed).
+Write `.sublime-skills/state.json` using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`). See `framework/state-schema.md` for the full state schema (and the "Git policy (CRITICAL)" section — state.json is permanently gitignored and must never be committed).
 
 **Do NOT commit spec.md.** It stays uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits spec.md alongside plan.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
 
@@ -123,7 +123,7 @@ Before reporting back:
 Run the validator script:
 
 ```bash
-./spec-driven-development/scripts/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
+./spec-driven-development/framework/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
 ```
 
 If it fails (exit code 1): fix every CRITICAL issue it reports, then re-run. Don't proceed until the script returns PASS. Warnings can be left if they're acceptable for the spec's nature, but address them when easy.

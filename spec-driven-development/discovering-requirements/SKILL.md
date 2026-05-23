@@ -37,7 +37,7 @@ The coordinator MUST track each of these as a todo item and complete them in ord
 Run the shared discovery script and Read the relevant files. The output tells you which files exist; only Read what's present.
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Read these if present:

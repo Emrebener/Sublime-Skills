@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/scripts/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -171,7 +171,7 @@ Preflight aborted.
 
 **State file:** initialized here. Writes `current_stage: "spec_writing"` and `stages_completed: ["preflight", "discovering"]`. Coordinator advances after the skill returns.
 
-**Validator invoked:** `scripts/validate-spec.sh`. Runs as first sub-step of Step 5 self-review. Must pass before the skill reports back.
+**Validator invoked:** `framework/validate-spec.sh`. Runs as first sub-step of Step 5 self-review. Must pass before the skill reports back.
 
 **Filename:** `docs/specs/NNN-<short-name>/spec.md` where `NNN` is the next sequential 3-digit number.
 
@@ -370,7 +370,7 @@ Preflight aborted.
 - `docs-only`, `config-only`, `asset-addition`, `dependency-bump`, `mechanical-rename`, `lint-only`
 - Anything else with logic = TDD required
 
-**Validator invoked:** `scripts/validate-plan.sh`. Runs as first sub-step of Step 6 self-review.
+**Validator invoked:** `framework/validate-plan.sh`. Runs as first sub-step of Step 6 self-review.
 
 ---
 
@@ -677,7 +677,7 @@ Preflight aborted.
 
 Two-pass scan: keep going until no new redactions surface.
 
-**Validator invoked:** `scripts/validate-handoff.sh`. Critical failures include unredacted secret patterns.
+**Validator invoked:** `framework/validate-handoff.sh`. Critical failures include unredacted secret patterns.
 
 **Hard rules:**
 - Do NOT duplicate ADR content (reference + one-line summary)
@@ -820,7 +820,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### discover-context.sh
 
-**Location:** `spec-driven-development/scripts/discover-context.sh`
+**Location:** `spec-driven-development/framework/discover-context.sh`
 **Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config for context files (or `null` when a path is unset or the file doesn't exist on disk), and hardcoded values for SDD directories.
 
 **Source of truth:** `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search** — every path is read straight from these files. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
@@ -864,10 +864,10 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### validate-config.sh
 
-**Location:** `spec-driven-development/scripts/validate-config.sh`
+**Location:** `spec-driven-development/framework/validate-config.sh`
 **Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically — together with `.sublime-skills/config-local.yml` when present (overlay merged before validation). Used by `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
 
-**Usage:** `./scripts/validate-config.sh [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
+**Usage:** `./framework/validate-config.sh [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
 
 **Checks (on the merged config):**
 - YAML parses for both files (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner that validates the base config only and warns when overlay is present)
@@ -890,17 +890,17 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### get-config-value.sh
 
-**Location:** `spec-driven-development/scripts/get-config-value.sh`
+**Location:** `spec-driven-development/framework/get-config-value.sh`
 **Purpose:** Read a single scalar value from the layered config — `config-local.yml` overrides `config.yml` on a per-key basis. Intended for skills that need one or two config values and don't want to inline YAML parsing.
 
 **Lookup order:** `config-local.yml` first; if the key is present there (even as `null`), that value is returned. Otherwise fall through to `config.yml`.
 
-**Usage:** `./scripts/get-config-value.sh <block> <key> [config-path]`
+**Usage:** `./framework/get-config-value.sh <block> <key> [config-path]`
 
 Examples:
-- `./scripts/get-config-value.sh branching branch_pattern` → `"feat/{short-name}"`
-- `./scripts/get-config-value.sh grill question_cap` → `"10"`
-- `./scripts/get-config-value.sh memory_file character_limit` → `"40000"`
+- `./framework/get-config-value.sh branching branch_pattern` → `"feat/{short-name}"`
+- `./framework/get-config-value.sh grill question_cap` → `"10"`
+- `./framework/get-config-value.sh memory_file character_limit` → `"40000"`
 
 **Exit codes:**
 - `0` — value found (printed to stdout, no trailing newline)
@@ -957,7 +957,7 @@ Examples:
 
 ### state-schema.md (human-readable) and state-schema.json (JSON Schema Draft 2020-12)
 
-**Location:** `spec-driven-development/scripts/state-schema.md`, `spec-driven-development/scripts/state-schema.json`
+**Location:** `spec-driven-development/framework/state-schema.md`, `spec-driven-development/framework/state-schema.json`
 
 **Purpose:** Single source of truth for the state file schema. The coordinator and any other skill that touches the state file MUST match this definition. If a skill diverges from these files, fix the skill (or update these files if the change is intentional) — drift between them is a bug.
 

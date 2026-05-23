@@ -49,7 +49,7 @@ Proceed through these in order:
 ## Step 1: Detect Existing Setup
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Cache the JSON output. For each convention file: the corresponding key (`constitution`, `architecture`, `glossary`, `domain`, `design`) is either a string (file exists) or `null` (no file at the configured path, or config doesn't exist yet).
@@ -231,7 +231,7 @@ Do NOT touch any keys the user didn't ask about (preflight, grill, memory_file, 
 ## Step 6: Validate
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh .sublime-skills/config.yml
+./spec-driven-development/framework/validate-config.sh .sublime-skills/config.yml
 ```
 
 | Exit code | Action |

@@ -68,7 +68,7 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern` and `s
 Read `branching.branch_pattern` from config:
 
 ```bash
-PATTERN=$(./spec-driven-development/scripts/get-config-value.sh branching branch_pattern)
+PATTERN=$(./spec-driven-development/framework/get-config-value.sh branching branch_pattern)
 PATTERN="${PATTERN:-feat/{short-name}}"
 ```
 

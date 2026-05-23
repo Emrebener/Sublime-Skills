@@ -120,7 +120,7 @@ Write the (redacted) handoff content to `<output-path>.tmp` first. This is the f
 ## Step 7: Validate
 
 ```bash
-./spec-driven-development/scripts/validate-handoff.sh <output-path>.tmp
+./spec-driven-development/framework/validate-handoff.sh <output-path>.tmp
 ```
 
 The validator knows to strip `.tmp` from the filename for the pattern check. If validation fails: edit `<output-path>.tmp` directly to address each CRITICAL finding, then re-run the validator. Do not proceed to Step 8 until validation returns `PASS`.

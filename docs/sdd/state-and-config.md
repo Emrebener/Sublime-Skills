@@ -41,18 +41,18 @@ This prevents partial writes from corrupting state if the session dies mid-write
 
 ### Schema
 
-**The canonical schema lives at `spec-driven-development/scripts/state-schema.md`** (human-readable, complete field list + ownership + enums + stage mapping) and `state-schema.json` (machine-readable JSON Schema Draft 2020-12).
+**The canonical schema lives at `spec-driven-development/framework/state-schema.md`** (human-readable, complete field list + ownership + enums + stage mapping) and `state-schema.json` (machine-readable JSON Schema Draft 2020-12).
 
 This document is a companion that shows worked examples and explains the lifecycle in narrative form. If schema details in this document and the canonical disagree, **the canonical wins** — please update this doc to match.
 
-See `scripts/state-schema.md` for:
+See `framework/state-schema.md` for:
 - Complete list of required and optional fields
 - Field types and enum values
 - Field ownership (who writes what, when)
 - Full Stage Name Mapping table including `stages_skipped` enum
 - Reference example (mid-implementation resume case)
 
-Worked examples in this document are still accurate; if you spot drift, file it as a bug against `scripts/state-schema.md` first.
+Worked examples in this document are still accurate; if you spot drift, file it as a bug against `framework/state-schema.md` first.
 
 ### Git policy
 
@@ -60,7 +60,7 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 
 1. The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed.
 2. Each state-touching skill has a Hard Gate prohibiting `git add -f` / `--force` / any other bypass.
-3. The canonical rule lives in `spec-driven-development/scripts/state-schema.md` under "Git policy (CRITICAL)".
+3. The canonical rule lives in `spec-driven-development/framework/state-schema.md` under "Git policy (CRITICAL)".
 
 The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-11, then batch-committed by `choosing-feature-branch` at Stage 12 in two thematic commits:
 
@@ -128,7 +128,7 @@ Per-task work is fully isolated; re-dispatching is safe. No need for fine-graine
 
 A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
-**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `scripts/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `framework/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
 The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
 
@@ -353,6 +353,6 @@ No re-reading the entire history; the state file is enough.
 
 ## Validating state file integrity
 
-The state file is the contract that lets the coordinator resume — if it's malformed the coordinator can't reliably continue. The schema in `scripts/state-schema.md` / `state-schema.json` defines what valid means: required fields present, enum values from the documented sets, stage progression consistent (e.g., `current_stage: "implementing"` implies `plan_approved` is in `stages_completed`).
+The state file is the contract that lets the coordinator resume — if it's malformed the coordinator can't reliably continue. The schema in `framework/state-schema.md` / `state-schema.json` defines what valid means: required fields present, enum values from the documented sets, stage progression consistent (e.g., `current_stage: "implementing"` implies `plan_approved` is in `stages_completed`).
 
 In practice, malformed state is rare — every writer uses the atomic `.tmp → mv` pattern, so a half-written file never replaces the previous good one. If it does happen (the user hand-edited the file, or some external tool corrupted it), the coordinator surfaces the issue to the user rather than guessing. Repair is the user's call, not the coordinator's.

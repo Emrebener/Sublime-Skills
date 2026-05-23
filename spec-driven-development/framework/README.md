@@ -1,6 +1,6 @@
-# SDD Shared Scripts
+# SDD Framework
 
-Utility scripts shared across the spec-driven-development skill family.
+Shared utility scripts and the canonical state-file schema for the spec-driven-development skill family. The scripts live here alongside `state-schema.md` / `state-schema.json` (the human-readable + machine-readable schema pair) because they're all framework internals consumed by the skills.
 
 ## `discover-context.sh`
 
@@ -10,7 +10,7 @@ Skills call this script once and then `Read` the listed files as needed.
 ### Run
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Outputs JSON. Example:
@@ -68,7 +68,7 @@ they catch gross format violations, not semantic problems.
 ### `validate-spec.sh`
 
 ```bash
-./spec-driven-development/scripts/validate-spec.sh <path-to-spec.md>
+./spec-driven-development/framework/validate-spec.sh <path-to-spec.md>
 ```
 
 Checks: required sections, FR-### / SC-### / story priority presence,
@@ -79,7 +79,7 @@ Exit 0 on pass, 1 on critical failures (warnings don't fail the exit code).
 ### `validate-plan.sh`
 
 ```bash
-./spec-driven-development/scripts/validate-plan.sh <path-to-plan.md>
+./spec-driven-development/framework/validate-plan.sh <path-to-plan.md>
 ```
 
 Checks: required sections (Goal, Architecture, Tech Stack, File
@@ -90,7 +90,7 @@ next line, placeholder patterns, forbidden diagram syntaxes, line-count guard.
 ### `validate-handoff.sh`
 
 ```bash
-./spec-driven-development/scripts/validate-handoff.sh <path-to-handoff.md>
+./spec-driven-development/framework/validate-handoff.sh <path-to-handoff.md>
 ```
 
 Checks: filename pattern (`YYYY-MM-DD-<kebab>.md`, strips trailing `.tmp` for the
@@ -102,7 +102,7 @@ are most often unredacted secrets — re-run redaction before retrying.
 ### `validate-config.sh`
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh [config-path]
+./spec-driven-development/framework/validate-config.sh [config-path]
 ```
 
 Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`. If a sibling `.sublime-skills/config-local.yml` exists, it's overlaid onto the base config per-key and validation runs against the merged result.
@@ -131,15 +131,15 @@ those aren't available (the fallback validates base config only and emits a
 Reads a single scalar value from the layered config. `config-local.yml` is consulted first; if the key is present there (including as `null`), that value wins. Otherwise the read falls through to `config.yml`. Intended for skills that need one or two config values and don't want to inline YAML parsing.
 
 ```bash
-./spec-driven-development/scripts/get-config-value.sh <block> <key> [config-path]
+./spec-driven-development/framework/get-config-value.sh <block> <key> [config-path]
 ```
 
 Examples:
 
 ```bash
-./scripts/get-config-value.sh branching branch_pattern     # "feat/{short-name}"
-./scripts/get-config-value.sh grill question_cap           # "15"
-./scripts/get-config-value.sh memory_file character_limit  # "40000"
+./framework/get-config-value.sh branching branch_pattern     # "feat/{short-name}"
+./framework/get-config-value.sh grill question_cap           # "15"
+./framework/get-config-value.sh memory_file character_limit  # "40000"
 ```
 
 Exit codes:
@@ -180,7 +180,7 @@ directly:
 ```bash
 # example with python's jsonschema
 python -m jsonschema -i .sublime-skills/state.json \
-  spec-driven-development/scripts/state-schema.json
+  spec-driven-development/framework/state-schema.json
 ```
 
 The schema files are the contract; running a JSON Schema validator against a

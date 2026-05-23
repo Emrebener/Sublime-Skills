@@ -35,7 +35,7 @@ Relentlessly interview the user about the spec to surface and resolve weaknesses
 Run the discovery script and **Read every file it returns a non-null path for** before building the question queue:
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Required reads (skip files the JSON returns as `null`):
@@ -82,7 +82,7 @@ Drop questions where:
 **Cap:** default 10. Override via `.sublime-skills/config.yml` → `grill.question_cap`. Read it via the scalar helper:
 
 ```bash
-CAP=$(./spec-driven-development/scripts/get-config-value.sh grill question_cap)
+CAP=$(./spec-driven-development/framework/get-config-value.sh grill question_cap)
 CAP="${CAP:-10}"
 [ "$CAP" -gt 20 ] && CAP=20   # hard ceiling
 ```

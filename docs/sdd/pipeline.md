@@ -45,7 +45,7 @@ Every invocation of `sdd-coordinator` begins with a quick resume check, then a t
 
 2. **Build the progress todo list** for the user's view.
 
-After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `scripts/get-config-value.sh` for use throughout the rest of the run.
+After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `framework/get-config-value.sh` for use throughout the rest of the run.
 
 ### Commit timing (important)
 
@@ -115,7 +115,7 @@ The skill walks through (and skips dimensions already covered by the user's init
 
 **Scope check:** if the user's request actually describes multiple independent subsystems, the skill surfaces this early and recommends decomposition into separate SDD runs.
 
-**Project context loading:** the skill runs `scripts/discover-context.sh` to find any project convention files (constitution, ADRs, ARCHITECTURE.md, glossary, domain model). If present, it loads them and uses the project's domain vocabulary throughout the conversation.
+**Project context loading:** the skill runs `framework/discover-context.sh` to find any project convention files (constitution, ADRs, ARCHITECTURE.md, glossary, domain model). If present, it loads them and uses the project's domain vocabulary throughout the conversation.
 
 **Final confirmation:** when discovery is sufficient, the skill summarizes back in sections (goal, users, scope, success, entities, edge cases, decisions). The user approves each section before moving on.
 
@@ -134,7 +134,7 @@ The coordinator passes the in-memory understanding from Stage 1 to this skill. T
 2. Loads project context (skip if coordinator already passed it).
 3. Renders the spec following the opinionated structure (see [artifacts.md](artifacts.md) for the full spec format). Writes atomically — composes content, writes to `<spec_path>.tmp`, then `mv`.
 4. Initializes the state file with the feature ID, work type, paths, and initial stage markers.
-5. Runs `scripts/validate-spec.sh` against the new file. Fixes any CRITICAL issues until it passes. Validator catches duplicate FR/SC IDs, placeholders, missing sections, and forbidden diagram syntax.
+5. Runs `framework/validate-spec.sh` against the new file. Fixes any CRITICAL issues until it passes. Validator catches duplicate FR/SC IDs, placeholders, missing sections, and forbidden diagram syntax.
 6. Runs an inline fresh-eyes self-review for semantic issues the validator can't catch (internal consistency, testability, ambiguity, vocabulary drift).
 7. Returns the spec path to the coordinator, **including the validator's PASS line verbatim** in the report. Coordinator re-runs the validator before committing; if results disagree, the stage halts.
 
@@ -337,7 +337,7 @@ The skill:
    - Phase 3+: One phase per user story in priority order (P1 first)
    - Final Phase: Polish
 6. Each task gets `[T###]` ID, optional `[P]` parallel marker, `[US#]` story label, exact file paths, `**Requirements:**` traceability to spec FRs, and bite-sized TDD steps with actual code + commands + expected output + commit messages.
-7. Runs `scripts/validate-plan.sh` until it passes.
+7. Runs `framework/validate-plan.sh` until it passes.
 8. Runs an inline fresh-eyes self-review for semantic issues.
 9. Returns the plan path.
 
@@ -563,7 +563,7 @@ The subagent:
 2. Gets the git log between BASE_SHA and HEAD_SHA (commit count, file changes, notable commits).
 3. Builds the handoff structure (Quick context, Source artifacts, What got built, Build highlights, Test status, Open concerns, "If you're continuing this work", Redactions, Files not to look at).
 4. **Runs a redaction sweep** on every string going into the doc. Patterns redacted: OpenAI/Anthropic/AWS/GitHub tokens, JWT-shaped strings, URLs with embedded credentials, sensitive env-var value assignments, SSH private key markers, generic secret literals. Two-pass scan to catch redactions that reveal more redactions.
-5. Validates via `scripts/validate-handoff.sh` (which also enforces redaction).
+5. Validates via `framework/validate-handoff.sh` (which also enforces redaction).
 6. Writes the file atomically.
 
 **The handoff is a bridge, not a duplicate.** It references the source artifacts (with one-line summaries) rather than restating them. The goal is to enable a fresh agent — or a human stepping in for PR iteration — to continue work without re-reading the entire spec + plan + ADR set.

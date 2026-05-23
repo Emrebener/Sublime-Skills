@@ -57,7 +57,7 @@ The coordinator MUST track each of these as a todo item and complete them in ord
 ## Config Validation Protocol
 
 ```bash
-./spec-driven-development/scripts/validate-config.sh
+./spec-driven-development/framework/validate-config.sh
 ```
 
 | Exit code | Meaning | Action |

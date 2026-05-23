@@ -47,7 +47,7 @@ Read `docs/specs/NNN-<short-name>/spec.md` in full. Note:
 Run the discovery script (skip re-Reads if these files are already in your working context from an earlier stage) and **Read every file it returns a non-null path for** before decomposing into tasks:
 
 ```bash
-./spec-driven-development/scripts/discover-context.sh
+./spec-driven-development/framework/discover-context.sh
 ```
 
 Required reads when present (skip files the JSON returns as `null`):
@@ -215,7 +215,7 @@ git add ... ; git commit -m "..."
 Run the validator script:
 
 ```bash
-./spec-driven-development/scripts/validate-plan.sh docs/specs/NNN-<short-name>/plan.md
+./spec-driven-development/framework/validate-plan.sh docs/specs/NNN-<short-name>/plan.md
 ```
 
 If it fails (exit code 1): fix every CRITICAL issue, then re-run until PASS. Common failures: missing required sections, T### IDs not on task headers, `[NO-TDD]` markers without a reason on the next line, placeholders, forbidden diagram syntax.
