@@ -14,7 +14,7 @@ You invoke `bootstrapping-project`. It:
 
 1. Runs `discover-context.sh` to see what's already there
 2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
-3. Creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs
+3. Creates `docs/adr/`, `docs/specs/` with stub READMEs
 4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml` and creates `.sublime-skills/config-local.yml` as an empty file (preserving any existing content on re-run)
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
@@ -32,7 +32,7 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 | 1 | Detect existing setup | Coordinator runs `discover-context.sh` | No |
 | 1.5 | Build progress todo list | Coordinator uses harness todo tool | No |
 | 2 | Per-file loop (×5) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
-| 3 | Create `docs/adr/`, `docs/specs/`, `docs/handoff/` | Coordinator (`mkdir` + stub READMEs) | Yes |
+| 3 | Create `docs/adr/`, `docs/specs/` | Coordinator (`mkdir` + stub READMEs) | Yes |
 | 4 | Copy config scaffold + create local overlay | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml`) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`) |
 | 5 | Edit config to reflect skipped files | Coordinator (targeted in-place edits) | Yes (modifies `.sublime-skills/config.yml`) |
 | 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
@@ -74,7 +74,7 @@ Before the per-file loop, the coordinator builds a visible todo list via the har
 3. Glossary (`docs/GLOSSARY.md`)
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
-6. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with READMEs
+6. Create `docs/adr/`, `docs/specs/` with READMEs
 7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
@@ -273,14 +273,13 @@ These are heuristics, not rules. The skill always lets you opt out of any specif
 ## Step 3: Create supporting directories
 
 ```bash
-mkdir -p docs/adr docs/specs docs/handoff
+mkdir -p docs/adr docs/specs
 ```
 
 Each gets a stub README with usage notes:
 
 - `docs/adr/README.md` — ADR conventions (filename pattern, status lifecycle, who writes them)
 - `docs/specs/README.md` — Spec directory pattern (`NNN-kebab-name/`)
-- `docs/handoff/README.md` — Handoff conventions, redaction policy, who writes them
 
 If a README already exists with the same content, it's skipped. If a README exists with different content, the coordinator asks before overwriting.
 
@@ -342,7 +341,7 @@ to:
 | `3` | Usage error | Halt — coordinator bug. |
 
 Validator checks include:
-- All required keys present (`paths.spec_dir`, `paths.adr_dir`, `paths.handoff_dir`, `context.<name>_path` for all five, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`)
+- All required keys present (`context.<name>_path` for all five, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`)
 - No unknown keys (catches schema drift)
 - Each context path is either `null` or points to an actual existing file (orphan paths fail)
 - Each `paths.*_dir` value is a string
@@ -372,7 +371,7 @@ Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SD
 
 ```bash
 git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
-        docs/adr/ docs/specs/ docs/handoff/ \
+        docs/adr/ docs/specs/ \
         .sublime-skills/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
 ```
@@ -402,7 +401,6 @@ Convention files:
 Directories:
 - docs/adr/ (with README)
 - docs/specs/ (with README)
-- docs/handoff/ (with README)
 
 Config:
 - .sublime-skills/config.yml created and validated (PASS)
@@ -445,7 +443,7 @@ The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` i
 
 The SDD pipeline reads the bootstrap's output at several points:
 
-- **`sdd-coordinator` entry**: does a quick resume check (globs for an existing state file under `<spec_dir>`), then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
+- **`sdd-coordinator` entry**: does a quick resume check (globs for an existing state file under `docs/specs`), then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
 - **`discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
 - **`reviewing-specs` and `reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`writing-specs` and `writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
