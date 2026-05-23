@@ -46,7 +46,7 @@ These MUST be present in any valid state file (i.e., from Stage 2 onward):
 | `current_stage` | string | One of the enum values in the Stage Name Mapping table below. |
 | `stages_completed` | array of strings | Stages finished successfully, in chronological order. Each value from the Stage Name Mapping table's "stages_completed entry" column. |
 | `stages_skipped` | array of strings | Stages user opted to skip (only the four optional stages can appear here). |
-| `tasks` | object | `{ "T###": "pending" | "in_progress" | "completed" }`. Empty `{}` before Stage 13 initializes it. |
+| `tasks` | object | `{ "T###": "pending" | "in_progress" | "completed" }`. Initialized as `{}` by `writing-specs` at Stage 2; populated with per-task entries by `implementing-plans` at Stage 13. |
 
 ## Optional fields (present after specific stages advance)
 

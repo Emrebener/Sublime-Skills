@@ -40,7 +40,8 @@ This skill does NOT cover per-task reviewer findings during implementation — `
 5. For each LOW: note in passing; usually skip
 6. Re-dispatch reviewer if material changes were made (per stage protocol)
 7. Surface to user if a finding needs human judgment
-8. Update state file if state changed (e.g., fix iterations counted)
+8. Escalate if the fix-loop cap (2 iterations) was hit with unresolved findings
+9. Update state file if state changed (e.g., fix iterations counted)
 
 ## Step 1: Read Without Reacting
 
@@ -181,7 +182,7 @@ Wait for user's selection. Whatever they choose:
 
 The same protocol applies to plan review (Stage 9 / 10) — substitute `plan_auto_review_iterations`.
 
-## Step 8: Update State
+## Step 9: Update State
 
 After processing, update the state file (atomic write) with any tracked information:
 

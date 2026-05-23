@@ -878,7 +878,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 - Type sanity (strings, null-or-string)
 - Rejects unknown `context.*_path` keys (catches stale schema after upgrades)
 
-**Overlay-specific checks:** any block name in `config-local.yml` that isn't one of the five known blocks is flagged; any key under a known block that isn't part of the schema is flagged. Findings sourced from the overlay are prefixed with `config-local.yml:` so it's clear where to fix them.
+**Overlay-specific checks:** any block name in `config-local.yml` that isn't one of the four known blocks is flagged; any key under a known block that isn't part of the schema is flagged. Findings sourced from the overlay are prefixed with `config-local.yml:` so it's clear where to fix them.
 
 **Exit codes:**
 - `0` — PASS

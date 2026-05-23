@@ -334,7 +334,7 @@ to:
   glossary_path: null
 ```
 
-**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `preflight`, `grill`, `memory_file`, `finishing` — all keep their scaffold defaults. If the user later wants a custom test command, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
+**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `branching`, `grill`, `memory_file` — all keep their scaffold defaults. (`context` is the one block the bootstrap edits, per the skipped-file logic above.) If the user later wants a custom branch pattern or memory-file limit, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
 
 ---
 
@@ -448,7 +448,7 @@ The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` i
 
 The SDD pipeline reads the bootstrap's output at several points:
 
-- **`sdd-coordinator` entry**: does a quick resume check (globs for an existing state file under `docs/specs`), then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
+- **`sdd-coordinator` entry**: does a quick resume check (`[ -f .sublime-skills/state.json ]`), then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
 - **`discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
 - **`reviewing-specs` and `reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`writing-specs` and `writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.

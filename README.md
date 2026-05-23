@@ -74,7 +74,7 @@ every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
 skill families), resumable after an interruption via a gitignored state
 file at `.sublime-skills/state.json`, and configurable via `.sublime-skills/config.yml`
-(finishing mode, harness tool names). Specs and plans
+(context paths, branch pattern, grill cap, memory file path/limit). Specs and plans
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 

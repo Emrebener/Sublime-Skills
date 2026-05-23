@@ -256,7 +256,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that ends with a commit (Stages 2, 4, 6, 7, 8, 12, 14, 15, 16, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 
@@ -269,7 +269,7 @@ Every stage that ends with a commit (Stages 2, 4, 6, 7, 8, 12, 14, 15, 16, plus 
 | GPG signing failure | Halt. Surface to user with the gpg error. |
 | Nothing to commit | Investigate: check `git status` and `git log -1`. If intended files are already committed, treat as success. Otherwise halt. |
 | File not found in `git add` | The previous stage's writer may have failed silently. Verify the expected file exists; if not, the prior stage didn't complete properly. |
-| Merge conflict (finishing stage only) | Halt. Tell user which files conflicted. Do NOT auto-resolve. |
+| Stage 12 partial batch commit (Commit 1 succeeded, Commit 2 failed) | Halt. Surface to user with both commit outputs and the partial state (Commit 1 is already in history). Do NOT auto-revert; the user decides whether to amend, add a follow-up commit, or reset. |
 
 **Hard rules — never violate:**
 

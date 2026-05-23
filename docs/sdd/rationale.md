@@ -32,7 +32,7 @@ An 18-stage pipeline sounds heavy (Stages 0-17). For trivial changes it might be
 - "Trivial" changes that turn out to be non-trivial don't get the rigor they need
 - Optional stages compound: if every stage is optional, the pipeline degenerates to a chat
 
-The pipeline as designed has **5 user-gated optional stages** (grill, 2nd spec-review, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 13, 14, 15). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
+The pipeline as designed has **6 user-gated optional stages** (grill, 2nd spec-review, 2nd plan-review, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 10, 14, 15, 16). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
 
 **Why this is OK in practice:** for genuinely small changes (a typo fix, a config bump), you wouldn't invoke SDD at all. SDD is for features that warrant structured development. The pipeline is calibrated for that scale.
 
@@ -46,7 +46,7 @@ The alternative would be one giant coordinator skill that contains all phase log
 - **Coupling:** changes to phase logic require editing the coordinator, increasing risk of unintended side effects.
 - **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `writing-specs`, `reviewing-specs`) can be invoked outside the pipeline if needed.
 
-The trade-off is more skill files to maintain (20 skills + 6 shared scripts + 2 schema files = 28 files) and the coordinator loading skills just-in-time. We judged this worth it.
+The trade-off is more skill files to maintain (21 skills + 6 shared scripts + 2 schema files = 29 files) and the coordinator loading skills just-in-time. We judged this worth it.
 
 **Concrete benefit:** the coordinator's SKILL.md is ~450 lines. The combined skills are ~5000 lines, but at any given moment only the active phase-skill is loaded. The coordinator stays a state machine + dispatcher.
 

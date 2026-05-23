@@ -19,7 +19,7 @@ A JSON file at `.sublime-skills/state.json` — a single global file representin
 | 2 (Writing spec) | **Created** by `writing-specs` at `.sublime-skills/state.json`, atomic write. Pre-populated with feature_id, branch, paths. **Gitignored from the start.** |
 | 3–11 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
 | 12 (Choosing branch) | Updated atomically (current_stage: implementing). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. |
-| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). No state commit at the end of Stage 13. |
+| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). |
 | 14 (Testing) | Updated with `test_status` and `fix_iterations`. No state commit. |
 | 15 (Handoff) | Updated with `handoff_path`. No state commit. |
 | 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. No state commit (memory file itself is committed if updated). |
