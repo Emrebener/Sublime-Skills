@@ -146,7 +146,7 @@ Stage name mapping (lookup for `current_stage` advance and `stages_completed` ap
 
 When resuming, advance to the stage one beyond the last `stages_completed` entry. If the last completed stage exists in `stages_skipped` instead, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries only — never mid-stage.
 
-**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits these on the user's chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stages 14-16) by the active skill, alongside its artifacts. The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage. Stage 17 deletes it via plain `rm` with no commit.
+**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits these on the user's chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stages 14 and 16; Stage 15 makes no commit since the handoff doc lives outside the repo) by the active skill, alongside its artifacts. The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage. Stage 17 deletes it via plain `rm` with no commit.
 
 ## Per-Stage Driving Instructions
 
@@ -181,7 +181,7 @@ Load `writing-specs`. Pass it the in-memory discovery outputs (including `work_t
 ./spec-driven-development/scripts/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
 ```
 
-If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. **Do NOT commit** — the spec and state file stay uncommitted; `choosing-feature-branch` (Stage 12) will batch-commit them.
+If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. **Do NOT commit** — the spec stays uncommitted in the working tree; `choosing-feature-branch` (Stage 12) will batch-commit it alongside the plan and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed.
 
 ### Stage 3 — Auto Spec-Review
 
@@ -290,9 +290,9 @@ mkdir -p "$HANDOFF_DIR"
 
 Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, and "Use the `generating-handoff` skill."
 
-After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT commit. Otherwise:
+After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT record `handoff_path`. Otherwise:
 
-Record `handoff_path` in state file (atomic write — no commit; `.sublime-skills/state.json` is gitignored). The handoff file itself lives outside the repo and was never committed in either design.
+Record `handoff_path` in state file (atomic write — no commit; `.sublime-skills/state.json` is gitignored). The handoff file itself lives outside the repo and is never committed.
 
 Tell the user where the handoff was written (the absolute path now in `state.handoff_path`).
 
