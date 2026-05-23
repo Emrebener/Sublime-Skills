@@ -35,7 +35,7 @@ Outputs JSON. Example:
 
 ### Source of truth: `.sublime-skills/config.yml` + `config-local.yml`
 
-The script reads every path from `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search**. If both files are missing or a key is null/unset in both, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`.
+Context paths are read from `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search**. If both files are missing or a key is null/unset in both, the corresponding field is `null` in the output. For each configured context path, the script verifies the file exists on disk before returning it; missing files become `null`. `spec_dir` and `adr_dir` are fixed constants (`docs/specs` and `docs/adr` respectively) — they are emitted for debugging convenience, not read from config.
 
 | JSON field | Config key | Notes |
 |---|---|---|
@@ -44,16 +44,16 @@ The script reads every path from `.sublime-skills/config.yml`, with `.sublime-sk
 | `glossary` | `context.glossary_path` | scalar path or null |
 | `domain` | `context.domain_path` | scalar path or null |
 | `design` | `context.design_path` | scalar path or null |
-| `spec_dir` | `paths.spec_dir` | also drives `active_states` lookups |
-| `adr_dir` | `paths.adr_dir` | also drives the `adrs` array |
+| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | also drives `active_states` lookups |
+| `adr_dir` | fixed at `docs/adr` — emitted for debugging only | also drives the `adrs` array |
 | `readme` | (hardcoded `README.md`) | the one universal location; not configurable |
-| `adrs` | — | all `.md` files directly under `<adr_dir>/` |
-| `active_states` | — | all `state.json` files at `<spec_dir>/*/state.json` |
+| `adrs` | — | all `.md` files directly under `docs/adr/` |
+| `active_states` | — | all `state.json` files at `docs/specs/*/state.json` |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
 ### YAML extractor limitations
 
-All scalar reads (context paths and `paths.*` directories) are delegated to the sibling `get-config-value.sh`, which is the single source of truth for both YAML extraction and overlay (`config-local.yml` shadows `config.yml`) semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — no lists, no nested objects beyond one level, no anchors, no multi-line block scalars. Sufficient for the singular scalar paths in `.sublime-skills/config.yml`'s `paths:` and `context:` blocks. Skills that need list-typed or multi-line config values parse the YAML themselves.
+Scalar `context.*_path` reads are delegated to the sibling `get-config-value.sh`, which is the single source of truth for both YAML extraction and overlay (`config-local.yml` shadows `config.yml`) semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — no lists, no nested objects beyond one level, no anchors, no multi-line block scalars. Sufficient for the singular scalar paths in `.sublime-skills/config.yml`'s `context:` block. Skills that need list-typed or multi-line config values parse the YAML themselves.
 
 ### Bootstrapping
 
@@ -107,8 +107,8 @@ are most often unredacted secrets — re-run redaction before retrying.
 
 Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`. If a sibling `.sublime-skills/config-local.yml` exists, it's overlaid onto the base config per-key and validation runs against the merged result.
 
-Checks: YAML parses (both files); all five top-level blocks present in the base
-(`paths`, `context`, `preflight`, `grill`, `memory_file`); required scalar
+Checks: YAML parses (both files); all four top-level blocks present in the base
+(`context`, `branching`, `grill`, `memory_file`); required scalar
 keys per block in the merged result; every `context.<name>_path` is null OR
 points to an existing file (orphan paths fail); numeric and type sanity on
 remaining fields; rejection of unknown `context.*_path` keys (catches stale
@@ -139,7 +139,6 @@ Examples:
 ```bash
 ./scripts/get-config-value.sh branching branch_pattern     # "feat/{short-name}"
 ./scripts/get-config-value.sh grill question_cap           # "15"
-./scripts/get-config-value.sh paths handoff_dir            # "docs/handoff"
 ./scripts/get-config-value.sh memory_file character_limit  # "40000"
 ```
 
@@ -162,7 +161,7 @@ a general-purpose YAML library.
 ## State File Schema
 
 `state-schema.md` and `state-schema.json` are the canonical schema for
-`<spec_dir>/<feature_id>/state.json`. Both define exactly the same shape; the
+`docs/specs/<feature_id>/state.json`. Both define exactly the same shape; the
 `.md` is human-readable (field tables, lifecycle, worked example) and the
 `.json` is JSON Schema Draft 2020-12 for objective validation.
 
