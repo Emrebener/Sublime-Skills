@@ -344,7 +344,6 @@ Validator checks include:
 - All required keys present (`context.<name>_path` for all five, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`)
 - No unknown keys (catches schema drift)
 - Each context path is either `null` or points to an actual existing file (orphan paths fail)
-- Each `paths.*_dir` value is a string
 
 For ambiguous fixes (e.g., orphan path → "should this be null, or did I write the wrong path?"), the coordinator confirms with the user before editing.
 
