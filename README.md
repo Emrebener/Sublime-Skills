@@ -74,9 +74,9 @@ every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
 skill families), resumable after an interruption via a per-feature state
 file at `docs/specs/NNN-name/state.json`, and configurable via `.sublime-skills/config.yml`
-(path overrides, finishing mode, harness tool names). Specs and plans
+(finishing mode, harness tool names). Specs and plans
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
-at `docs/handoff/YYYY-MM-DD-<title>.md`.
+at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
 Shared scripts at `spec-driven-development/scripts/`:
 - `discover-context.sh` — reads project convention file paths from
@@ -302,7 +302,7 @@ The user decides what to do with the feature branch after SDD ends.
 
 Subagent skill. Reads spec, plan, ADRs, state file, and git log to
 produce a self-contained handoff document at
-`docs/handoff/YYYY-MM-DD-<short-title>.md`. The handoff is a *bridge*
+`~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`. The handoff is a *bridge*
 — it references the source artifacts (with one-line summaries) rather
 than duplicating them. Includes a redaction sweep that catches OpenAI/
 AWS/GitHub tokens, JWTs, private keys, URLs with credentials, and
@@ -352,7 +352,7 @@ The coordinator. Walks the user through each convention file: detect
 existing → ask `Skip / Extend / Replace` (or Create if missing) →
 load the matching `discovering-<topic>` skill inline → the skill
 handles its own scan, conversation, and atomic write.
-Then creates `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub
+Then creates `docs/adr/`, `docs/specs/` with stub
 READMEs; copies the canonical config scaffold at
 `project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
 `context.<name>_path` to `null` for skipped files; runs
