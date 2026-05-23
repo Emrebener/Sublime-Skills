@@ -30,7 +30,7 @@ Render the agreed understanding from the discovery stage into a structured spec 
 
 ## Step 1: Resolve Feature Directory
 
-Default storage layout (overridable via `.sublime-skills/config.yml` → `paths.spec_dir`):
+Storage layout (fixed):
 
 ```
 docs/specs/NNN-<short-name>/
@@ -46,8 +46,6 @@ docs/specs/NNN-<short-name>/
 **Short name:**
 - 2-4 kebab-case words from the feature description
 - Examples: `user-auth`, `add-export-csv`, `fix-payment-timeout`
-
-**If config overrides paths**: use those. Resolve sequential numbering against the configured `spec_dir`.
 
 ## Step 2: Load Project Context
 
