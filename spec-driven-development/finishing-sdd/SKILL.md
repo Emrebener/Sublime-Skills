@@ -23,8 +23,6 @@ That's it. No merging, no pull requests, no branch deletion, no test re-runs. Th
 
 - Do NOT proceed if `state.stages_completed` doesn't contain `implementation_complete`
 - Do NOT proceed if the state file is malformed or unreadable
-- Do NOT bypass a failing commit with `--no-verify` or `--no-gpg-sign`
-- Do NOT use `git add .` / `git add -A` — the state deletion commit is path-scoped
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 
 ## Checklist
