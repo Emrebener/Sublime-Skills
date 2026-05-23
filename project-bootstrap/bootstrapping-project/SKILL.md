@@ -64,7 +64,7 @@ Before starting the per-file loop, build the progress todo list with the harness
 4. Domain model (`docs/DOMAIN.md`)
 5. Design (`docs/DESIGN.md`)
 6. Create `docs/adr/`, `docs/specs/` with READMEs
-7. Copy config scaffold to `.sublime-skills/config.yml` and create empty `.sublime-skills/config-local.yml`
+7. Copy config scaffold to `.sublime-skills/config.yml`, create empty `.sublime-skills/config-local.yml`, and create `.sublime-skills/.gitignore` with both entries
 8. Edit config to reflect skipped files
 9. Run `validate-config.sh` (fix-and-retry loop)
 10. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
