@@ -254,14 +254,28 @@ Ask: "Generate a handoff document for this run? (yes/no, default yes — recomme
 
 If no: add `handoff` to `stages_skipped`. Advance to Stage 16.
 
-If yes, resolve `HANDOFF_DIR`: read `paths.handoff_dir` from config. If it starts with `/` or `~`, treat as absolute (expand `~`); set `OUTSIDE_REPO=true` if the resolved path falls outside `git rev-parse --show-toplevel`. Otherwise repo-relative, `OUTSIDE_REPO=false`.
+If yes, resolve `HANDOFF_DIR` from `$HOME` and the current repo's basename, and ensure the directory exists:
 
-Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, `OUTSIDE_REPO`, and "Use the `generating-handoff` skill."
+```bash
+REPO_BASENAME=$(basename "$(git rev-parse --show-toplevel)")
+HANDOFF_DIR="$HOME/.sublime-skills/handoffs/$REPO_BASENAME"
+mkdir -p "$HANDOFF_DIR"
+```
+
+`HANDOFF_DIR` is always an absolute path outside the repo. If `mkdir -p` fails (no write access to `$HOME`, etc.), surface the OS error verbatim and abort Stage 15. No retry, no fallback location.
+
+Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, and "Use the `generating-handoff` skill."
 
 After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT commit. Otherwise:
 
-- **`OUTSIDE_REPO=false`:** commit `<handoff-path>` + state.json (`docs(NNN-short-name): handoff document`)
-- **`OUTSIDE_REPO=true`:** commit state.json only (`chore(NNN-short-name): record external handoff path`); tell user where the external handoff was written.
+Commit `state.json` only — the handoff file lives outside the repo and is never staged:
+
+```bash
+git add docs/specs/<feature_id>/state.json
+git commit -m "chore(<short-name>): record handoff path"
+```
+
+Tell the user where the handoff was written (the absolute path now in `state.handoff_path`).
 
 Record `handoff_path` in state file.
 
