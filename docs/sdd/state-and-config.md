@@ -77,7 +77,7 @@ From Stage 13 onward, state.json is committed alongside the stage's artifact:
 
 ### Resume protocol
 
-The coordinator's first action on every invocation is a quick glob for active state files at `<spec_dir>/*/state.json`:
+The coordinator's first action on every invocation is a quick glob for active state files at `docs/specs/*/state.json`:
 
 **No state files found** — fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
 
@@ -127,7 +127,7 @@ Per-task work is fully isolated; re-dispatching is safe. No need for fine-graine
 
 A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
-**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `scripts/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (spec_dir, adr_dir, handoff_dir, context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `scripts/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
 The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
 
@@ -136,16 +136,6 @@ The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets 
 Mirror of the scaffold file. Each key is explicit — there is **no** auto-fallback search; the discovery script and skills consult config for every path.
 
 ```yaml
-# ── Paths ────────────────────────────────────────────────────────────
-# handoff_dir may be either repo-relative (default; committed alongside the
-# run) OR absolute / ~ -expanded (e.g. /home/user/sdd-handoffs/) to write
-# handoffs OUTSIDE the repo. Absolute paths are not committed; the
-# coordinator records the resolved path in state.json.
-paths:
-  spec_dir: docs/specs          # spec.md, plan.md, state.json live under spec_dir/NNN-name/
-  adr_dir: docs/adr             # ADRs as NNNN-kebab.md
-  handoff_dir: docs/handoff     # handoffs as YYYY-MM-DD-kebab.md (or absolute path)
-
 # ── Context files ───────────────────────────────────────────────────
 # Single explicit path per artifact. null means "this project doesn't
 # have one." There is no auto-fallback to other locations — if you move
@@ -206,7 +196,7 @@ memory_file:
   character_limit: 60000
 ```
 
-The other keys (paths, context, grill, the rest of preflight + memory_file) fall through to `config.yml`'s values.
+The other keys (context, grill, the rest of memory_file) fall through to `config.yml`'s values.
 
 **Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap appends `.sublime-skills/config-local.yml` to `.gitignore` in Step 7. Each developer's overlay is their own; no one else sees it.
 
@@ -237,15 +227,6 @@ branching:
 
 Used by `choosing-feature-branch` (Stage 12) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
 
-**Custom paths:**
-
-```yaml
-paths:
-  spec_dir: docs/features
-  adr_dir: docs/decisions
-  handoff_dir: docs/handoffs
-```
-
 **Memory file maintenance (CLAUDE.md / AGENTS.md / etc.):**
 
 ```yaml
@@ -255,17 +236,6 @@ memory_file:
 ```
 
 `path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 16 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
-
-**Handoff outside the repo (not committed):**
-
-```yaml
-paths:
-  handoff_dir: /home/user/sdd-handoffs    # absolute path
-  # or
-  handoff_dir: ~/notes/sdd                # tilde expanded to $HOME
-```
-
-When `handoff_dir` resolves outside the repo's working tree, the handoff file is written but NOT staged or committed. The path is recorded in `state.json` so other tooling can find it. The state-file commit at Stage 15 only includes `state.json`, not the handoff itself.
 
 **Custom context file locations:**
 
@@ -316,7 +286,7 @@ The state file is **written** as the pipeline progresses. It doesn't reference t
 If the config changes mid-pipeline (rare but possible):
 - The change takes effect on the next stage boundary
 - Already-completed stages aren't re-run
-- Stages that depend on config (e.g., `paths.handoff_dir` or `memory_file.path`) honor the new value
+- Stages that depend on config (e.g., `memory_file.path`) honor the new value
 
 ---
 
