@@ -11,7 +11,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 - [Why split discovery and spec-writing](#why-split-discovery-and-spec-writing)
 - [Why per-task subagent dispatch](#why-per-task-subagent-dispatch)
 - [Why two-stage review per task](#why-two-stage-review-per-task)
-- [Why state file in git](#why-state-file-in-git)
+- [Why state file is gitignored](#why-state-file-is-gitignored)
 - [Why ADRs over Constitution (initially)](#why-adrs-over-constitution-initially)
 - [Why a handoff document](#why-a-handoff-document)
 - [Why no diagrams](#why-no-diagrams)
@@ -124,21 +124,30 @@ Two reviewers, with two different prompt templates, with explicit "stay in your 
 
 ---
 
-## Why state file in git
+## Why state file is gitignored
 
-Two alternatives we considered:
-- **Gitignored state:** state file is local-only, doesn't get committed.
-- **External state:** state in a `.sublime-skills-state/` directory or a database.
+The state file at `.sublime-skills/state.json` is never committed at any stage. It exists only in the working tree during an active SDD run and is deleted by `finishing-sdd` via plain `rm` (no `git rm`, no commit).
 
-We chose committed state because:
+Alternatives considered and rejected:
 
-- **Durability across interruptions.** The state file survives a fresh shell, a working-tree reset, or simply coming back to the project later — the coordinator globs it up and offers to resume.
-- **Auditability.** Git log shows when state advanced, alongside the spec/plan changes that drove the advance.
-- **Squash-merge eats the noise.** If the project squashes on merge, state file churn collapses into one final commit — no main-branch pollution.
+- **Committed state (original design).** We previously committed state.json from Stage 12 onward, with a deletion commit at Stage 17. Reasons cited at the time: durability across interruptions, git-log auditability of stage progression, and squash-merge collapsing the churn.
+- **External state** (e.g., a database or a per-host `~/.sublime-skills-state/` directory). Adds storage management and decouples state from the per-project working tree.
 
-The trade-off is per-stage commits include the state.json delta. Mild noise on the feature branch's history, which we accept.
+Why the committed-state arguments don't hold under the project's actual design philosophy:
 
-We considered making state.json gitignored as an opt-in (`state.gitignore: true`), but it turned out not worth the configurability. Always-committed is simpler.
+- **Durability across interruptions** — moot. Same-conversation resume (the only supported case; see the minimalism principle) needs only the on-disk file. Cross-session, cross-machine, and post-reboot recovery are explicitly NOT supported.
+- **Auditability** — marginal. The state-progression chore commits were never read by anyone; they were pure noise.
+- **Squash-merge eats the noise** — not a benefit, just a neutralizer of cost. If state is never committed, there's no noise to eat.
+
+Net benefit of gitignored state:
+
+- Three pure-state chore commits eliminated per SDD run (Stage 13 implementation-complete chore, Stage 15 handoff-path chore, Stage 17 deletion chore).
+- Two stage commits lose their state ride-along (Stage 12 spec+plan; Stage 16 memory file).
+- Five stage-boundary commit-failure surfaces collapse to zero (no commit, no failure).
+- Stages 2-11's "uncommitted state" rule extends to all stages — one rule, no exceptions.
+- Branch operations no longer disturb state — gitignored files don't move with `git checkout`, and `git stash -u` skips them by spec.
+
+The trade-off: no git-log marker for "SDD finished here." The committed spec / plan / ADRs ARE the artifact; the absence of a chore commit isn't a loss.
 
 ---
 
