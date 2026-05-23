@@ -26,7 +26,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 - Do NOT attempt to test the feature yourself if `testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
 - ALWAYS use path-scoped `git add` (list specific paths) for any commit you make directly. Never `git add .` or `git add -A`. SDD allows dirty working trees (preflight warns but doesn't abort); path-scoping is what keeps the user's pre-existing dirty files from being swept into SDD commits.
-- During Stages 2–11, SDD artifacts (spec, plan, ADRs, state.json) are uncommitted. Do NOT instruct the user (or run yourself) `git stash`, `git restore`, or `git checkout <other-branch>` mid-pipeline — uncommitted artifacts will be displaced and the run is unrecoverable. If git operations become necessary mid-pipeline, halt and surface to the user with the risk explicit.
+- During Stages 2–11, the SDD planning artifacts (spec.md, plan.md, ADRs) are uncommitted in the working tree. Do NOT instruct the user (or run yourself) `git stash`, `git restore`, or `git checkout <other-branch>` mid-pipeline — uncommitted artifacts will be displaced and the run is unrecoverable. The state file at `.sublime-skills/state.json` is gitignored and stays in place across branch operations, but the planning artifacts do not. If git operations become necessary mid-pipeline, halt and surface to the user with the risk explicit.
 
 ## The Pipeline
 
@@ -146,7 +146,7 @@ Stage name mapping (lookup for `current_stage` advance and `stages_completed` ap
 
 When resuming, advance to the stage one beyond the last `stages_completed` entry. If the last completed stage exists in `stages_skipped` instead, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries only — never mid-stage.
 
-**Commit timing.** Through Stages 2–11, SDD writes files (spec, plan, ADRs, state.json) but does NOT commit them — they sit uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits all of these on the user's chosen branch in three thematic commits. From Stage 13 onward, commits happen per stage by the active skill, alongside its artifacts. The state file deletion at Stage 17 is its own `chore` commit.
+**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits these on the user's chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stages 14-16) by the active skill, alongside its artifacts. The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage. Stage 17 deletes it via plain `rm` with no commit.
 
 ## Per-Stage Driving Instructions
 
@@ -222,7 +222,7 @@ Tell user:
 
 **On Approve:** edit each ADR's `Status: Proposed` → `Status: Accepted` (file edits only — do NOT commit). Advance.
 
-**On Approve, keep ADRs as Proposed:** Advance. (No commit; state.json stays uncommitted.)
+**On Approve, keep ADRs as Proposed:** Advance. (No commit; planning artifacts remain uncommitted until Stage 12.)
 
 **On Request changes:** classify before applying.
 
@@ -236,7 +236,7 @@ If unsure, default to light-touch; if it grows substantive mid-edit, stop and re
 
 ### Stage 8 — Writing the Plan
 
-Load `writing-plans`. Follow it. Same validator-enforcement pattern as Stage 2 — re-run `validate-plan.sh`; halt on disagreement. **Do NOT commit** — the plan and state.json stay uncommitted; `choosing-feature-branch` (Stage 12) will batch-commit them.
+Load `writing-plans`. Follow it. Same validator-enforcement pattern as Stage 2 — re-run `validate-plan.sh`; halt on disagreement. **Do NOT commit** — the plan stays uncommitted; `choosing-feature-branch` (Stage 12) will batch-commit it alongside the spec.
 
 ### Stage 9 — Auto Plan-Review
 
@@ -252,9 +252,9 @@ Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a
 
 ### Stage 12 — Choosing Feature Branch + Batch Commit
 
-Load `choosing-feature-branch`. Pass it: `feature_id`, `short_name`, the current branch (`git branch --show-current`), and the set of uncommitted artifact paths (spec.md, plan.md, ADRs, state.json).
+Load `choosing-feature-branch`. Pass it: `feature_id`, `short_name`, the current branch (`git branch --show-current`), and the set of uncommitted artifact paths (spec.md, plan.md, ADRs). The state file at `.sublime-skills/state.json` is read by the skill but not committed.
 
-The skill asks the user a 3-way prompt (create suggested branch / different name / stay on current), optionally runs `git checkout -b`, then path-scope batch-commits the SDD artifacts in three thematic commits (spec / ADRs / plan + state).
+The skill asks the user a 3-way prompt (create suggested branch / different name / stay on current), optionally runs `git checkout -b`, then path-scope batch-commits the planning artifacts in two thematic commits (spec + plan / ADRs).
 
 On abort (`branch_creation_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves and re-invokes the coordinator.
 
@@ -264,12 +264,7 @@ After success: append `branch_chosen` to `stages_completed`. Advance to Stage 13
 
 Load `implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is initialized/synced and updated per task.
 
-After all tasks complete and final review passes:
-
-```
-git add docs/specs/NNN-<short-name>/state.json
-git commit -m "chore(NNN-short-name): mark implementation complete"
-```
+After all tasks complete and final review passes, the implementation stage is done. State is updated on disk (atomic write) but NOT committed — `.sublime-skills/state.json` is gitignored. Advance to Stage 14.
 
 ### Stage 14 — Optional Feature Testing (User-Gated)
 
@@ -297,16 +292,9 @@ Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PAT
 
 After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT commit. Otherwise:
 
-Commit `state.json` only — the handoff file lives outside the repo and is never staged:
-
-```bash
-git add docs/specs/<feature_id>/state.json
-git commit -m "chore(<short-name>): record handoff path"
-```
+Record `handoff_path` in state file (atomic write — no commit; `.sublime-skills/state.json` is gitignored). The handoff file itself lives outside the repo and was never committed in either design.
 
 Tell the user where the handoff was written (the absolute path now in `state.handoff_path`).
-
-Record `handoff_path` in state file.
 
 ### Stage 16 — Maintain Memory File (User-Gated)
 
@@ -328,10 +316,10 @@ Dispatch a fresh subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `sta
 The subagent returns one of:
 - **updated** — memory file was written. Commit it:
   ```
-  git add <MEMORY_FILE_PATH> docs/specs/NNN-<short-name>/state.json
+  git add <MEMORY_FILE_PATH>
   git commit -m "docs(memory): update from NNN-short-name"
   ```
-  (If `MEMORY_FILE_PATH` resolves outside the repo, commit only state.json and inform the user where the external file was written.)
+  (If `MEMORY_FILE_PATH` resolves outside the repo, no commit is needed — inform the user where the external file was written. State is recorded on disk via atomic write, never committed.)
 - **no update needed** — the most common outcome. No commit needed for the memory file; advance.
 - **skipped** — no memory file configured or detected. Add `memory_file` to `stages_skipped`; advance.
 
