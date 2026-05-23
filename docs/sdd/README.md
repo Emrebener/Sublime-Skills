@@ -47,7 +47,7 @@ Interrupted runs are resumable inside the same conversation: a per-feature state
 - `docs/constitution.md` (optional project-wide principles)
 - `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
 - `.sublime-skills/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
-- `docs/adr/`, `docs/specs/`, `docs/handoff/` directories with README stubs
+- `docs/adr/`, `docs/specs/` directories with README stubs
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
 
