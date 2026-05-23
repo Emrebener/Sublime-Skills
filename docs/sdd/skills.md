@@ -784,7 +784,7 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 8. Single commit `chore: initialize SDD project context`.
 
 **Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
-**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs|handoff/README.md` stubs; `.sublime-skills/config.yml`; possibly `.gitignore` entry; one commit.
+**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; possibly `.gitignore` entry; one commit.
 
 ### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
 
@@ -842,7 +842,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 | `config` | — | path to `.sublime-skills/config.yml` if present |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
-**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `paths:` and `context:`. List-typed or multi-line config values are parsed by individual skills that need them.
+**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `context:`, `branching:`, `grill:`, and `memory_file:`. List-typed or multi-line config values are parsed by individual skills that need them.
 
 **Output JSON shape:**
 
@@ -873,7 +873,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 **Checks (on the merged config):**
 - YAML parses for both files (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner that validates the base config only and warns when overlay is present)
-- All five top-level blocks present: `paths`, `context`, `preflight`, `grill`, `memory_file`
+- All four top-level blocks present: `context`, `branching`, `grill`, `memory_file`
 - Required scalar keys per block
 - Each `context.<name>_path` is null OR points to an existing file (orphan paths fail)
 - Numeric sanity (`grill.question_cap` 1-20; `memory_file.character_limit` ≥ 1000)

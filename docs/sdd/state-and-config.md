@@ -65,7 +65,7 @@ State.json (and the other SDD planning artifacts: spec.md, plan.md, ADRs) is **u
 From Stage 13 onward, state.json is committed alongside the stage's artifact:
 
 - Stage 13 (implementation): per-task code commits include any state.json delta (tasks map transitions)
-- Stage 15 (handoff): committed with handoff doc in `docs(<feature_id>): handoff document`
+- Stage 15 (handoff): state.json committed with `chore(<short-name>): record handoff path` (the handoff file itself lives outside the repo)
 - Stage 16 (memory file): committed with memory file in `docs(memory): update from <feature_id>` (only if memory file was updated; usually no commit)
 - Stage 17 (finishing): deletion is committed as `chore(<feature_id>): SDD complete`
 

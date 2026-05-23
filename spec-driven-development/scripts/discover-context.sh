@@ -81,8 +81,8 @@ README=""
 SPEC_DIR="docs/specs"
 ADR_DIR="docs/adr"
 
-# All ADRs under <adr_dir>/ (sorted by filename for deterministic output).
-# If adr_dir is unset or doesn't exist, the array is empty.
+# All ADRs under docs/adr/ (sorted by filename for deterministic output).
+# If docs/adr/ doesn't exist (no ADRs yet), the array is empty.
 ADRS=""
 if [ -n "$ADR_DIR" ] && [ -d "$ADR_DIR" ]; then
   ADRS=$(find "$ADR_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)

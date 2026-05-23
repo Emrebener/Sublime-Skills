@@ -262,7 +262,7 @@ You are maintaining ADRs for the SDD pipeline.
 Use the `maintaining-adrs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
-ADR_DIR: docs/adr (or config override)
+ADR_DIR: docs/adr (hardcoded)
 EXISTING_ADRS: [list of all current ADR paths]
 DECISIONS_CAPTURED: [list of decisions the coordinator flagged during discovery]
 
@@ -573,7 +573,7 @@ The subagent:
 
 **The handoff is a bridge, not a duplicate.** It references the source artifacts (with one-line summaries) rather than restating them. The goal is to enable a fresh agent — or a human stepping in for PR iteration — to continue work without re-reading the entire spec + plan + ADR set.
 
-**Validator enforcement:** the coordinator re-runs `validate-handoff.sh` on the now-final file. If FAIL (especially "potential unredacted secret matching pattern"), halt and surface — do NOT write a handoff that may contain secrets.
+**Validator enforcement:** the coordinator re-runs `validate-handoff.sh` on the now-final file. If FAIL (especially "potential unredacted secret matching pattern"), halt and surface — do NOT proceed; the unredacted handoff is on disk but the run must not record its path or commit state.json until the user resolves.
 
 **Commit:**
 
