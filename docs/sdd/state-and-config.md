@@ -19,7 +19,7 @@ A JSON file at `docs/specs/NNN-<short-name>/state.json`, one per in-progress SDD
 | 2 (Writing spec) | **Created** by `writing-specs`, atomic write. Pre-populated with feature_id, branch, paths. **Uncommitted.** |
 | 3–11 | **Updated** at every stage boundary by the coordinator (atomic). **Uncommitted** throughout. |
 | 12 (Choosing branch) | **Batch-committed** alongside spec/plan/ADRs in three thematic commits on the chosen branch. |
-| 13 (Implementing) | Updated per-task with `tasks` transitions; committed inline with each task's code commits. |
+| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only — per-task code commits don't include state.json). Coordinator commits the final state.json once at end of Stage 13 (`chore(<feature_id>): mark implementation complete`). |
 | 14 (Testing) | Updated with `test_status` and `fix_iterations`. |
 | 15 (Handoff) | Updated with `handoff_path`. |
 | 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. |
@@ -64,7 +64,7 @@ State.json (and the other SDD planning artifacts: spec.md, plan.md, ADRs) is **u
 
 From Stage 13 onward, state.json is committed alongside the stage's artifact:
 
-- Stage 13 (implementation): per-task code commits include any state.json delta (tasks map transitions)
+- Stage 13 (implementation): per-task code commits are made by the implementer subagents and contain only code/tests — they do NOT include state.json. The `tasks` map is updated on disk between tasks (atomic write, no commit). The coordinator commits state.json once at the end of Stage 13 as `chore(<feature_id>): mark implementation complete`.
 - Stage 15 (handoff): state.json committed with `chore(<short-name>): record handoff path` (the handoff file itself lives outside the repo)
 - Stage 16 (memory file): committed with memory file in `docs(memory): update from <feature_id>` (only if memory file was updated; usually no commit)
 - Stage 17 (finishing): deletion is committed as `chore(<feature_id>): SDD complete`
