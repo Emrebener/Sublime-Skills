@@ -28,7 +28,7 @@ Identify and capture architecturally significant decisions from a spec as Archit
 The dispatch prompt includes:
 
 - `SPEC_PATH` — absolute path to the spec
-- `ADR_DIR` — directory where ADRs live (default `docs/adr`, overridable via config)
+- `ADR_DIR` — directory where ADRs live (hardcoded `docs/adr`; the coordinator passes the value into the dispatch)
 - `EXISTING_ADRS` — list of paths to existing ADR files (may be empty if this is the project's first feature)
 - `DECISIONS_CAPTURED` — list of decisions the coordinator flagged during discovery + grill as ADR candidates (may be empty)
 
