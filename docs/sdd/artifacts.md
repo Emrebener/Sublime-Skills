@@ -10,7 +10,7 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 | Plan | `docs/specs/NNN-<short-name>/plan.md` | `writing-plans` (Stage 8) | `validate-plan.sh` |
 | ADR | `docs/adr/NNNN-<kebab-title>.md` | `maintaining-adrs` (Stage 6) | (no automated validator) |
 | Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 15) | `validate-handoff.sh` |
-| State | `docs/specs/NNN-<short-name>/state.json` | `writing-specs` initializes; coordinator + other skills update | (schema at `scripts/state-schema.md` / `.json`) |
+| State | `.sublime-skills/state.json` | `writing-specs` initializes; coordinator + other skills update | (schema at `scripts/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
 
@@ -682,12 +682,12 @@ See [state-and-config.md](state-and-config.md) for the full state file schema, f
 
 Quick reference:
 
-- **Path:** `docs/specs/NNN-<short-name>/state.json`
+- **Path:** `.sublime-skills/state.json`
 - **Created:** Stage 2 (`writing-specs`)
 - **Updated:** at every stage boundary by the coordinator; per-task by `implementing-plans`
-- **Deleted:** Stage 17 (`finishing-sdd`) with a path-scoped `chore` commit
+- **Deleted:** Stage 17 (`finishing-sdd`) via plain `rm` — no commit anywhere
 - **Atomic writes** via `state.json.tmp` + `mv`
-- **Uncommitted through Stages 2–11** (lives in working tree only); **batch-committed at Stage 12** (`choosing-feature-branch`); from Stage 13 onward updates ride along with the active stage's commit
+- **Permanently gitignored throughout.** The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed; no SDD stage ever commits the state file. Branch operations (`git checkout`, `git stash -u`) leave it in place.
 
 ---
 

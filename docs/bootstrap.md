@@ -18,7 +18,7 @@ You invoke `bootstrapping-project`. It:
 4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml` and creates `.sublime-skills/config-local.yml` as an empty file (preserving any existing content on re-run)
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
-7. Adds `.sublime-skills/config-local.yml` to `.gitignore` if not already there
+7. Ensures `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` (Step 4 creates the file; this step is a re-run safety net)
 8. Commits everything in one commit
 
 The whole thing is **safe to re-run**. Subsequent runs let you extend convention files you previously skipped, refine ones you created, or replace stale ones — without overwriting anything you didn't approve.
@@ -36,7 +36,7 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 | 4 | Copy config scaffold + create local overlay | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml`) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`) |
 | 5 | Edit config to reflect skipped files | Coordinator (targeted in-place edits) | Yes (modifies `.sublime-skills/config.yml`) |
 | 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
-| 7 | `.gitignore` housekeeping | Coordinator (append `.sublime-skills/config-local.yml` entry if missing) | Possibly (`.gitignore`) |
+| 7 | `.gitignore` housekeeping | Coordinator (re-run safety net — ensures `.sublime-skills/.gitignore` has both `state.json` and `config-local.yml`) | Possibly (`.sublime-skills/.gitignore`) |
 | 8 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
 | 9 | Report | Coordinator (final summary message) | No |
 
@@ -351,18 +351,13 @@ For ambiguous fixes (e.g., orphan path → "should this be null, or did I write 
 
 ## Step 7: `.gitignore` housekeeping
 
-If `.sublime-skills/config-local.yml` is NOT already in `.gitignore`, the coordinator appends:
+`.sublime-skills/.gitignore` is created in Step 4 with two entries: `config-local.yml` and `state.json`. Step 7 is a re-run safety net — it checks both entries are present and appends any that are missing.
 
-```
-# SDD per-developer overrides (committed config lives at .sublime-skills/config.yml)
-.sublime-skills/config-local.yml
-```
+`.sublime-skills/config-local.yml` is the per-developer overrides file (Step 4 creates it empty); the gitignore entry keeps each developer's content out of commits.
 
-`.sublime-skills/config.yml` itself **is** committed — it's project-wide config that everyone needs.
+`.sublime-skills/state.json` is the SDD per-run state file. It's local-only orchestration metadata, created by Stage 2 and deleted by Stage 17. It's never committed.
 
-`.sublime-skills/config-local.yml` is for per-developer overrides (e.g., one developer prefers `branching.branch_pattern: "feature/{short-name}"`, others use the default `feat/`). The bootstrap creates it as an empty file in Step 4; the gitignore entry from this step keeps each developer's content from leaking into commits. Skills read it through the central config-reader scripts — any key set here shadows the matching key in `config.yml`.
-
-Per-feature state at `docs/specs/NNN-name/state.json` is committed during the SDD pipeline. No gitignore entry needed.
+The root `.gitignore` is NOT modified by this skill.
 
 ---
 

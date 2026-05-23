@@ -26,7 +26,7 @@ finishing (merge / PR / keep / discard)
 
 Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + per-task spec-compliance review + per-task code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
 
-Interrupted runs are resumable inside the same conversation: a per-feature state file at `docs/specs/NNN-<short-name>/state.json` tracks current stage and per-task progress, committed alongside the spec and plan in git. The coordinator checks for an existing state file on every invocation and offers to resume.
+Interrupted runs are resumable inside the same conversation: a single global state file at `.sublime-skills/state.json` tracks current stage and per-task progress. It's permanently gitignored — local-only orchestration metadata, created by Stage 2 and deleted by Stage 17. The coordinator checks for an existing state file on every invocation and offers to resume.
 
 ---
 
@@ -70,7 +70,10 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 ```
 <repo-root>/
 ├── .sublime-skills/
-│   └── config.yml                         # project-wide SDD config
+│   ├── config.yml                         # project-wide SDD config (committed)
+│   ├── config-local.yml                   # per-developer overrides (gitignored)
+│   ├── .gitignore                         # gitignores state.json + config-local.yml
+│   └── state.json                         # written in Stage 2, deleted in Stage 17 (gitignored)
 ├── docs/
 │   ├── constitution.md                    # optional, project principles
 │   ├── ARCHITECTURE.md                    # optional, repo-level
@@ -85,8 +88,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 │   │   ├── README.md
 │   │   └── 001-<short-name>/
 │   │       ├── spec.md                    # written in Stage 2
-│   │       ├── plan.md                    # written in Stage 8
-│   │       └── state.json                 # written in Stage 2, deleted in Stage 17
+│   │       └── plan.md                    # written in Stage 8
 │   ├── handoff/
 │   │   ├── README.md
 │   │   └── 2026-05-20-<title>.md          # written in Stage 14
@@ -114,7 +116,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 ## Key design properties at a glance
 
 - **Self-contained.** No runtime dependencies on external skill families (superpowers, kiro, spec-kit, etc.).
-- **Resumable.** Per-feature state file in git lets an interrupted conversation pick up where it left off (re-invoke `sdd-coordinator`; it offers to resume).
+- **Resumable.** A gitignored state file at `.sublime-skills/state.json` lets an interrupted conversation pick up where it left off (re-invoke `sdd-coordinator`; it offers to resume).
 - **Coordinator is thin.** It's a state machine + dispatcher; all real work lives in dedicated phase-skills or subagents.
 - **Fresh context per task.** Per-task implementation uses fresh subagents (implementer + 2 reviewers). The coordinator's context stays clean.
 - **Abort-fast preflight.** No magic cleanup. If the repo isn't in a fit state, the user fixes it manually.
