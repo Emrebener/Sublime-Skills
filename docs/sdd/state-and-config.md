@@ -196,7 +196,7 @@ memory_file:
   character_limit: 60000
 ```
 
-The other keys (context, grill, the rest of memory_file) fall through to `config.yml`'s values.
+The other keys (context, the rest of branching, grill, the rest of memory_file) fall through to `config.yml`'s values.
 
 **Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap appends `.sublime-skills/config-local.yml` to `.gitignore` in Step 7. Each developer's overlay is their own; no one else sees it.
 
