@@ -1,14 +1,35 @@
 # SDD State File Schema (Canonical)
 
-**Location:** `docs/specs/<feature_id>/state.json`.
+**Location:** `.sublime-skills/state.json` (a single global file; one active SDD run at a time).
 
 This is the **single source of truth** for the state file schema. The coordinator and any other skill that touches the state file MUST match this definition. Drift between this file and a skill's local schema is a bug; fix this file first, then the skill.
+
+## Git policy (CRITICAL)
+
+`.sublime-skills/state.json` is permanently gitignored via `.sublime-skills/.gitignore`. It MUST NEVER be committed at any stage.
+
+Forbidden, even when "just this once":
+
+- `git add -f .sublime-skills/state.json` (force-add bypasses gitignore)
+- `git add --force ...` (same)
+- `git update-index --add .sublime-skills/state.json` (low-level bypass)
+- `git commit -- .sublime-skills/state.json` (any direct path-add)
+- Editing `.sublime-skills/.gitignore` to remove the entry
+
+The state file is local-only orchestration metadata. It exists from Stage 2 (writing-specs creates it) until Stage 17 (finishing-sdd deletes it via plain `rm`, NOT `git rm`). Across every stage between, it lives uncommitted in the working tree.
+
+Recovery if accidentally committed:
+
+```bash
+git rm --cached .sublime-skills/state.json
+git commit -m "fix: untrack accidentally-tracked SDD state"
+```
 
 A machine-readable JSON Schema version lives alongside this file at `state-schema.json` for objective validation.
 
 ## Lifecycle in one paragraph
 
-The state file is **created** by `writing-specs` at Stage 2 (it doesn't exist during Stages 0-1; preflight outcomes are held in coordinator memory). It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below). Through Stages 2–11 it lives on disk **uncommitted**; the `choosing-feature-branch` skill at Stage 12 batch-commits it alongside the spec/plan/ADR artifacts on the chosen branch. From Stage 13 onward, updates are committed per stage by the active skill. It is **deleted** at Stage 17 by `finishing-sdd` (with a single `chore` commit).
+The state file is **created** by `writing-specs` at Stage 2 (it doesn't exist during Stages 0-1; preflight outcomes are held in coordinator memory). It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below). It is **never committed at any stage** — the file lives only in the working tree and is gitignored throughout. It is **deleted** at Stage 17 by `finishing-sdd` via plain `rm` (no commit; nothing to untrack from git).
 
 ## Required fields
 
