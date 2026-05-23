@@ -93,7 +93,7 @@ If non-zero, the current directory isn't a git repo (or isn't inside one). SDD r
 ABORTING preflight: not a git repository.
 
 SDD requires a git repository to commit pipeline artifacts (spec, plan,
-ADRs, state file, code) to. Initialize one and re-invoke:
+ADRs, code) to. Initialize one and re-invoke:
 
     git init
     git commit --allow-empty -m "Initial commit"
@@ -138,8 +138,9 @@ Working tree has uncommitted changes:
   ?? notes/scratch.md
   ...
 
-SDD will only commit its own artifacts (spec, plan, ADRs, state.json,
-and code from implementation tasks). Your other dirty files stay
+SDD will only commit its own artifacts (spec, plan, ADRs, and code from
+implementation tasks). The SDD state file at `.sublime-skills/state.json`
+is gitignored and is never committed. Your other dirty files stay
 untouched throughout the pipeline.
 
 Proceed with the dirty tree? (yes/no)

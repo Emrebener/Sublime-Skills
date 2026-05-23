@@ -17,6 +17,7 @@ Write a self-contained handoff document that captures everything a fresh agent o
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT duplicate ADR content. Reference ADRs by path + one-line summary only.
 - Do NOT duplicate large spec/plan sections. Reference + brief summary.
 - Do NOT include secrets, API keys, passwords, tokens, or other sensitive material — redact per the Redaction section below.
@@ -246,6 +247,8 @@ Omit if everything in the diff is meaningful.>
 | Recommending implementation details to the next agent | The plan covered that; handoff is about context, not direction |
 | Putting forward-looking opinions about future scope | Open concerns is for known facts; "I think we should also..." goes in a new spec, not here |
 | Including links to internal URLs without checking they don't leak (e.g., trace IDs that include secrets) | Treat any URL parameter that looks high-entropy as a candidate for redaction |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -254,3 +257,5 @@ Omit if everything in the diff is meaningful.>
 - Spot a literal API key in the git log or code and considered whether to redact → REDACT
 - Handoff getting longer than ~800 lines → STOP; you're duplicating source material
 - About to invoke another skill (writing-specs, writing-plans, etc.) → STOP; you only write the handoff doc
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP

@@ -21,6 +21,7 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT skip Stage 13 if the user said yes — run it
 - The coordinator does NOT attempt to test the feature itself under any circumstance. If the tester subagent can't test, the coordinator surfaces the result to the user. It does not pick up the toolkit and try.
 - Fix loop caps at **3 iterations**. After the third failed fix, escalate to user.
@@ -179,6 +180,8 @@ Testing complete.
 | Re-dispatching the same tester instance for fix verification | Fresh subagent each cycle — context isolation matters |
 | Treating a FAIL with one trivial issue as "good enough" | Any FAIL means at least one fix iteration; don't shortcut |
 | Conflating per-task unit tests with feature testing | Per-task tests happened during implementation; this stage is feature-level (golden paths + edge cases) |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -186,6 +189,8 @@ Testing complete.
 - Fix loop iteration 4 → STOP; escalate
 - Tester returned MCP_UNAVAILABLE but you're tempted to try Playwright via Bash → STOP; that's the coordinator testing
 - About to mark testing complete despite unresolved failures → STOP; only `PASS` or `passed_after_fixes` proceed automatically
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP
 
 ## Prompt Templates
 
