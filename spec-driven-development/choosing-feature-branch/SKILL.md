@@ -172,7 +172,7 @@ git add <each ADR path>...
 git commit -m "docs(adr): N decisions for <FEATURE_ID>"
 ```
 
-**The state file is NOT staged in either commit.** `.sublime-skills/state.json` is permanently gitignored. Do not attempt `git add -f`, `--force`, or any other bypass — see the Hard Gates above.
+**The state file is NOT staged in either commit.** `.sublime-skills/state.json` is permanently gitignored. Do not attempt `git add -f`, `--force`, or any other bypass — see "What this skill never does" above.
 
 ### Commit failure handling
 
