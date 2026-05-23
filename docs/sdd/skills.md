@@ -650,7 +650,7 @@ Preflight aborted.
 **Loaded:** by the dispatched subagent at Stage 15
 **Stage:** 15 (user-prompted, default yes)
 
-**Purpose:** Produce a self-contained handoff document at `docs/handoff/YYYY-MM-DD-<short-title>.md` that lets a fresh agent (or human) continue work without re-reading everything.
+**Purpose:** Produce a self-contained handoff document at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md` that lets a fresh agent (or human) continue work without re-reading everything.
 
 **What the dispatched subagent gets:**
 - `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS`, `BRANCH`, `BASE_SHA`, `HEAD_SHA`, `HANDOFF_DIR`
@@ -776,7 +776,7 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
 2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
-3. Create `docs/adr/`, `docs/specs/`, `docs/handoff/` with stub READMEs.
+3. Create `docs/adr/`, `docs/specs/` with stub READMEs.
 4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
 6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
@@ -823,7 +823,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ### discover-context.sh
 
 **Location:** `spec-driven-development/scripts/discover-context.sh`
-**Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config (or `null` when a path is unset or the file doesn't exist on disk).
+**Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config for context files (or `null` when a path is unset or the file doesn't exist on disk), and hardcoded values for SDD directories.
 
 **Source of truth:** `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search** — every path is read straight from these files. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
 
@@ -834,8 +834,8 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 | `glossary` | `context.glossary_path` | scalar; null = not used |
 | `domain` | `context.domain_path` | scalar; null = not used |
 | `design` | `context.design_path` | scalar; null = not used |
-| `spec_dir` | `paths.spec_dir` | also drives `active_states` |
-| `adr_dir` | `paths.adr_dir` | also drives `adrs` |
+| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | also drives `active_states` |
+| `adr_dir` | fixed at `docs/adr` — emitted for debugging only | also drives `adrs` |
 | `readme` | (hardcoded `README.md`) | one universal location |
 | `adrs` | — | all `.md` files at `<adr_dir>/` |
 | `active_states` | — | all `state.json` at `<spec_dir>/*/state.json` |
@@ -901,9 +901,8 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 Examples:
 - `./scripts/get-config-value.sh branching branch_pattern` → `"feat/{short-name}"`
-- `./scripts/get-config-value.sh grill question_cap` → `"15"`
+- `./scripts/get-config-value.sh grill question_cap` → `"10"`
 - `./scripts/get-config-value.sh memory_file character_limit` → `"40000"`
-- `./scripts/get-config-value.sh paths spec_dir` → `"docs/specs"`
 
 **Exit codes:**
 - `0` — value found (printed to stdout, no trailing newline)
