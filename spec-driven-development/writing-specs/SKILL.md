@@ -15,6 +15,7 @@ Render the agreed understanding from the discovery stage into a structured spec 
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT introduce new design decisions in this stage. If you find a gap, stop and return to discovery — don't paper over with assumptions.
 - Do NOT include implementation steps, code snippets, file paths to be created, or task lists. Those live in the plan.
 - Do NOT use Mermaid, C4, PlantUML, ASCII art, or any other diagram syntax. The spec is prose. If you find yourself wanting a diagram, describe the structure in words or split the description into smaller pieces. The validator catches labeled diagram syntaxes (Mermaid/PlantUML/C4); ASCII art is on honor system — don't sneak it in.
@@ -34,8 +35,10 @@ Storage layout (fixed):
 
 ```
 docs/specs/NNN-<short-name>/
-  spec.md           # this stage writes
-  state.json        # SDD state file (this stage initializes)
+  spec.md           # this stage writes (user-facing artifact, committed at Stage 12)
+
+.sublime-skills/
+  state.json        # SDD state file (this stage initializes) — gitignored, never committed
 ```
 
 **Numbering:**
@@ -83,9 +86,9 @@ The Clarifications section is auto-managed by the grilling-specs skill if invoke
 
 ## Step 4: Initialize State File
 
-Write `docs/specs/NNN-<short-name>/state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`). See `sdd-coordinator` for the full state schema.
+Write `.sublime-skills/state.json` using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`). See `scripts/state-schema.md` for the full state schema (and the "Git policy (CRITICAL)" section — state.json is permanently gitignored and must never be committed).
 
-**Do NOT commit.** The spec.md and state.json stay uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits them on the user's chosen branch alongside the plan and ADRs.
+**Do NOT commit spec.md.** It stays uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits spec.md alongside plan.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
 
 Initial state when this skill writes the file:
 
@@ -279,6 +282,8 @@ If using EARS, mark the story with `**Acceptance criteria (EARS):**` instead of 
 | Vague success criteria ("fast", "scalable") | Quantify: "p95 < 200ms", "10k concurrent users" |
 | Acceptance scenarios that aren't testable | Restate so a tester (or a tester subagent) could verify with a clear pass/fail |
 | Domain-noun drift (using "user" then "customer" then "account holder" for the same thing) | Canonical term from glossary; one term across the doc |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -288,3 +293,5 @@ If using EARS, mark the story with `**Acceptance criteria (EARS):**` instead of 
 - About to write "the developer should..." → wrong document; that's the plan
 - Found a real gap mid-write → stop, return to discovery, don't paper over
 - Spec is longer than 600 lines → likely too big; consider decomposition
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP

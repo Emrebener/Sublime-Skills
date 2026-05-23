@@ -15,6 +15,7 @@ Convert an approved spec into an implementation plan that a per-task implementer
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT include placeholders ("TBD", "fill in", "add appropriate error handling", "write tests for the above")
 - Do NOT use Mermaid, C4, PlantUML, ASCII art, or any other diagram syntax. The plan is prose + code + commands. The validator catches labeled diagram syntaxes (Mermaid/PlantUML/C4); ASCII art is on honor system — don't sneak it in.
 - Do NOT reference functions, types, or methods you didn't define in this plan or that don't exist in the codebase
@@ -241,7 +242,7 @@ Save to `docs/specs/NNN-<short-name>/plan.md`. Use the same `NNN-<short-name>` d
 
 ## Step 8: Update State File
 
-Update `state.json` using the atomic pattern (write to `state.json.tmp`, then `mv state.json.tmp state.json`):
+Update `.sublime-skills/state.json` using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`):
 
 ```json
 {
@@ -253,7 +254,7 @@ Update `state.json` using the atomic pattern (write to `state.json.tmp`, then `m
 
 Leave `current_stage` as `"plan_writing"` and DO NOT append `"plan_written"` to `stages_completed` here. The coordinator advances and marks completion after this skill returns.
 
-**Do NOT commit.** The plan.md and state.json updates stay uncommitted. The `choosing-feature-branch` skill at Stage 12 batch-commits the plan + state alongside the spec and ADRs on the user's chosen branch.
+**Do NOT commit plan.md.** It stays uncommitted in the working tree. The `choosing-feature-branch` skill at Stage 12 batch-commits plan.md alongside spec.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
 
 ## Step 9: Report
 
@@ -361,6 +362,8 @@ If a section doesn't apply, omit it entirely — don't leave "N/A" placeholders.
 | Phase 3 (US1) doesn't produce a working increment | Re-decompose — MVP-first means Story 1 must stand alone |
 | `[P]` on tasks that actually touch the same file | Drop `[P]` and sequence them |
 | Forgetting `**Requirements:**` on tasks | Add traceability — reviewers and the coordinator both use it |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -370,3 +373,5 @@ If a section doesn't apply, omit it entirely — don't leave "N/A" placeholders.
 - Found a real spec gap → stop, return to coordinator, do not patch with assumptions
 - Task is hard to write because the implementation is genuinely unclear → that's a sign the spec is underspecified; flag it to the coordinator rather than guessing
 - Tempted to add a Mermaid diagram for the architecture → no; describe in prose, link to the relevant ADR
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP
