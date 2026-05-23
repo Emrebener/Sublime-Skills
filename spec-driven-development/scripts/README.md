@@ -29,7 +29,7 @@ Outputs JSON. Example:
   "spec_dir": "docs/specs",
   "adr_dir": "docs/adr",
   "adrs": ["docs/adr/0001-jwt-sessions.md", "docs/adr/0002-postgresql.md"],
-  "active_states": ["docs/specs/003-user-auth/state.json"]
+  "active_state": ".sublime-skills/state.json"
 }
 ```
 
@@ -44,11 +44,11 @@ Context paths are read from `.sublime-skills/config.yml`, with `.sublime-skills/
 | `glossary` | `context.glossary_path` | scalar path or null |
 | `domain` | `context.domain_path` | scalar path or null |
 | `design` | `context.design_path` | scalar path or null |
-| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | also drives `active_states` lookups |
+| `spec_dir` | fixed at `docs/specs` — emitted for debugging only | spec output directory for SDD artifacts |
 | `adr_dir` | fixed at `docs/adr` — emitted for debugging only | also drives the `adrs` array |
 | `readme` | (hardcoded `README.md`) | the one universal location; not configurable |
 | `adrs` | — | all `.md` files directly under `docs/adr/` |
-| `active_states` | — | all `state.json` files at `docs/specs/*/state.json` |
+| `active_state` | — | path to `.sublime-skills/state.json` if it exists, else `null` |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
 ### YAML extractor limitations

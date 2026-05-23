@@ -88,10 +88,10 @@ if [ -n "$ADR_DIR" ] && [ -d "$ADR_DIR" ]; then
   ADRS=$(find "$ADR_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
 fi
 
-# Active feature states (one state.json per in-progress spec).
-STATES=""
-if [ -n "$SPEC_DIR" ] && [ -d "$SPEC_DIR" ]; then
-  STATES=$(find "$SPEC_DIR" -maxdepth 2 -type f -name 'state.json' 2>/dev/null | sort)
+# Active SDD state file (single global path; absent between runs).
+ACTIVE_STATE=""
+if [ -f ".sublime-skills/state.json" ]; then
+  ACTIVE_STATE=".sublime-skills/state.json"
 fi
 
 # JSON helpers.
@@ -142,6 +142,6 @@ cat <<EOF
   "spec_dir": $(json_string "$SPEC_DIR"),
   "adr_dir": $(json_string "$ADR_DIR"),
   "adrs": $(json_array "$ADRS"),
-  "active_states": $(json_array "$STATES")
+  "active_state": $(json_string "$ACTIVE_STATE")
 }
 EOF
