@@ -57,15 +57,43 @@ Do this first, every time the coordinator is invoked.
 
 ### Step 1: Resume or Fresh Start
 
-Glob for active state files by scanning `docs/specs/*/state.json`:
+Check whether an SDD state file is present at the single global path:
 
 ```bash
-ls docs/specs/*/state.json 2>/dev/null
+test -f .sublime-skills/state.json && echo found || echo missing
 ```
 
-- **No state files found** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 2.
-- **One state file found** → ask the user: "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage` (see the Stage Name Mapping below). On no, ask whether to start a fresh feature (leaves the existing state file alone) or abort.
-- **Multiple state files found** → list them and ask which to resume, or to start fresh. Multiple active runs is an unusual situation; let the user pick.
+- **`missing`** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 2.
+- **`found`** → read the file and verify its references still exist (see Step 1b below), then ask the user: "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage` (see the Stage Name Mapping below). On no, prompt: "Discard this state and start a fresh feature, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
+
+Multiple concurrent active runs are NOT supported in this design — there's a single global state file. If a user truly needs concurrent runs, they use git worktrees (each worktree has its own `.sublime-skills/state.json`).
+
+### Step 1b: Verify state references on resume
+
+When a state file is found, before offering resume, verify the files it references still exist on disk. The state file lives at the fixed global path but the spec/plan it references live under `docs/specs/<feature_id>/`, so the user could have manually deleted them since the state was last written.
+
+```bash
+SPEC_PATH=$(jq -r '.spec_path // empty' .sublime-skills/state.json)
+PLAN_PATH=$(jq -r '.plan_path // empty' .sublime-skills/state.json)
+
+[ -n "$SPEC_PATH" ] && [ ! -f "$SPEC_PATH" ] && MISSING="$MISSING\n  - $SPEC_PATH"
+[ -n "$PLAN_PATH" ] && [ ! -f "$PLAN_PATH" ] && MISSING="$MISSING\n  - $PLAN_PATH"
+```
+
+If either path is set in state but doesn't exist on disk, prompt the user via the harness's interactive question tool:
+
+```
+State file references files that no longer exist:
+$MISSING
+
+Options:
+- Discard state and start fresh (runs `rm .sublime-skills/state.json`)
+- Abort (let me investigate)
+```
+
+On **Discard:** `rm .sublime-skills/state.json` and proceed to Step 2 as if no state file was found. On **Abort:** halt and surface.
+
+If both `spec_path` and (when present) `plan_path` exist, proceed to the resume prompt as described above.
 
 Halts on bad config / not-a-repo / detached HEAD happen later inside Stage 0 (`preflight-checks`) — not here.
 
