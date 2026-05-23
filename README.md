@@ -72,8 +72,8 @@ optional feature testing → handoff doc → memory file → finish**. Coordinat
 by `sdd-coordinator`, which is the only entry point the user invokes —
 every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
-skill families), resumable after an interruption via a per-feature state
-file at `docs/specs/NNN-name/state.json`, and configurable via `.sublime-skills/config.yml`
+skill families), resumable after an interruption via a gitignored state
+file at `.sublime-skills/state.json`, and configurable via `.sublime-skills/config.yml`
 (finishing mode, harness tool names). Specs and plans
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
@@ -202,9 +202,9 @@ Stage 12: branching decision + batch commit. After plan approval, asks
 the user via a 3-way prompt whether to create a feature branch (default
 `feat/<short-name>` from `branching.branch_pattern`), use a different
 name, or stay on the current branch. Optionally runs `git checkout -b`,
-then batch-commits all SDD planning artifacts (spec, plan, ADRs,
-state.json) in three thematic, **path-scoped** commits on the chosen
-branch. Path-scoping protects the user's pre-existing dirty files.
+then batch-commits all SDD planning artifacts (spec, plan, ADRs) in
+two thematic, **path-scoped** commits on the chosen branch.
+Path-scoping protects the user's pre-existing dirty files.
 
 #### [implementing-plans](spec-driven-development/implementing-plans/)
 
@@ -293,10 +293,11 @@ failure when separable, grouped by root cause when shared.
 
 Final stage. Reads the state file, prints a structured summary of what
 the pipeline produced (feature_id, spec/plan/handoff paths, ADRs,
-tasks, test status, branch info), then deletes `state.json` and
-commits the deletion as a `chore` commit. V1 explicitly does NOT
-manage source control — no merging, PR creation, or branch deletion.
-The user decides what to do with the feature branch after SDD ends.
+tasks, test status, branch info), then deletes `.sublime-skills/state.json`
+via plain `rm` (no commit; the file is gitignored throughout). V1
+explicitly does NOT manage source control — no merging, PR creation, or
+branch deletion. The user decides what to do with the feature branch
+after SDD ends.
 
 #### [generating-handoff](spec-driven-development/generating-handoff/)
 
