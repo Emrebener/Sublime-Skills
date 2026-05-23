@@ -25,7 +25,7 @@ This document explains each stage in detail: what runs, what it produces, how fa
 | 12 | Choosing feature branch + batch commit | Inline via `choosing-feature-branch` | No | Optionally creates branch; batch-commits all SDD planning artifacts (spec, plan, ADRs, state.json) on the chosen branch |
 | 13 | Implementation (sub-pipeline) | Per-task subagents | No | Code files, tests, `state.json` (committed per task) |
 | 14 | Feature testing | Subagent via `testing-implementation` | **Yes** | `state.json` (test result) |
-| 15 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `docs/handoff/YYYY-MM-DD-*.md` |
+| 15 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-*.md` |
 | 16 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
 | 17 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json` + commits the deletion |
 
@@ -37,7 +37,7 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 Every invocation of `sdd-coordinator` begins with a quick resume check, then a todo-list build, then the pipeline. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
 
-1. **Resume check.** Glob `<spec_dir>/*/state.json` (with `<spec_dir>` resolved from `paths.spec_dir` via `scripts/get-config-value.sh`):
+1. **Resume check.** Glob `docs/specs/*/state.json`:
    - **No files found** → fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
    - **One file found** → ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, ask whether to start a fresh feature (leaving the existing state file alone) or abort.
    - **Multiple files found** → list them; ask which to resume, or to start fresh. Multiple active runs is unusual; just let the user pick.
@@ -131,7 +131,7 @@ The skill walks through (and skips dimensions already covered by the user's init
 
 The coordinator passes the in-memory understanding from Stage 1 to this skill. The skill:
 
-1. Resolves the feature directory: scans `<spec_dir>/` (default `docs/specs/`) for the highest existing `NNN`, picks `NNN+1` (or `001` if none exist). Composes with the short name.
+1. Resolves the feature directory: scans `docs/specs/` for the highest existing `NNN`, picks `NNN+1` (or `001` if none exist). Composes with the short name.
 2. Loads project context (skip if coordinator already passed it).
 3. Renders the spec following the opinionated structure (see [artifacts.md](artifacts.md) for the full spec format). Writes atomically — composes content, writes to `<spec_path>.tmp`, then `mv`.
 4. Initializes the state file with the feature ID, work type, paths, and initial stage markers.
@@ -532,7 +532,7 @@ On `yes`:
 ## Stage 15 — Generate handoff (optional, user-gated)
 
 **Subagent:** fresh subagent invoking `generating-handoff`
-**Output:** `docs/handoff/YYYY-MM-DD-<short-title>.md`
+**Output:** `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`
 
 The coordinator asks:
 
@@ -541,8 +541,7 @@ The coordinator asks:
 On `no`: `handoff` added to `stages_skipped`. Advance to Stage 16.
 
 On `yes`, resolve `HANDOFF_DIR`:
-- Default: `docs/handoff` (repo-relative; handoff will be committed)
-- Override: `paths.handoff_dir` in config. May be a repo-relative path OR an absolute path (e.g., `/home/user/sdd-handoffs/`, `~/notes/sdd/`). If absolute (or resolves outside the repo), set `OUTSIDE_REPO=true` — the handoff file will NOT be staged or committed, only the path recorded in state.json.
+- Location (fixed): `$HOME/.sublime-skills/handoffs/<repo-basename>/`. Always outside the repo; never staged or committed. The absolute path is recorded in `state.json`.
 
 Dispatch:
 
@@ -558,7 +557,7 @@ ADR_PATHS: [list from state.adr_results]
 BRANCH: <branch name>
 BASE_SHA: <first commit on this branch>
 HEAD_SHA: <current HEAD>
-HANDOFF_DIR: docs/handoff (or config override)
+HANDOFF_DIR: $HOME/.sublime-skills/handoffs/<repo-basename> (resolved by coordinator)
 
 Return the path to the generated handoff and a report.
 ```
@@ -574,18 +573,16 @@ The subagent:
 
 **The handoff is a bridge, not a duplicate.** It references the source artifacts (with one-line summaries) rather than restating them. The goal is to enable a fresh agent — or a human stepping in for PR iteration — to continue work without re-reading the entire spec + plan + ADR set.
 
-**Validator enforcement:** the coordinator re-runs `validate-handoff.sh` on the now-final file before committing. If FAIL (especially "potential unredacted secret matching pattern"), halt and surface — do NOT commit a handoff that may contain secrets.
+**Validator enforcement:** the coordinator re-runs `validate-handoff.sh` on the now-final file. If FAIL (especially "potential unredacted secret matching pattern"), halt and surface — do NOT write a handoff that may contain secrets.
 
-**Commit (if `OUTSIDE_REPO=false`):**
+**Commit:**
 
 ```bash
-git add docs/handoff/YYYY-MM-DD-<title>.md docs/specs/NNN-<short-name>/state.json
-git commit -m "docs(NNN-short-name): handoff document"
+git add docs/specs/NNN-<short-name>/state.json
+git commit -m "chore(<short-name>): record handoff path"
 ```
 
-**If `OUTSIDE_REPO=true`** (handoff lives outside the repo): only state.json is committed (`"chore(NNN-short-name): record external handoff path"`); the user is told where the external handoff was written.
-
-Record the handoff path in state file under `handoff_path` (absolute path if outside repo, otherwise repo-relative).
+Record the handoff path in state file under `handoff_path` (absolute path).
 
 ---
 
