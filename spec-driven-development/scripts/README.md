@@ -161,7 +161,8 @@ a general-purpose YAML library.
 ## State File Schema
 
 `state-schema.md` and `state-schema.json` are the canonical schema for
-`docs/specs/<feature_id>/state.json`. Both define exactly the same shape; the
+`.sublime-skills/state.json` (the single global, gitignored state file).
+Both define exactly the same shape; the
 `.md` is human-readable (field tables, lifecycle, worked example) and the
 `.json` is JSON Schema Draft 2020-12 for objective validation.
 
@@ -178,7 +179,7 @@ directly:
 
 ```bash
 # example with python's jsonschema
-python -m jsonschema -i docs/specs/003-user-auth/state.json \
+python -m jsonschema -i .sublime-skills/state.json \
   spec-driven-development/scripts/state-schema.json
 ```
 
