@@ -25,6 +25,7 @@ This skill does NOT cover per-task reviewer findings during implementation — `
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT begin editing the artifact before reading ALL findings end-to-end first
 - Do NOT use phrases like "great point", "you're absolutely right", "thanks for catching that" — they're performative and worthless. State what you'll do, or push back.
 - Do NOT silently ignore a finding because "the user will probably catch it" — every finding gets handled or pushed back, with a reason
@@ -167,7 +168,7 @@ Surface to user explicitly with the full history. Format:
 > 4. **Abort the stage** — pause the SDD run; you investigate manually and re-invoke when ready"
 
 Wait for user's selection. Whatever they choose:
-- Update `state.json`:
+- Update `.sublime-skills/state.json`:
   ```json
   {
     "spec_auto_review_iterations": 2,
@@ -192,7 +193,7 @@ After processing, update the state file (atomic write) with any tracked informat
 }
 ```
 
-**Do NOT commit.** Through Stages 2–10, state.json updates are written atomically but remain uncommitted. The `choosing-feature-branch` skill at Stage 12 batch-commits the accumulated state alongside the SDD planning artifacts. (From Stage 13 onward, normal per-stage commits resume.)
+**Do NOT commit.** `.sublime-skills/state.json` is permanently gitignored and NEVER committed at any stage — not at Stage 12, not at Stage 13, not ever. Atomic writes update the file in place; do not `git add -f` or otherwise bypass the ignore.
 
 ## Common Mistakes
 
@@ -205,6 +206,8 @@ After processing, update the state file (atomic write) with any tracked informat
 | Re-dispatching reviewer after every minor change | Only re-dispatch if material changes (CRITICAL/HIGH fixes); MEDIUM/LOW alone don't warrant re-review |
 | Silently dismissing a finding without documenting why | Push-backs go in `reviewer_pushbacks` in state file; never silent |
 | Looping more than the stage's cap without escalating | Each stage has a cap (typically 2-3); escalate to user when hit |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -214,3 +217,5 @@ After processing, update the state file (atomic write) with any tracked informat
 - About to silently skip a HIGH finding → STOP; either fix or push back with reasoning
 - About to edit the artifact based only on the reviewer's quote, without reading the full section → STOP; read the full section first
 - About to ask the reviewer "could you clarify?" → STOP; reviewer is a subagent, you can't have a conversation; re-dispatch with a focused REVIEW_FOCUS instead
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP

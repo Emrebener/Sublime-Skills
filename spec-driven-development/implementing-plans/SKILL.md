@@ -22,6 +22,7 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 
 ## Hard Gates
 
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT start implementation on main/master without explicit user consent — preflight should have moved you to a feature branch
 - Do NOT skip reviews. Each task goes through both spec compliance AND code quality.
 - Do NOT proceed to the next task while either review has open issues
@@ -105,7 +106,7 @@ First, update the state file to mark this task as in progress:
 "tasks": { "T###": "in_progress", ... }
 ```
 
-(Atomic write: write to `state.json.tmp`, then `mv`.)
+(Atomic write: write to `.sublime-skills/state.json.tmp`, then `mv` to `.sublime-skills/state.json`.)
 
 Dispatch a fresh subagent with the prompt at `./implementer-prompt.md`. Fill in placeholders:
 
@@ -254,6 +255,8 @@ When a BLOCKED implementer needed more reasoning, re-dispatch with a more capabl
 | Treating Minor code-quality findings as blocking | Minor = note and proceed |
 | Pausing between tasks for "should I continue?" | Continuous execution unless BLOCKED |
 | Silently swallowing BLOCKED status | Always assess and act; never just retry |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
+| Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
 ## Red Flags
 
@@ -261,6 +264,8 @@ When a BLOCKED implementer needed more reasoning, re-dispatch with a more capabl
 - About to "fix it myself" inline instead of dispatching a fresh implementer → STOP; protect controller context
 - Review loop hitting iteration 4 → STOP and escalate
 - About to start a task on a different branch than expected → STOP and verify preflight state
+- About to type `git add -f .sublime-skills/state.json` → STOP
+- About to edit `.sublime-skills/.gitignore` → STOP
 
 ## Prompt Templates
 
