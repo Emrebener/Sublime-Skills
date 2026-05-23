@@ -356,7 +356,7 @@ Both protocols list the exact handling for each common failure mode. When in dou
 
 | Mistake | Fix |
 |---|---|
-| Skipping the resume check at session start | Always do the glob-and-ask check first |
+| Skipping the resume check at session start | Always do the test-and-ask check first |
 | Updating state mid-stage | Updates happen at stage boundaries (atomic) |
 | Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
 | Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
@@ -367,7 +367,7 @@ Both protocols list the exact handling for each common failure mode. When in dou
 
 ## Red Flags
 
-- About to do work without the resume check first → STOP; glob-and-ask is first
+- About to do work without the resume check first → STOP; test-and-ask is first
 - About to advance past a user-approval gate without typed approval → STOP
 - About to auto-skip an optional stage → STOP; user decides
 - About to start two implementer subagents in parallel → STOP
