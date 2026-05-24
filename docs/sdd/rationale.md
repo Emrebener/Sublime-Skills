@@ -18,7 +18,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 - [Why strict `[NO-TDD]` criteria](#why-strict-no-tdd-criteria)
 - [Why the coordinator doesn't test itself](#why-the-coordinator-doesnt-test-itself)
 - [Why config-driven finishing](#why-config-driven-finishing)
-- [Why a separate skill for receiving review findings](#why-a-separate-skill-for-receiving-review-findings)
+- [Why a separate skill for receiving review findings](#why-a-separate-skill-for-ss-sdd-receiving-review-findings)
 - [Comparison: SDD vs spec-kit vs brainstorming vs Kiro](#comparison-sdd-vs-spec-kit-vs-brainstorming-vs-kiro)
 
 ---
@@ -44,7 +44,7 @@ The alternative would be one giant coordinator skill that contains all phase log
 
 - **Coordinator context bloat:** if every phase's instructions are loaded into the coordinator's context, the coordinator carries 5000+ lines of skill content at all times. Most of it is irrelevant to the current stage.
 - **Coupling:** changes to phase logic require editing the coordinator, increasing risk of unintended side effects.
-- **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `writing-specs`, `reviewing-specs`) can be invoked outside the pipeline if needed.
+- **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `ss-sdd-writing-specs`, `ss-sdd-reviewing-specs`) can be invoked outside the pipeline if needed.
 
 The trade-off is more skill files to maintain (21 skills + 6 shared scripts + 2 schema files = 29 files) and the coordinator loading skills just-in-time. We judged this worth it.
 
@@ -85,7 +85,7 @@ The downside is friction. First-time users will find it annoying ("just stash fo
 Earlier versions had discovery and spec-writing in one stage. We split them because:
 
 - **Different jobs need different skills.** Discovery is conversational Q&A with the user. Spec-writing is mechanical document generation. The methodologies don't overlap.
-- **Reviewers see clearer work.** When `reviewing-specs` reviews the spec, it sees a freshly-written document with no conversational drift, not a doc built up over a long Q&A.
+- **Reviewers see clearer work.** When `ss-sdd-reviewing-specs` reviews the spec, it sees a freshly-written document with no conversational drift, not a doc built up over a long Q&A.
 - **Clearer hand-off.** The discovery stage has an explicit "shared understanding approved by user" exit point. The spec-writing stage takes that understanding and renders it. Two stages, one job each.
 
 The cost is a small amount of coordinator overhead (advance from Stage 1 to Stage 2). The benefit is two much cleaner skills.
@@ -126,7 +126,7 @@ Two reviewers, with two different prompt templates, with explicit "stay in your 
 
 ## Why state file is gitignored
 
-The state file at `.sublime-skills/state.json` is never committed at any stage. It exists only in the working tree during an active SDD run and is deleted by `finishing-sdd` via plain `rm` (no `git rm`, no commit).
+The state file at `.sublime-skills/state.json` is never committed at any stage. It exists only in the working tree during an active SDD run and is deleted by `ss-sdd-finishing` via plain `rm` (no `git rm`, no commit).
 
 Alternatives considered and rejected:
 
@@ -159,7 +159,7 @@ Reasons:
 - **ADRs cover the same ground at finer grain.** Most "principles" are really "decisions" with broader scope.
 - **Solo / small team scale.** Constitution is most useful when multiple developers need consistent guidance. For solo or small-team use, ADRs accumulate naturally.
 - **Less governance ceremony.** Constitution requires authoring, versioning, propagation. ADRs are written one at a time.
-- **`bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `discovering-constitution` inline skill). Users who want it can add it; the pipeline reads it when present.
+- **`ss-bs-bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `ss-bs-discovering-constitution` inline skill). Users who want it can add it; the pipeline reads it when present.
 
 The pipeline reads constitution.md if it exists (in stages where alignment matters). It's just not required, and we don't have a separate `maintaining-constitution` skill — yet.
 
@@ -225,7 +225,7 @@ If you genuinely want a visual, put it in a separate file (e.g., `docs/architect
 Strict criteria:
 - Only 6 allowed categories: `docs-only`, `config-only`, `asset-addition`, `dependency-bump`, `mechanical-rename`, `lint-only`
 - The reason line must match one of these labels
-- `reviewing-plans` flags misuse as CRITICAL
+- `ss-sdd-reviewing-plans` flags misuse as CRITICAL
 
 Why this strict:
 - **TDD pays off most on logic changes.** That's exactly the case `[NO-TDD]` was being used to skip.
@@ -251,13 +251,13 @@ We reject all of these because:
 - **Half-tested is worse than not tested.** If the coordinator does a partial test and reports PASS, the user trusts it. The user is much better served by an explicit "couldn't test; here's a manual plan" than by a half-baked self-test.
 - **Slippery slope.** Once the coordinator tests, the tester subagent becomes optional. Then unused. Then deleted.
 
-The `testing-implementation` skill repeats this rule in five different places. The coordinator skill repeats it twice. The redundancy is intentional — this is the rule we expect to be tempted to break.
+The `ss-sdd-testing-implementation` skill repeats this rule in five different places. The coordinator skill repeats it twice. The redundancy is intentional — this is the rule we expect to be tempted to break.
 
 ---
 
 ## Why SDD doesn't manage branches or merges (V1)
 
-The pipeline doesn't merge branches, create PRs, push to remotes, or delete the feature branch. Stage 17 (`finishing-sdd`) prints a summary and deletes `state.json`. That's it. The user decides what happens to the feature branch after SDD ends.
+The pipeline doesn't merge branches, create PRs, push to remotes, or delete the feature branch. Stage 17 (`ss-sdd-finishing`) prints a summary and deletes `state.json`. That's it. The user decides what happens to the feature branch after SDD ends.
 
 This is a deliberate V1 scoping choice:
 
@@ -265,13 +265,13 @@ This is a deliberate V1 scoping choice:
 - **Tests already ran.** Stage 14 (feature testing) is the gate. A final test re-run at Stage 17 was redundant — it ran the same suite a second (sometimes third) time. We dropped it.
 - **The artifacts are the durable record.** Spec, plan, ADRs, handoff doc, and per-task commits already exist on the feature branch by the time finishing runs. The user's git skills take it from there.
 
-This also affects where branch creation happens: not in preflight (which is too early — the user doesn't yet know what they're building) but at Stage 12 (`choosing-feature-branch`), right before code starts landing. By that point the spec and plan exist and the user can decide branch policy with full context.
+This also affects where branch creation happens: not in preflight (which is too early — the user doesn't yet know what they're building) but at Stage 12 (`ss-sdd-choosing-feature-branch`), right before code starts landing. By that point the spec and plan exist and the user can decide branch policy with full context.
 
 ---
 
 ## Why a separate skill for receiving review findings
 
-`receiving-review-findings` is loaded inline by the coordinator after every spec/plan reviewer subagent returns. It establishes how to evaluate findings: verify before fixing, push back when wrong, no performative agreement.
+`ss-sdd-receiving-review-findings` is loaded inline by the coordinator after every spec/plan reviewer subagent returns. It establishes how to evaluate findings: verify before fixing, push back when wrong, no performative agreement.
 
 Why a separate skill (instead of inline in the coordinator):
 
@@ -292,7 +292,7 @@ SDD borrows from all three. Here's how it differs:
 
 | Aspect | spec-kit | SDD |
 |---|---|---|
-| Coordination | None — user runs each command manually | `sdd-coordinator` drives the whole pipeline |
+| Coordination | None — user runs each command manually | `ss-sdd-coordinator` drives the whole pipeline |
 | Artifacts per feature | 7+ files (spec, plan, tasks, research, data-model, contracts, quickstart, checklists) | 2-3 (spec, plan, state file; ADRs and handoff at project level) |
 | Constitution | First-class (`/speckit.constitution`) | Optional, opt-in via bootstrap |
 | Per-task implementation | One sequential run | Fresh subagents per task with two-stage review |
@@ -300,7 +300,7 @@ SDD borrows from all three. Here's how it differs:
 | Diagram policy | Allowed (templates have Mermaid) | Prohibited |
 | Format prescriptiveness | Heavy templates with many placeholders | Lighter; structure prescribed, content not templated |
 
-We borrowed: user-story priorities (P1/P2/P3), FR-### / SC-### IDs, the "checklists are unit tests for English" framing, the `[T###] [P] [US#]` task format, the cross-artifact consistency analysis idea (but we don't have a dedicated analyze stage — `reviewing-plans` covers that ground).
+We borrowed: user-story priorities (P1/P2/P3), FR-### / SC-### IDs, the "checklists are unit tests for English" framing, the `[T###] [P] [US#]` task format, the cross-artifact consistency analysis idea (but we don't have a dedicated analyze stage — `ss-sdd-reviewing-plans` covers that ground).
 
 We dropped: the constitution as a first-class artifact, the proliferation of supporting files (research.md, data-model.md, etc. — we consolidate into spec or plan), the hooks/extensions YAML system.
 
@@ -308,7 +308,7 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 
 | Aspect | Brainstorming | SDD |
 |---|---|---|
-| Pipeline | brainstorming → writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 18-stage pipeline with explicit stage boundaries |
+| Pipeline | brainstorming → ss-sdd-writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 18-stage pipeline with explicit stage boundaries |
 | ADR step | None | Stage 6, dedicated skill |
 | Optional grill | None | Stage 4, dedicated skill |
 | 2nd review | None | Optional Stages 5 + 10 |
@@ -392,7 +392,7 @@ As of this writing, the SDD skill family has been carefully designed, structural
 The first few real runs will surface things this design didn't anticipate. Likely areas of friction:
 
 - Subagent prompt calibration (reviewers either too noisy or too lenient)
-- MCP detection edge cases in `testing-implementation`
+- MCP detection edge cases in `ss-sdd-testing-implementation`
 - ADR identification heuristics (over- or under-creating ADRs)
 - The "no clean iteration path" between later stages and earlier ones
 - Real secrets that the redaction patterns don't catch

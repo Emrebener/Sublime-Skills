@@ -32,17 +32,17 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 
 | Stage | What's dispatched | Prompt template |
 |---|---|---|
-| 3, 5 | Spec reviewer | Inline in `sdd-coordinator` (calls `reviewing-specs`) |
-| 6 | ADR maintainer | Inline in `sdd-coordinator` (calls `maintaining-adrs`) |
-| 9, 10 | Plan reviewer | Inline in `sdd-coordinator` (calls `reviewing-plans`) |
-| 13 (per task) | Implementer | `spec-driven-development/implementing-plans/implementer-prompt.md` (calls `implementing-task`) |
-| 13 (per task) | Spec-compliance reviewer | `spec-driven-development/implementing-plans/spec-compliance-reviewer-prompt.md` (calls `reviewing-task-compliance`) |
-| 13 (per task) | Code-quality reviewer | `spec-driven-development/implementing-plans/code-quality-reviewer-prompt.md` (calls `reviewing-task-quality`) |
-| 13 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `reviewing-task-quality`) |
-| 14 | Feature tester | `spec-driven-development/testing-implementation/tester-prompt.md` (calls `testing-feature`) |
-| 14 (fix loop) | Fixer | `spec-driven-development/testing-implementation/fixer-prompt.md` (calls `fixing-test-failures`) |
-| 15 | Handoff generator | Inline in `sdd-coordinator` (calls `generating-handoff`) |
-| 16 | Memory file maintainer | Inline in `sdd-coordinator` (calls `maintaining-memory-file`) |
+| 3, 5 | Spec reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-specs`) |
+| 6 | ADR maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-adrs`) |
+| 9, 10 | Plan reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-plans`) |
+| 13 (per task) | Implementer | `skills/spec-driven-development/ss-sdd-implementing-plans/implementer-prompt.md` (calls `ss-sdd-implementing-task`) |
+| 13 (per task) | Spec-compliance reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/spec-compliance-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-compliance`) |
+| 13 (per task) | Code-quality reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/code-quality-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-quality`) |
+| 13 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `ss-sdd-reviewing-task-quality`) |
+| 14 | Feature tester | `skills/spec-driven-development/ss-sdd-testing-implementation/tester-prompt.md` (calls `ss-sdd-testing-feature`) |
+| 14 (fix loop) | Fixer | `skills/spec-driven-development/ss-sdd-testing-implementation/fixer-prompt.md` (calls `ss-sdd-fixing-test-failures`) |
+| 15 | Handoff generator | Inline in `ss-sdd-coordinator` (calls `ss-sdd-generating-handoff`) |
+| 16 | Memory file maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-memory-file`) |
 
 ### Standard dispatch shape
 
@@ -111,7 +111,7 @@ Subagents return one of a small set of statuses depending on their role. The coo
 | Status | Meaning | Coordinator action |
 |---|---|---|
 | `Approved` | No CRITICAL or HIGH findings | Advance |
-| `Issues Found` | At least one CRITICAL or HIGH | Apply fixes per `receiving-review-findings` protocol |
+| `Issues Found` | At least one CRITICAL or HIGH | Apply fixes per `ss-sdd-receiving-review-findings` protocol |
 
 Per-task code-quality reviewers also distinguish:
 - **Critical** findings — must fix
@@ -143,7 +143,7 @@ The `MCP_UNAVAILABLE` status is the highest-risk rationalization point in the pi
 > 2. Skip testing and proceed to finishing
 > 3. Pause SDD so you can configure the missing MCP and re-run testing later"
 
-The `testing-implementation` skill repeats this rule in five different places because it's that important.
+The `ss-sdd-testing-implementation` skill repeats this rule in five different places because it's that important.
 
 ---
 
@@ -153,8 +153,8 @@ Three validators check artifact format before commit:
 
 ### `validate-spec.sh`
 
-**Path:** `spec-driven-development/framework/validate-spec.sh`
-**Usage:** `./spec-driven-development/framework/validate-spec.sh <path-to-spec.md>`
+**Path:** `skills/spec-driven-development/framework/validate-spec.sh`
+**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-spec.sh" <path-to-spec.md>`
 
 **Critical checks (exit 1 if any fail):**
 - Required sections present: Header (`# Spec:`), Goal, User Stories, Functional Requirements, Success Criteria, Edge Cases, Assumptions, Out-of-Scope
@@ -168,12 +168,12 @@ Three validators check artifact format before commit:
 - Story count vs acceptance scenarios count mismatch
 - Soft length guard at 800 lines
 
-Invoked by `writing-specs` as the first sub-step of its self-review. The skill must include the validator's PASS line verbatim in its report back to the coordinator. The coordinator re-runs the validator before committing — if the fresh run doesn't agree with the report, the stage halts.
+Invoked by `ss-sdd-writing-specs` as the first sub-step of its self-review. The skill must include the validator's PASS line verbatim in its report back to the coordinator. The coordinator re-runs the validator before committing — if the fresh run doesn't agree with the report, the stage halts.
 
 ### `validate-plan.sh`
 
-**Path:** `spec-driven-development/framework/validate-plan.sh`
-**Usage:** `./spec-driven-development/framework/validate-plan.sh <path-to-plan.md>`
+**Path:** `skills/spec-driven-development/framework/validate-plan.sh`
+**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-plan.sh" <path-to-plan.md>`
 
 **Critical checks (exit 1 if any fail):**
 - Required sections: Header (`# Plan:`), Goal, Architecture, Tech Stack, File Structure
@@ -188,12 +188,12 @@ Invoked by `writing-specs` as the first sub-step of its self-review. The skill m
 - Task header count vs Requirements references mismatch
 - Soft length guard at 2000 lines
 
-Invoked by `writing-plans` as first sub-step of self-review; coordinator re-runs before committing (same enforcement pattern as `validate-spec.sh`).
+Invoked by `ss-sdd-writing-plans` as first sub-step of self-review; coordinator re-runs before committing (same enforcement pattern as `validate-spec.sh`).
 
 ### `validate-handoff.sh`
 
-**Path:** `spec-driven-development/framework/validate-handoff.sh`
-**Usage:** `./spec-driven-development/framework/validate-handoff.sh <path-to-handoff.md>` (or `<path>.tmp` — the script strips trailing `.tmp` for the filename pattern check)
+**Path:** `skills/spec-driven-development/framework/validate-handoff.sh`
+**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-handoff.sh" <path-to-handoff.md>` (or `<path>.tmp` — the script strips trailing `.tmp` for the filename pattern check)
 
 **Critical checks (exit 1 if any fail):**
 - Filename matches `YYYY-MM-DD-<kebab-title>.md` pattern (trailing `.tmp` is stripped before checking, so validation works on the staged file before atomic mv)
@@ -212,7 +212,7 @@ Invoked by `writing-plans` as first sub-step of self-review; coordinator re-runs
 - ADR section appears to duplicate ADR content (h3+ headings under Source artifacts)
 - Soft length guard at 800 lines
 
-Invocation flow inside `generating-handoff`:
+Invocation flow inside `ss-sdd-generating-handoff`:
 1. Compose and redact content (in memory)
 2. Write to `<output-path>.tmp`
 3. Run `validate-handoff.sh <output-path>.tmp` — fix issues in the .tmp file and re-validate until PASS
@@ -256,7 +256,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 
@@ -283,7 +283,7 @@ Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task co
 
 ## Subagent Failure Protocol
 
-Subagent dispatches can fail in ways the dispatch contract doesn't cover — timeout, crash, malformed output, missing required fields. The canonical protocol lives in `sdd-coordinator/SKILL.md`.
+Subagent dispatches can fail in ways the dispatch contract doesn't cover — timeout, crash, malformed output, missing required fields. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`.
 
 **Failure modes:** timeout, crash/error, malformed output (missing structural markers like `Status:`), empty/whitespace result, claimed-completion-but-missing-required-fields.
 
@@ -311,7 +311,7 @@ Default is option 1; never auto-pick.
 
 ## TDD discipline
 
-The pipeline assumes test-driven development for all task implementation by default. The `writing-plans` skill produces TDD steps for every task; the implementer subagent follows them.
+The pipeline assumes test-driven development for all task implementation by default. The `ss-sdd-writing-plans` skill produces TDD steps for every task; the implementer subagent follows them.
 
 ### The TDD cycle (Red-Green-Refactor)
 
@@ -367,14 +367,14 @@ Reason: docs-only.
 - [ ] **Step 3: Commit ...**
 ```
 
-The reason line is required (validate-plan.sh checks for it) and must match one of the allowed categories (reviewing-plans checks for that).
+The reason line is required (validate-plan.sh checks for it) and must match one of the allowed categories (ss-sdd-reviewing-plans checks for that).
 
 ### Enforcement
 
-- `writing-plans` produces TDD steps by default. If the writer marks `[NO-TDD]`, they must include a category-matching reason.
+- `ss-sdd-writing-plans` produces TDD steps by default. If the writer marks `[NO-TDD]`, they must include a category-matching reason.
 - `validate-plan.sh` checks that `[NO-TDD]` markers have a non-blank reason on the next line.
-- `reviewing-plans` flags `[NO-TDD]` misuse (used on a logic-change task, or reason doesn't match an allowed category) as **CRITICAL**.
-- The implementer subagent (via `implementing-task` skill) is instructed to suspect `[NO-TDD]` if the task actually changes logic.
+- `ss-sdd-reviewing-plans` flags `[NO-TDD]` misuse (used on a logic-change task, or reason doesn't match an allowed category) as **CRITICAL**.
+- The implementer subagent (via `ss-sdd-implementing-task` skill) is instructed to suspect `[NO-TDD]` if the task actually changes logic.
 
 ### Common rationalizations and rebuttals
 
@@ -467,8 +467,8 @@ The short name matches the spec directory's short name (after the spec is create
 ### Skill names
 
 - All kebab-case, gerund-led where it reads naturally:
-  - `writing-specs`, `discovering-requirements`, `maintaining-adrs` — gerunds
-  - `sdd-coordinator`, `preflight-checks` — established role/noun names (allowed exceptions)
+  - `ss-sdd-writing-specs`, `ss-sdd-discovering-requirements`, `ss-sdd-maintaining-adrs` — gerunds
+  - `ss-sdd-coordinator`, `ss-sdd-preflight-checks` — established role/noun names (allowed exceptions)
 - No special characters; just letters, numbers, and hyphens
 
 ---
@@ -516,13 +516,13 @@ The validator errs aggressive on purpose — under-redaction is worse than over-
 **Fix:**
 - Read the CRITICAL findings — those should be addressed regardless
 - If the HIGH/MEDIUM/LOW count is unusually high, look at whether the reviewer is flagging style preferences as issues
-- The `receiving-review-findings` skill says to approve unless CRITICAL/HIGH findings — most LOW findings should be ignored
+- The `ss-sdd-receiving-review-findings` skill says to approve unless CRITICAL/HIGH findings — most LOW findings should be ignored
 - If the reviewer is wrong: document the push-back in state file (`reviewer_pushbacks`), advance anyway
 
 ### Spec or plan review hits its 2-iteration fix-loop cap
 
 **Cause:** the artifact has a fundamental gap that needs human input, or the reviewer is miscalibrated, or findings/fixes are oscillating.
-**Fix:** the coordinator follows `receiving-review-findings` Step 8 (escalation protocol):
+**Fix:** the coordinator follows `ss-sdd-receiving-review-findings` Step 8 (escalation protocol):
 - Surfaces the fix history and currently-unresolved findings
 - Offers four options:
   1. **Iterate with user guidance** — user dictates exact edits, coordinator applies them literally, no further auto-review

@@ -2,20 +2,20 @@
 
 A one-time, opinionated setup for spec-driven development on a fresh project. The bootstrap walks you through the five convention files (constitution, architecture, glossary, domain model, design system), scaffolds the `.sublime-skills/` config, creates the supporting directories, validates everything, and commits the result. After it runs, the project is ready for the SDD pipeline.
 
-The bootstrap is a **separate skill family** from SDD — it lives at `project-bootstrap/`, not `spec-driven-development/`. You invoke it manually; the SDD coordinator never invokes it. Its job is preparing the ground; SDD's job is building on it.
+The bootstrap is a **separate skill family** from SDD — it lives at `skills/project-bootstrap/`, not `skills/spec-driven-development/`. You invoke it manually; the SDD coordinator never invokes it. Its job is preparing the ground; SDD's job is building on it.
 
-> This doc is the human-readable narrative. The operational specs live in `project-bootstrap/<skill>/SKILL.md`. If this doc and a SKILL.md disagree, the SKILL.md wins.
+> This doc is the human-readable narrative. The operational specs live in `skills/project-bootstrap/<skill>/SKILL.md`. If this doc and a SKILL.md disagree, the SKILL.md wins.
 
 ---
 
 ## TL;DR
 
-You invoke `bootstrapping-project`. It:
+You invoke `ss-bs-bootstrapping-project`. It:
 
 1. Runs `discover-context.sh` to see what's already there
-2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
+2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `ss-bs-discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
 3. Creates `docs/adr/`, `docs/specs/` with stub READMEs
-4. Copies `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`, creates `.sublime-skills/config-local.yml` as an empty file, and creates `.sublime-skills/.gitignore` with `state.json` + `config-local.yml` entries (all idempotent — existing content is preserved on re-run)
+4. Copies `skills/project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`, creates `.sublime-skills/config-local.yml` as an empty file, and creates `.sublime-skills/.gitignore` with `state.json` + `config-local.yml` entries (all idempotent — existing content is preserved on re-run)
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
 7. Ensures `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` (Step 4 creates the file; this step is a re-run safety net)
@@ -46,16 +46,16 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 
 ## Coordinator entry
 
-`bootstrapping-project` is the coordinator. Its job is the surrounding workflow (detection, mode choice, config, commit) — not the per-artifact discussion. Each discovering-X skill owns that.
+`ss-bs-bootstrapping-project` is the coordinator. Its job is the surrounding workflow (detection, mode choice, config, commit) — not the per-artifact discussion. Each discovering-X skill owns that.
 
-When invoked, the coordinator announces itself ("I'm using the bootstrapping-project skill to set up SDD for this project") and proceeds to Step 1. If `.sublime-skills/config.yml` already exists, the coordinator treats this as a re-run (see [Re-running bootstrap](#re-running-bootstrap)).
+When invoked, the coordinator announces itself ("I'm using the ss-bs-bootstrapping-project skill to set up SDD for this project") and proceeds to Step 1. If `.sublime-skills/config.yml` already exists, the coordinator treats this as a re-run (see [Re-running bootstrap](#re-running-bootstrap)).
 
 ---
 
 ## Step 1: Detect existing setup
 
 ```bash
-./spec-driven-development/framework/discover-context.sh
+"${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/discover-context.sh
 ```
 
 The script emits JSON. The coordinator caches it. For each convention file, the corresponding key (`constitution`, `architecture`, `glossary`, `domain`, `design`) is either:
@@ -128,11 +128,11 @@ For modes Create, Extend, or Replace, route to the per-file skill, loading it in
 
 | Convention file | Skill loaded (inline) |
 |---|---|
-| Constitution | `discovering-constitution` |
-| Architecture | `discovering-architecture` |
-| Glossary | `discovering-glossary` |
-| Domain model | `discovering-domain-model` |
-| Design | `discovering-design` |
+| Constitution | `ss-bs-discovering-constitution` |
+| Architecture | `ss-bs-discovering-architecture` |
+| Glossary | `ss-bs-discovering-glossary` |
+| Domain model | `ss-bs-discovering-domain-model` |
+| Design | `ss-bs-discovering-design` |
 
 The coordinator passes the skill four inputs:
 
@@ -160,7 +160,7 @@ Continue to the next convention file in the order. Repeat until all five are set
 
 ## The discovering-X conversation pattern
 
-All five `discovering-<topic>` skills share the same six-step inline pattern. Differences live only in **what code each scans** and **what questions each asks** (see [Per-skill summaries](#per-skill-summaries) for the per-skill specifics).
+All five `ss-bs-discovering-<topic>` skills share the same six-step inline pattern. Differences live only in **what code each scans** and **what questions each asks** (see [Per-skill summaries](#per-skill-summaries) for the per-skill specifics).
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -194,21 +194,21 @@ All five `discovering-<topic>` skills share the same six-step inline pattern. Di
 
 The discovering-X skills are inline (loaded into the coordinator's context) — not subagents. The reason: each file mixes code-derivable signal with user-held intent. A subagent returns once and dies; it can't have the back-and-forth needed to settle "which principles matter," "which terms are load-bearing," "what's the vibe." Routing the conversation through the coordinator (subagent returns findings → coordinator paraphrases → user replies → re-dispatches) wastes turns and drifts intent.
 
-Design is unique among the five in offering an additional **Import** path: if the user already has a DESIGN.md generated by an external tool (refero.design, Specify, Tokens Studio, hand-authored), `discovering-design` will verify it, preview it, and atomically copy it instead of running Build. The other four are Build-only.
+Design is unique among the five in offering an additional **Import** path: if the user already has a DESIGN.md generated by an external tool (refero.design, Specify, Tokens Studio, hand-authored), `ss-bs-discovering-design` will verify it, preview it, and atomically copy it instead of running Build. The other four are Build-only.
 
 ---
 
 ## Per-skill summaries
 
-The full per-skill detail — what each scans, what questions it asks, what it produces — lives in [skills.md](sdd/skills.md#discovering-constitution--discovering-architecture--discovering-glossary--discovering-domain-model--discovering-design) and in each SKILL.md. Quick reference:
+The full per-skill detail — what each scans, what questions it asks, what it produces — lives in [skills.md](sdd/skills.md#ss-bs-discovering-constitution--ss-bs-discovering-architecture--ss-bs-discovering-glossary--ss-bs-discovering-domain-model--ss-bs-discovering-design) and in each SKILL.md. Quick reference:
 
 | Skill | Reads | Asks user about | Produces |
 |---|---|---|---|
-| `discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security files | Confirm scanned principles → MUST/SHALL/SHOULD severity → intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales |
-| `discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker / k8s / terraform), `.env.example` | Component grouping → out-of-scope → env-var-only integrations → non-code facts → cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries |
-| `discovering-glossary` | Source identifiers (class / table / route names), inline comments, README | Term selection (≤30) → aliases / multi-naming → definition refinements during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
-| `discovering-domain-model` | DB schemas, migrations, ORM models, type defs, test fixtures, state-machine code | Entity selection (≤15) → lifecycle completeness → cardinality → workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles |
-| `discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps | (Build) Vibe / theme intent → color role rules → component vocabulary → do's-and-don'ts. (Import) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
+| `ss-bs-discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security files | Confirm scanned principles → MUST/SHALL/SHOULD severity → intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales |
+| `ss-bs-discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker / k8s / terraform), `.env.example` | Component grouping → out-of-scope → env-var-only integrations → non-code facts → cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries |
+| `ss-bs-discovering-glossary` | Source identifiers (class / table / route names), inline comments, README | Term selection (≤30) → aliases / multi-naming → definition refinements during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
+| `ss-bs-discovering-domain-model` | DB schemas, migrations, ORM models, type defs, test fixtures, state-machine code | Entity selection (≤15) → lifecycle completeness → cardinality → workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles |
+| `ss-bs-discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps | (Build) Vibe / theme intent → color role rules → component vocabulary → do's-and-don'ts. (Import) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
 
 Each enforces per-skill caps (≤7 principles, ≤30 terms, ≤15 entities) and writes its file atomically itself.
 
@@ -289,7 +289,7 @@ If a README already exists with the same content, it's skipped. If a README exis
 
 ```bash
 mkdir -p .sublime-skills
-[ -f .sublime-skills/config.yml ] || cp ./project-bootstrap/scaffolds/config.yml .sublime-skills/config.yml
+[ -f .sublime-skills/config.yml ] || cp "$SUBLIME_SKILLS_HOME/skills/project-bootstrap/scaffolds/config.yml" .sublime-skills/config.yml
 [ -f .sublime-skills/config-local.yml ] || touch .sublime-skills/config-local.yml
 if [ ! -f .sublime-skills/.gitignore ]; then
   cat > .sublime-skills/.gitignore <<'EOF'
@@ -304,7 +304,7 @@ fi
 
 All three patterns are **idempotent**: they create the missing file and leave any existing content untouched on a re-run. Hand-edits to any of these files are preserved across bootstrap invocations — the bootstrap never clobbers a config the user has customized.
 
-The `cp` of the scaffold is a **verbatim copy** of `project-bootstrap/scaffolds/config.yml`. The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml` directly (after the bootstrap, in Step 5 or later).
+The `cp` of the scaffold is a **verbatim copy** of `$SUBLIME_SKILLS_HOME/skills/project-bootstrap/scaffolds/config.yml`. The coordinator does NOT regenerate the YAML — the scaffold is the single source of truth for the config's shape and defaults. If you want to change defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml` directly (after the bootstrap, in Step 5 or later).
 
 The scaffold contains the full config schema with all defaults — see [state-and-config.md § Full schema with defaults](sdd/state-and-config.md#full-schema-with-defaults).
 
@@ -341,7 +341,7 @@ to:
 ## Step 6: Validate
 
 ```bash
-./spec-driven-development/framework/validate-config.sh .sublime-skills/config.yml
+"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-config.sh" .sublime-skills/config.yml
 ```
 
 | Exit code | Meaning | Coordinator action |
@@ -412,8 +412,8 @@ Config:
 - Skipped files have their context.<name>_path set to null
 
 Next steps:
-- Run the sdd-coordinator skill to start your first feature
-- Or, re-run bootstrapping-project later to extend a convention file
+- Run the ss-sdd-coordinator skill to start your first feature
+- Or, re-run ss-bs-bootstrapping-project later to extend a convention file
 ```
 
 ---
@@ -444,14 +444,14 @@ Common re-run scenarios:
 
 ## Bootstrap output → SDD pipeline integration
 
-The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` is valid and committed, you can invoke `sdd-coordinator` and start features.
+The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` is valid and committed, you can invoke `ss-sdd-coordinator` and start features.
 
 The SDD pipeline reads the bootstrap's output at several points:
 
-- **`sdd-coordinator` entry**: does a quick resume check (`[ -f .sublime-skills/state.json ]`), then runs Stage 0 (`preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
-- **`discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
-- **`reviewing-specs` and `reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
-- **`writing-specs` and `writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
+- **`ss-sdd-coordinator` entry**: does a quick resume check (`[ -f .sublime-skills/state.json ]`), then runs Stage 0 (`ss-sdd-preflight-checks`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `ss-bs-bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required.
+- **`ss-sdd-discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
+- **`ss-sdd-reviewing-specs` and `ss-sdd-reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
+- **`ss-sdd-writing-specs` and `ss-sdd-writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
 
 If the user never bootstraps (or bootstraps with all five files Skipped), SDD still works — it just operates without project-specific context. The pipeline doesn't require any convention file to exist; they're additive.
 
@@ -489,7 +489,7 @@ The bootstrap is **fast** — most users finish all five files in 15-30 minutes 
 
 **Cause:** the config has a key the validator doesn't recognize (typo, leftover from an older SDD version, hand-edited drift).
 
-**Fix:** the validator names the offending key. Either remove it or rename it to the correct key. The allowed keys list is in `validate-config.sh` and mirrored in the scaffold (`project-bootstrap/scaffolds/config.yml`).
+**Fix:** the validator names the offending key. Either remove it or rename it to the correct key. The allowed keys list is in `validate-config.sh` and mirrored in the scaffold (`skills/project-bootstrap/scaffolds/config.yml`).
 
 ### "validate-config.sh hit the 3-attempt cap"
 
@@ -521,7 +521,7 @@ The bootstrap is **fast** — most users finish all five files in 15-30 minutes 
 
 **Cause:** this shouldn't happen — Step 5's Edit only touches `context.<name>_path` keys that match the user's Skip/Create/Extend/Replace decisions. Other keys are left alone.
 
-**Fix:** check `git diff` for the actual delta. If keys outside the `context` block changed, that's a bug — file an issue against `bootstrapping-project`.
+**Fix:** check `git diff` for the actual delta. If keys outside the `context` block changed, that's a bug — file an issue against `ss-bs-bootstrapping-project`.
 
 ### "The bootstrap committed but I want to undo"
 
@@ -531,16 +531,16 @@ The bootstrap is **fast** — most users finish all five files in 15-30 minutes 
 
 **Cause:** the family currently has exactly five slots, hardcoded in the scaffold and the coordinator.
 
-**Fix:** adding a slot requires changes to four places: (1) `project-bootstrap/scaffolds/config.yml` adds `<new>_path`, (2) `spec-driven-development/framework/validate-config.sh` adds the key to its allowed list, (3) `spec-driven-development/framework/discover-context.sh` emits a `<new>` field in the JSON, (4) `bootstrapping-project/SKILL.md` adds the file to the per-file loop and routing table, and you need a new `discovering-<new>` skill. Not a small change, but mechanical. See the existing `design_path` addition in `git log` for a worked example.
+**Fix:** adding a slot requires changes to four places: (1) `skills/project-bootstrap/scaffolds/config.yml` adds `<new>_path`, (2) `skills/spec-driven-development/framework/validate-config.sh` adds the key to its allowed list, (3) `skills/spec-driven-development/framework/discover-context.sh` emits a `<new>` field in the JSON, (4) `ss-bs-bootstrapping-project/SKILL.md` adds the file to the per-file loop and routing table, and you need a new `ss-bs-discovering-<new>` skill. Not a small change, but mechanical. See the existing `design_path` addition in `git log` for a worked example.
 
 ---
 
 ## Cross-references
 
-- **Skill catalog** — [sdd/skills.md § discovering-X table](sdd/skills.md#discovering-constitution--discovering-architecture--discovering-glossary--discovering-domain-model--discovering-design) for the per-skill summary table
-- **Skill source** — `project-bootstrap/bootstrapping-project/SKILL.md` (coordinator) and `project-bootstrap/discovering-<topic>/SKILL.md` (each inline skill)
+- **Skill catalog** — [sdd/skills.md § discovering-X table](sdd/skills.md#ss-bs-discovering-constitution--ss-bs-discovering-architecture--ss-bs-discovering-glossary--ss-bs-discovering-domain-model--ss-bs-discovering-design) for the per-skill summary table
+- **Skill source** — `skills/project-bootstrap/ss-bs-bootstrapping-project/SKILL.md` (coordinator) and `skills/project-bootstrap/ss-bs-discovering-<topic>/SKILL.md` (each inline skill)
 - **Config schema** — [sdd/state-and-config.md § Config file](sdd/state-and-config.md#config-file-sddconfigyml) for the full config schema with defaults
-- **Scaffold source** — `project-bootstrap/scaffolds/config.yml` for the canonical defaults
+- **Scaffold source** — `skills/project-bootstrap/scaffolds/config.yml` for the canonical defaults
 - **Validation scripts** — [sdd/operations.md § Validation scripts](sdd/operations.md#validation-scripts) for `validate-config.sh` mechanics
-- **SDD pipeline entry** — [sdd/pipeline.md § Pipeline entry point](sdd/pipeline.md#pipeline-entry-point) for how `sdd-coordinator` consumes the bootstrap's output
+- **SDD pipeline entry** — [sdd/pipeline.md § Pipeline entry point](sdd/pipeline.md#pipeline-entry-point) for how `ss-sdd-coordinator` consumes the bootstrap's output
 - **Why inline, not subagent** — each discovering-X skill has a "Why This Skill Is Inline (Not a Subagent)" section; the short version: a subagent returns once and dies, but convention files mix code-derivable signal with user-held intent that requires conversation.

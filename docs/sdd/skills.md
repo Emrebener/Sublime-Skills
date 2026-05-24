@@ -1,37 +1,37 @@
 # Skills Reference
 
-The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
 **Orchestration:**
-- `sdd-coordinator` — entry point; state machine + dispatcher
+- `ss-sdd-coordinator` — entry point; state machine + dispatcher
 
 **Workflow stages (in pipeline order):**
-- `preflight-checks` — Stage 0
-- `discovering-requirements` — Stage 1
-- `writing-specs` — Stage 2
-- `reviewing-specs` — Stages 3, 5 (subagent)
-- `grilling-specs` — Stage 4
-- `maintaining-adrs` — Stage 6 (subagent)
-- `receiving-review-findings` — Stages 3, 5, 9, 10 (inline)
-- `writing-plans` — Stage 8
-- `reviewing-plans` — Stages 9, 10 (subagent)
-- `choosing-feature-branch` — Stage 12 (inline; batch-commits SDD planning artifacts)
-- `implementing-plans` — Stage 13 (orchestrates per-task subagents)
-- `implementing-task` — Stage 13 (loaded by implementer subagents)
-- `reviewing-task-compliance` — Stage 13 (loaded by spec-compliance reviewer subagent)
-- `reviewing-task-quality` — Stage 13 (loaded by code-quality reviewer subagent; also used for final review)
-- `testing-implementation` — Stage 14 (orchestrates tester + fixer subagents)
-- `testing-feature` — Stage 14 (loaded by tester subagent)
-- `fixing-test-failures` — Stage 14 (loaded by fixer subagent)
-- `generating-handoff` — Stage 15 (subagent)
-- `maintaining-memory-file` — Stage 16 (subagent)
-- `finishing-sdd` — Stage 17
+- `ss-sdd-preflight-checks` — Stage 0
+- `ss-sdd-discovering-requirements` — Stage 1
+- `ss-sdd-writing-specs` — Stage 2
+- `ss-sdd-reviewing-specs` — Stages 3, 5 (subagent)
+- `ss-sdd-grilling-specs` — Stage 4
+- `ss-sdd-maintaining-adrs` — Stage 6 (subagent)
+- `ss-sdd-receiving-review-findings` — Stages 3, 5, 9, 10 (inline)
+- `ss-sdd-writing-plans` — Stage 8
+- `ss-sdd-reviewing-plans` — Stages 9, 10 (subagent)
+- `ss-sdd-choosing-feature-branch` — Stage 12 (inline; batch-commits SDD planning artifacts)
+- `ss-sdd-implementing-plans` — Stage 13 (orchestrates per-task subagents)
+- `ss-sdd-implementing-task` — Stage 13 (loaded by implementer subagents)
+- `ss-sdd-reviewing-task-compliance` — Stage 13 (loaded by spec-compliance reviewer subagent)
+- `ss-sdd-reviewing-task-quality` — Stage 13 (loaded by code-quality reviewer subagent; also used for final review)
+- `ss-sdd-testing-implementation` — Stage 14 (orchestrates tester + fixer subagents)
+- `ss-sdd-testing-feature` — Stage 14 (loaded by tester subagent)
+- `ss-sdd-fixing-test-failures` — Stage 14 (loaded by fixer subagent)
+- `ss-sdd-generating-handoff` — Stage 15 (subagent)
+- `ss-sdd-maintaining-memory-file` — Stage 16 (subagent)
+- `ss-sdd-finishing` — Stage 17
 
-**Bootstrap (outside the SDD family — see `project-bootstrap/` directory):**
-- `bootstrapping-project` — one-time project setup coordinator
-- `discovering-constitution` / `discovering-architecture` / `discovering-glossary` / `discovering-domain-model` / `discovering-design` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched)
+**Bootstrap (outside the SDD family — see `skills/project-bootstrap/` directory):**
+- `ss-bs-bootstrapping-project` — one-time project setup coordinator
+- `ss-bs-discovering-constitution` / `ss-bs-discovering-architecture` / `ss-bs-discovering-glossary` / `ss-bs-discovering-domain-model` / `ss-bs-discovering-design` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched)
 
 **Shared scripts:**
 - `discover-context.sh` — find project convention files; reads paths from `.sublime-skills/config.yml`
@@ -47,7 +47,7 @@ The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootst
 
 ---
 
-## sdd-coordinator
+## ss-sdd-coordinator
 
 **Type:** Orchestrator (entry point)
 **Loaded:** by the user at the start of every SDD session
@@ -59,7 +59,7 @@ The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootst
 - ALWAYS does the resume check (state-file existence check + ask) first on every invocation
 - Never advances past a user-approval gate (Stages 7, 11) without explicit user yes
 - Never auto-skips optional stages (4, 5, 10, 13) — always asks
-- Never tests the feature itself when `testing-implementation` reports MCP_UNAVAILABLE
+- Never tests the feature itself when `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE
 - State updates are atomic and happen at stage boundaries only
 
 **Reads:** `.sublime-skills/config.yml`, any existing state file, every artifact the pipeline produces
@@ -73,7 +73,7 @@ The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootst
 
 ---
 
-## preflight-checks
+## ss-sdd-preflight-checks
 
 **Type:** Phase skill (inline)
 **Loaded:** by the coordinator at Stage 0
@@ -95,7 +95,7 @@ The SDD family is 20 skills coordinated by `sdd-coordinator`. The project-bootst
 **Key rules:**
 - No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout`. Preflight never mutates state.
 - Dirty trees are allowed because SDD's commits are path-scoped to its own artifacts — the user's pre-existing dirty files stay untouched throughout the pipeline.
-- Branch creation belongs to Stage 12 (`choosing-feature-branch`), not here.
+- Branch creation belongs to Stage 12 (`ss-sdd-choosing-feature-branch`), not here.
 
 **Reads:** config + git state
 **Writes:** nothing
@@ -121,13 +121,13 @@ Preflight aborted.
 
 ---
 
-## discovering-requirements
+## ss-sdd-discovering-requirements
 
 **Type:** Phase skill (inline; conversational)
 **Loaded:** by the coordinator at Stage 1
 **Stage:** 1
 
-**Purpose:** Interview the user to build shared understanding of what's being built. Output is in-memory, not on disk. `writing-specs` renders it next.
+**Purpose:** Interview the user to build shared understanding of what's being built. Output is in-memory, not on disk. `ss-sdd-writing-specs` renders it next.
 
 **Conversation rules:**
 - One question per message (no compound questions)
@@ -145,14 +145,14 @@ Preflight aborted.
 **Section-by-section approval:** at the end, the skill summarizes back in sections (goal, users, scope, success, entities, edge cases, decisions). User approves each before moving on.
 
 **Common mistakes:**
-- Writing partial spec content during this stage (out of scope; writing-specs handles it)
+- Writing partial spec content during this stage (out of scope; ss-sdd-writing-specs handles it)
 - Open-ended questions when MCQ would work
 - Combining multiple questions into one message
 - Re-asking what an existing ADR already decided
 
 ---
 
-## writing-specs
+## ss-sdd-writing-specs
 
 **Type:** Phase skill (inline; mechanical)
 **Loaded:** by the coordinator at Stage 2
@@ -177,7 +177,7 @@ Preflight aborted.
 
 ---
 
-## reviewing-specs
+## ss-sdd-reviewing-specs
 
 **Type:** Subagent skill (dispatched in fresh context)
 **Loaded:** by the dispatched subagent at Stages 3, 5
@@ -219,7 +219,7 @@ Preflight aborted.
 
 ---
 
-## grilling-specs
+## ss-sdd-grilling-specs
 
 **Type:** Phase skill (inline; conversational)
 **Loaded:** by the coordinator at Stage 4, only if user opted in
@@ -263,7 +263,7 @@ Preflight aborted.
 
 ---
 
-## maintaining-adrs
+## ss-sdd-maintaining-adrs
 
 **Type:** Subagent skill
 **Loaded:** by the dispatched subagent at Stage 6
@@ -299,7 +299,7 @@ Preflight aborted.
 
 ---
 
-## receiving-review-findings
+## ss-sdd-receiving-review-findings
 
 **Type:** Inline skill (process review output)
 **Loaded:** by the coordinator after each reviewer subagent returns
@@ -348,7 +348,7 @@ Preflight aborted.
 
 ---
 
-## writing-plans
+## ss-sdd-writing-plans
 
 **Type:** Phase skill (inline; mechanical)
 **Loaded:** by the coordinator at Stage 8
@@ -374,7 +374,7 @@ Preflight aborted.
 
 ---
 
-## reviewing-plans
+## ss-sdd-reviewing-plans
 
 **Type:** Subagent skill
 **Loaded:** by the dispatched subagent at Stages 9, 10
@@ -392,7 +392,7 @@ Preflight aborted.
 - **Constitution / ADR alignment**
 - **Granularity** — tasks bite-sized (2-5 min each)
 
-**Severity rubric:** same shape as reviewing-specs (CRITICAL / HIGH / MEDIUM / LOW with calibration).
+**Severity rubric:** same shape as ss-sdd-reviewing-specs (CRITICAL / HIGH / MEDIUM / LOW with calibration).
 
 **Output:** structured markdown report including a Spec Coverage table — the most concrete check.
 
@@ -400,7 +400,7 @@ Preflight aborted.
 
 ---
 
-## choosing-feature-branch
+## ss-sdd-choosing-feature-branch
 
 **Type:** Phase skill (inline)
 **Loaded:** by the coordinator at Stage 12
@@ -431,7 +431,7 @@ Preflight aborted.
 
 ---
 
-## implementing-plans
+## ss-sdd-implementing-plans
 
 **Type:** Phase skill (inline; orchestrates per-task subagents)
 **Loaded:** by the coordinator at Stage 13
@@ -447,12 +447,12 @@ Preflight aborted.
 - At task start: `tasks[T###]: "in_progress"` (atomic write)
 - At task end: `tasks[T###]: "completed"`
 
-**Final review:** after all tasks, dispatch one more code-quality reviewer on the full diff with `TASK_ID=final`. The `reviewing-task-quality` skill has explicit guidance for the final case (cross-cutting concerns, multi-file diff handling). Sets `final_review_completed: true` in state file.
+**Final review:** after all tasks, dispatch one more code-quality reviewer on the full diff with `TASK_ID=final`. The `ss-sdd-reviewing-task-quality` skill has explicit guidance for the final case (cross-cutting concerns, multi-file diff handling). Sets `final_review_completed: true` in state file.
 
 **Prompt templates** (dispatch envelopes alongside the skill — protocols live in dedicated skills):
-- `implementer-prompt.md` → calls `implementing-task`
-- `spec-compliance-reviewer-prompt.md` → calls `reviewing-task-compliance`
-- `code-quality-reviewer-prompt.md` → calls `reviewing-task-quality`
+- `implementer-prompt.md` → calls `ss-sdd-implementing-task`
+- `spec-compliance-reviewer-prompt.md` → calls `ss-sdd-reviewing-task-compliance`
+- `code-quality-reviewer-prompt.md` → calls `ss-sdd-reviewing-task-quality`
 
 **Subagent statuses handled:**
 
@@ -467,7 +467,7 @@ Preflight aborted.
 
 ---
 
-## implementing-task
+## ss-sdd-implementing-task
 
 **Type:** Subagent skill (lightweight protocol)
 **Loaded:** by implementer subagents themselves when they start
@@ -492,7 +492,7 @@ Preflight aborted.
 
 ---
 
-## reviewing-task-compliance
+## ss-sdd-reviewing-task-compliance
 
 **Type:** Subagent skill (full protocol for the per-task spec-compliance reviewer)
 **Loaded:** by the spec-compliance reviewer subagent when it's dispatched
@@ -520,7 +520,7 @@ Preflight aborted.
 
 ---
 
-## reviewing-task-quality
+## ss-sdd-reviewing-task-quality
 
 **Type:** Subagent skill (full protocol for the per-task code-quality reviewer)
 **Loaded:** by the code-quality reviewer subagent when it's dispatched
@@ -552,7 +552,7 @@ Preflight aborted.
 
 ---
 
-## testing-implementation
+## ss-sdd-testing-implementation
 
 **Type:** Phase skill (inline; orchestrates tester subagent)
 **Loaded:** by the coordinator at Stage 14 (only if user opted in)
@@ -575,14 +575,14 @@ Preflight aborted.
 - **Mixed**: run both UI and backend strategies.
 
 **Prompt templates** (separate files alongside the skill):
-- `tester-prompt.md` — dispatch envelope; calls `testing-feature`
-- `fixer-prompt.md` — dispatch envelope; calls `fixing-test-failures`
+- `tester-prompt.md` — dispatch envelope; calls `ss-sdd-testing-feature`
+- `fixer-prompt.md` — dispatch envelope; calls `ss-sdd-fixing-test-failures`
 
 **Coordinator MUST NOT test itself when MCP_UNAVAILABLE.** This rule is repeated in five different places in the skill because it's the highest-risk rationalization. If the tester can't test, the coordinator surfaces to user — doesn't pick up Bash/Playwright/curl itself.
 
 ---
 
-## testing-feature
+## ss-sdd-testing-feature
 
 **Type:** Subagent skill (full protocol for the tester subagent)
 **Loaded:** by the tester subagent when it's dispatched
@@ -613,7 +613,7 @@ Preflight aborted.
 
 ---
 
-## fixing-test-failures
+## ss-sdd-fixing-test-failures
 
 **Type:** Subagent skill (full protocol for the fixer subagent)
 **Loaded:** by the fixer subagent when it's dispatched
@@ -643,7 +643,7 @@ Preflight aborted.
 
 ---
 
-## generating-handoff
+## ss-sdd-generating-handoff
 
 **Type:** Subagent skill
 **Loaded:** by the dispatched subagent at Stage 15
@@ -687,7 +687,7 @@ Two-pass scan: keep going until no new redactions surface.
 
 ---
 
-## maintaining-memory-file
+## ss-sdd-maintaining-memory-file
 
 **Type:** Subagent skill
 **Loaded:** by the dispatched subagent at Stage 16
@@ -739,7 +739,7 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 
 ---
 
-## finishing-sdd
+## ss-sdd-finishing
 
 **Type:** Phase skill (inline)
 **Loaded:** by the coordinator at Stage 17
@@ -761,21 +761,21 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 
 ## project-bootstrap family (outside the SDD pipeline)
 
-Lives in `project-bootstrap/`. Separate skill family from SDD because the purpose (one-time project setup) is distinct from the SDD pipeline's per-feature workflow.
+Lives in `skills/project-bootstrap/`. Separate skill family from SDD because the purpose (one-time project setup) is distinct from the SDD pipeline's per-feature workflow.
 
-### bootstrapping-project
+### ss-bs-bootstrapping-project
 
 **Type:** Coordinator (inline; user-interactive)
-**Loaded:** manually by the user (NOT by `sdd-coordinator`)
+**Loaded:** manually by the user (NOT by `ss-sdd-coordinator`)
 **Stage:** N/A — one-time per-project setup; safe to re-run
 
 **Purpose:** Walk the user through each convention file with deep per-file project analysis, then scaffold `.sublime-skills/config.yml` and the supporting directories.
 
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
-2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `discovering-<topic>` skill inline. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
+2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `ss-bs-discovering-<topic>` skill inline. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
 3. Create `docs/adr/`, `docs/specs/` with stub READMEs.
-4. Copy `project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
+4. Copy `skills/project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
 5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
 6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
 7. Ensure `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` entries (Step 4 creates the file; this step appends any missing entries).
@@ -784,21 +784,21 @@ Lives in `project-bootstrap/`. Separate skill family from SDD because the purpos
 **Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
 **Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; `.sublime-skills/config-local.yml` (empty); `.sublime-skills/.gitignore` (with `state.json` and `config-local.yml` entries); one commit.
 
-### discovering-constitution / discovering-architecture / discovering-glossary / discovering-domain-model / discovering-design
+### ss-bs-discovering-constitution / ss-bs-discovering-architecture / ss-bs-discovering-glossary / ss-bs-discovering-domain-model / ss-bs-discovering-design
 
 **Type:** Inline conversational skills
-**Loaded:** by `bootstrapping-project` into its own context when the per-file loop reaches each slot
+**Loaded:** by `ss-bs-bootstrapping-project` into its own context when the per-file loop reaches each slot
 **Stage:** N/A
 
 **Purpose:** Deep, focused per-file analysis with sustained user interaction. Each skill performs a silent code scan, announces findings, asks targeted questions about things the code can't reveal, drafts the file, runs a tweak loop (cap 3 iterations), and atomically writes itself. The coordinator just records the outcome string.
 
 | Skill | Reads | User-interaction layer | Produces |
 |---|---|---|---|
-| `discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | Confirm candidate principles → set MUST/SHALL/SHOULD severity → add intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
-| `discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | Confirm component grouping → declare out-of-scope → confirm env-var-only integrations → add non-code facts → resolve cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
-| `discovering-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | Pick which ≤30 terms make the cut → declare aliases / multi-naming → refine definitions during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
-| `discovering-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | Pick which ≤15 entities are load-bearing → confirm lifecycles → resolve cardinality → add workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
-| `discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps in `package.json` | (Build path) Confirm vibe / theme intent → set color role rules → confirm component vocabulary → state do's-and-don'ts. (Import path) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
+| `ss-bs-discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | Confirm candidate principles → set MUST/SHALL/SHOULD severity → add intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
+| `ss-bs-discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | Confirm component grouping → declare out-of-scope → confirm env-var-only integrations → add non-code facts → resolve cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
+| `ss-bs-discovering-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | Pick which ≤30 terms make the cut → declare aliases / multi-naming → refine definitions during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
+| `ss-bs-discovering-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | Pick which ≤15 entities are load-bearing → confirm lifecycles → resolve cardinality → add workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
+| `ss-bs-discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps in `package.json` | (Build path) Confirm vibe / theme intent → set color role rules → confirm component vocabulary → state do's-and-don'ts. (Import path) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
 
 All five skills support `create` / `extend` / `replace` modes from the coordinator. Each enforces hard caps (no diagrams; length limits where applicable; codebase-evidence OR explicit user input for every proposition; ALWAYS uses the harness question tool; one question per turn; multi-choice with recommended options when possible; no external-authority citations).
 
@@ -810,7 +810,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 **Why inline (not subagent):** Each convention file mixes code-derivable signal (extractable in one pass) with user-held intent (only drawable out conversationally — which principles matter, which terms are load-bearing, which boundaries are deliberate, what the vibe is). A dispatched subagent returns once and dies; it can't have the back-and-forth needed for the second half. Routing the conversation through the coordinator (subagent returns findings → coordinator paraphrases → user replies → coordinator re-dispatches) wastes turns and drifts intent. So all five stay inline.
 
-**Writes:** `docs/DESIGN.md` (or `context.design_path` if overridden) directly — `bootstrapping-project` skips its usual Discuss / Write steps for this file.
+**Writes:** `docs/DESIGN.md` (or `context.design_path` if overridden) directly — `ss-bs-bootstrapping-project` skips its usual Discuss / Write steps for this file.
 
 **Outcomes reported to coordinator:** `created via import from <path>` / `created via build` / `extended via build` / `replaced via build` / `skipped (declined mid-skill)`.
 
@@ -820,7 +820,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### discover-context.sh
 
-**Location:** `spec-driven-development/framework/discover-context.sh`
+**Location:** `skills/spec-driven-development/framework/discover-context.sh`
 **Purpose:** Find project convention files and active SDD state. Output is JSON listing the paths from config for context files (or `null` when a path is unset or the file doesn't exist on disk), and hardcoded values for SDD directories.
 
 **Source of truth:** `.sublime-skills/config.yml`, with `.sublime-skills/config-local.yml` overlaid per-key when present (overlay wins). There is **no auto-fallback search** — every path is read straight from these files. The script verifies each context file exists before returning the path; if it doesn't, the corresponding output is `null`.
@@ -864,10 +864,10 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### validate-config.sh
 
-**Location:** `spec-driven-development/framework/validate-config.sh`
-**Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically — together with `.sublime-skills/config-local.yml` when present (overlay merged before validation). Used by `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
+**Location:** `skills/spec-driven-development/framework/validate-config.sh`
+**Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically — together with `.sublime-skills/config-local.yml` when present (overlay merged before validation). Used by `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
 
-**Usage:** `./framework/validate-config.sh [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
+**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-config.sh" [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
 
 **Checks (on the merged config):**
 - YAML parses for both files (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner that validates the base config only and warns when overlay is present)
@@ -890,17 +890,17 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 
 ### get-config-value.sh
 
-**Location:** `spec-driven-development/framework/get-config-value.sh`
+**Location:** `skills/spec-driven-development/framework/get-config-value.sh`
 **Purpose:** Read a single scalar value from the layered config — `config-local.yml` overrides `config.yml` on a per-key basis. Intended for skills that need one or two config values and don't want to inline YAML parsing.
 
 **Lookup order:** `config-local.yml` first; if the key is present there (even as `null`), that value is returned. Otherwise fall through to `config.yml`.
 
-**Usage:** `./framework/get-config-value.sh <block> <key> [config-path]`
+**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" <block> <key> [config-path]`
 
 Examples:
-- `./framework/get-config-value.sh branching branch_pattern` → `"feat/{short-name}"`
-- `./framework/get-config-value.sh grill question_cap` → `"10"`
-- `./framework/get-config-value.sh memory_file character_limit` → `"40000"`
+- `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" branching branch_pattern` → `"feat/{short-name}"`
+- `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" grill question_cap` → `"10"`
+- `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" memory_file character_limit` → `"40000"`
 
 **Exit codes:**
 - `0` — value found (printed to stdout, no trailing newline)
@@ -911,7 +911,7 @@ Examples:
 
 ### validate-spec.sh
 
-**Purpose:** Schema-check a `spec.md`. Run by `writing-specs` as the first sub-step of its self-review; re-run by the coordinator before committing.
+**Purpose:** Schema-check a `spec.md`. Run by `ss-sdd-writing-specs` as the first sub-step of its self-review; re-run by the coordinator before committing.
 
 **Checks:**
 - Required sections (Header, Goal, User Stories, Functional Requirements, Success Criteria, Edge Cases, Assumptions, Out-of-Scope)
@@ -957,14 +957,14 @@ Examples:
 
 ### state-schema.md (human-readable) and state-schema.json (JSON Schema Draft 2020-12)
 
-**Location:** `spec-driven-development/framework/state-schema.md`, `spec-driven-development/framework/state-schema.json`
+**Location:** `skills/spec-driven-development/framework/state-schema.md`, `skills/spec-driven-development/framework/state-schema.json`
 
 **Purpose:** Single source of truth for the state file schema. The coordinator and any other skill that touches the state file MUST match this definition. If a skill diverges from these files, fix the skill (or update these files if the change is intentional) — drift between them is a bug.
 
 The `.md` file is the readable reference (field tables, ownership, lifecycle, worked example). The `.json` file is for objective validation: a JSON Schema validator (e.g., `ajv`, `python -m jsonschema`) can check a state file against it directly.
 
 Cross-references in this repo:
-- `sdd-coordinator/SKILL.md` links to it for state schema details
+- `ss-sdd-coordinator/SKILL.md` links to it for state schema details
 - `docs/sdd/state-and-config.md` references it as canonical
 
 ---
@@ -972,54 +972,54 @@ Cross-references in this repo:
 ## Skill interaction graph (text form)
 
 ```
-sdd-coordinator (entry; user-invoked)
-├── preflight-checks            (Stage 0)
-├── discovering-requirements    (Stage 1)
-├── writing-specs               (Stage 2; uses validate-spec.sh)
+ss-sdd-coordinator (entry; user-invoked)
+├── ss-sdd-preflight-checks            (Stage 0)
+├── ss-sdd-discovering-requirements    (Stage 1)
+├── ss-sdd-writing-specs               (Stage 2; uses validate-spec.sh)
 │
-├── dispatch → reviewing-specs  (Stages 3, 5; subagent, first-pass + optional 2nd)
+├── dispatch → ss-sdd-reviewing-specs  (Stages 3, 5; subagent, first-pass + optional 2nd)
 │       ↓
-│   receiving-review-findings   (inline; process findings)
+│   ss-sdd-receiving-review-findings   (inline; process findings)
 │
-├── grilling-specs              (Stage 4; optional)
+├── ss-sdd-grilling-specs              (Stage 4; optional)
 │
-├── dispatch → maintaining-adrs (Stage 6; subagent)
+├── dispatch → ss-sdd-maintaining-adrs (Stage 6; subagent)
 │
 ├── (user approval — Stage 7)
 │
-├── writing-plans               (Stage 8; uses validate-plan.sh)
+├── ss-sdd-writing-plans               (Stage 8; uses validate-plan.sh)
 │
-├── dispatch → reviewing-plans  (Stages 9, 10; subagent)
+├── dispatch → ss-sdd-reviewing-plans  (Stages 9, 10; subagent)
 │       ↓
-│   receiving-review-findings   (inline; process findings)
+│   ss-sdd-receiving-review-findings   (inline; process findings)
 │
 ├── (user approval — Stage 11)
 │
-├── choosing-feature-branch     (Stage 12; inline; batch-commits planning artifacts)
+├── ss-sdd-choosing-feature-branch     (Stage 12; inline; batch-commits planning artifacts)
 │
-├── implementing-plans          (Stage 13; orchestrates per-task subagents)
+├── ss-sdd-implementing-plans          (Stage 13; orchestrates per-task subagents)
 │       ↓
 │       per-task fresh subagents (each task: implementer + 2 reviewers)
 │           ↓
-│       implementer subagents load → implementing-task
+│       implementer subagents load → ss-sdd-implementing-task
 │
-├── testing-implementation      (Stage 14; orchestrates tester subagent)
+├── ss-sdd-testing-implementation      (Stage 14; orchestrates tester subagent)
 │
-├── dispatch → generating-handoff (Stage 15; subagent; uses validate-handoff.sh)
+├── dispatch → ss-sdd-generating-handoff (Stage 15; subagent; uses validate-handoff.sh)
 │
-├── dispatch → maintaining-memory-file (Stage 16; subagent)
+├── dispatch → ss-sdd-maintaining-memory-file (Stage 16; subagent)
 │
-└── finishing-sdd               (Stage 17)
+└── ss-sdd-finishing               (Stage 17)
 
 
 project-bootstrap family (outside SDD pipeline; user-invoked manually)
-├── bootstrapping-project (coordinator)
+├── ss-bs-bootstrapping-project (coordinator)
 │       ↓ loads inline (one per convention file, sequential):
-│   ├── discovering-constitution   (inline, conversational)
-│   ├── discovering-architecture   (inline, conversational)
-│   ├── discovering-glossary       (inline, conversational)
-│   ├── discovering-domain-model   (inline, conversational)
-│   └── discovering-design         (inline, conversational — Import path or Build path)
+│   ├── ss-bs-discovering-constitution   (inline, conversational)
+│   ├── ss-bs-discovering-architecture   (inline, conversational)
+│   ├── ss-bs-discovering-glossary       (inline, conversational)
+│   ├── ss-bs-discovering-domain-model   (inline, conversational)
+│   └── ss-bs-discovering-design         (inline, conversational — Import path or Build path)
 ```
 
 ---

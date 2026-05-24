@@ -16,7 +16,7 @@ A JSON file at `.sublime-skills/state.json` — a single global file representin
 |---|---|
 | 0 (Preflight) | Does NOT exist yet. Preflight outputs (current branch) are held in coordinator's in-memory dict. |
 | 1 (Discovery) | Still does not exist. Discovery outputs in memory. |
-| 2 (Writing spec) | **Created** by `writing-specs` at `.sublime-skills/state.json`, atomic write. Pre-populated with feature_id, branch, paths. **Gitignored from the start.** |
+| 2 (Writing spec) | **Created** by `ss-sdd-writing-specs` at `.sublime-skills/state.json`, atomic write. Pre-populated with feature_id, branch, paths. **Gitignored from the start.** |
 | 3–11 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
 | 12 (Choosing branch) | Updated atomically (current_stage: implementing). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. |
 | 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). |
@@ -41,7 +41,7 @@ This prevents partial writes from corrupting state if the session dies mid-write
 
 ### Schema
 
-**The canonical schema lives at `spec-driven-development/framework/state-schema.md`** (human-readable, complete field list + ownership + enums + stage mapping) and `state-schema.json` (machine-readable JSON Schema Draft 2020-12).
+**The canonical schema lives at `skills/spec-driven-development/framework/state-schema.md`** (human-readable, complete field list + ownership + enums + stage mapping) and `state-schema.json` (machine-readable JSON Schema Draft 2020-12).
 
 This document is a companion that shows worked examples and explains the lifecycle in narrative form. If schema details in this document and the canonical disagree, **the canonical wins** — please update this doc to match.
 
@@ -60,9 +60,9 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 
 1. The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed.
 2. Each state-touching skill has a Hard Gate prohibiting `git add -f` / `--force` / any other bypass.
-3. The canonical rule lives in `spec-driven-development/framework/state-schema.md` under "Git policy (CRITICAL)".
+3. The canonical rule lives in `skills/spec-driven-development/framework/state-schema.md` under "Git policy (CRITICAL)".
 
-The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-11, then batch-committed by `choosing-feature-branch` at Stage 12 in two thematic commits:
+The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-11, then batch-committed by `ss-sdd-choosing-feature-branch` at Stage 12 in two thematic commits:
 
 - `docs(<feature_id>): spec and plan` — spec.md + plan.md
 - `docs(adr): N decisions for <feature_id>` — ADRs (skipped if none)
@@ -86,7 +86,7 @@ The coordinator's first action on every invocation is `[ -f .sublime-skills/stat
 
 **Found** — verify referenced files still exist (the state's `spec_path` and `plan_path` under `docs/specs/<feature_id>/`); if any are missing, prompt the user to discard state or abort. Otherwise ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, prompt "Discard this state and start fresh, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
 
-The state file is in-session orchestration record-keeping. It enables resuming an interrupted run when the user re-invokes `sdd-coordinator` shortly after. It is not designed for cross-machine recovery, multi-user handoff, or recovery from arbitrary destructive git operations.
+The state file is in-session orchestration record-keeping. It enables resuming an interrupted run when the user re-invokes `ss-sdd-coordinator` shortly after. It is not designed for cross-machine recovery, multi-user handoff, or recovery from arbitrary destructive git operations.
 
 ### Mid-stage interruption
 
@@ -98,12 +98,12 @@ If the session dies between "stage starts" and "stage completes":
 - On resume, the coordinator re-runs that stage from the start
 
 Re-running a stage is safe because:
-- Stage 2 (writing-specs): re-renders the spec.md (idempotent given the same understanding)
+- Stage 2 (ss-sdd-writing-specs): re-renders the spec.md (idempotent given the same understanding)
 - Stage 3/9 (reviewers): re-dispatches the reviewer (subagent is fresh anyway)
 - Stage 4 (grill): the user can decide to skip if previous grill already happened
 - Stage 6 (ADRs): subagent checks for duplicates against existing ADRs
-- Stage 8 (writing-plans): re-renders the plan.md
-- Stage 12 (choosing-feature-branch): batch-commit failures halt the pipeline; the user resolves and re-invokes
+- Stage 8 (ss-sdd-writing-plans): re-renders the plan.md
+- Stage 12 (ss-sdd-choosing-feature-branch): batch-commit failures halt the pipeline; the user resolves and re-invokes
 - Stage 13 (implementation): `tasks` map tells the loop which tasks are done
 
 ### Mid-task interruption (Stage 13)
@@ -126,11 +126,11 @@ Per-task work is fully isolated; re-dispatching is safe. No need for fine-graine
 
 ### What it is
 
-A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `bootstrapping-project` (in the `project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
+A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
-**The config is required, not optional, and must be valid.** `preflight-checks` (Stage 0 of the SDD pipeline) runs `framework/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+**The config is required, not optional, and must be valid.** `ss-sdd-preflight-checks` (Stage 0 of the SDD pipeline) runs `framework/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
-The scaffold lives at `project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
+The scaffold lives at `skills/project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
 
 ### Full schema with defaults
 
@@ -151,7 +151,7 @@ context:
 # ── Branching (Stage 12) ────────────────────────────────────────────
 branching:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used by the `choosing-feature-branch` skill (Stage 12) when offering
+  # Used by the `ss-sdd-choosing-feature-branch` skill (Stage 12) when offering
   # to create a feature branch. Bug-fix runs (state.work_type == "fix")
   # use `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
@@ -179,7 +179,7 @@ memory_file:
 
 **Stages 14 (testing), 15 (handoff), and 16 (memory file) are user-prompted at runtime**, not config-toggled. The coordinator asks `yes/no` per run. If you want to skip all of them every time, just answer `no` when prompted — but most users will want to make the choice per feature.
 
-**V1 does NOT include a `finishing:` config block.** Stage 17 (`finishing-sdd`) prints a summary and deletes the state file. No merge/PR/branch-deletion behavior is configurable — those are the user's call after SDD ends.
+**V1 does NOT include a `finishing:` config block.** Stage 17 (`ss-sdd-finishing`) prints a summary and deletes the state file. No merge/PR/branch-deletion behavior is configurable — those are the user's call after SDD ends.
 
 ### Config overlay (`config-local.yml`)
 
@@ -213,7 +213,7 @@ Each skill that depends on config reads it explicitly. The pattern is:
 
 1. Read config via the central scripts. `get-config-value.sh <block> <key>` returns a single scalar; `discover-context.sh` returns the bulk of paths as JSON. Both scripts honor `config-local.yml` overlay automatically. Skills that need list-typed or multi-line values should overlay manually if they parse the YAML themselves.
 2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent in both files, that's the answer.
-3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `bootstrapping-project` first.
+3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `ss-bs-bootstrapping-project` first.
 
 The coordinator caches the config once at session start (after the resume check) and passes relevant values into each skill dispatch.
 
@@ -226,7 +226,7 @@ branching:
   branch_pattern: "feature/{short-name}"
 ```
 
-Used by `choosing-feature-branch` (Stage 12) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
+Used by `ss-sdd-choosing-feature-branch` (Stage 12) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
 
 **Memory file maintenance (CLAUDE.md / AGENTS.md / etc.):**
 
@@ -248,7 +248,7 @@ context:
   design_path: null                 # CLI tool — no UI surface
 ```
 
-Each key is a single explicit path or `null`. The SDD pipeline expects a single canonical pointer per artifact, not a list. If your project keeps a convention file at a non-default path (e.g., `docs/internal/ARCH.md`), point the corresponding `<name>_path` at it. `design_path: null` is the right choice for CLI tools, libraries, or backend services with no visual UI surface — the bootstrapper's `discovering-design` skill detects the absence of a UI surface during its code scan and surfaces Skip as the recommended option for such projects.
+Each key is a single explicit path or `null`. The SDD pipeline expects a single canonical pointer per artifact, not a list. If your project keeps a convention file at a non-default path (e.g., `docs/internal/ARCH.md`), point the corresponding `<name>_path` at it. `design_path: null` is the right choice for CLI tools, libraries, or backend services with no visual UI surface — the bootstrapper's `ss-bs-discovering-design` skill detects the absence of a UI surface during its code scan and surfaces Skip as the recommended option for such projects.
 
 ### Hard ceilings (not overridable)
 
@@ -269,8 +269,8 @@ Iteration caps are deliberately not config-overridable. Hitting a cap means some
 The following are deliberately not config:
 
 - Per-skill behaviors (each skill has its own internal rules; if you want to change them, edit the skill)
-- The list of allowed `[NO-TDD]` categories (defined in `writing-plans` skill; changing them requires a skill edit)
-- The redaction patterns in `generating-handoff` (defined in the skill)
+- The list of allowed `[NO-TDD]` categories (defined in `ss-sdd-writing-plans` skill; changing them requires a skill edit)
+- The redaction patterns in `ss-sdd-generating-handoff` (defined in the skill)
 - The diagram prohibitions (Mermaid, C4, PlantUML, ASCII — defined in skills)
 - Subagent prompts (in the template files alongside the orchestrating skills)
 
@@ -344,7 +344,7 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
 
 1. Coordinator checks for `.sublime-skills/state.json`; finds it.
 2. Coordinator confirms with user: "Resume `003-user-auth` at `implementing`?"
-3. On yes: coordinator loads `implementing-plans`. The skill notes T004 is in_progress, re-dispatches T004 with a fresh implementer subagent.
+3. On yes: coordinator loads `ss-sdd-implementing-plans`. The skill notes T004 is in_progress, re-dispatches T004 with a fresh implementer subagent.
 4. T004 completes, coordinator marks it complete in state file, moves on to T005.
 
 No re-reading the entire history; the state file is enough.

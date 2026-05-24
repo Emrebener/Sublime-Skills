@@ -6,11 +6,11 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 
 | Artifact | Path | Producer | Schema validator |
 |---|---|---|---|
-| Spec | `docs/specs/NNN-<short-name>/spec.md` | `writing-specs` (Stage 2), updated by `grilling-specs` (Stage 4) | `validate-spec.sh` |
-| Plan | `docs/specs/NNN-<short-name>/plan.md` | `writing-plans` (Stage 8) | `validate-plan.sh` |
-| ADR | `docs/adr/NNNN-<kebab-title>.md` | `maintaining-adrs` (Stage 6) | (no automated validator) |
-| Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `generating-handoff` (Stage 15) | `validate-handoff.sh` |
-| State | `.sublime-skills/state.json` | `writing-specs` initializes; coordinator + other skills update | (schema at `framework/state-schema.md` / `.json`) |
+| Spec | `docs/specs/NNN-<short-name>/spec.md` | `ss-sdd-writing-specs` (Stage 2), updated by `ss-sdd-grilling-specs` (Stage 4) | `validate-spec.sh` |
+| Plan | `docs/specs/NNN-<short-name>/plan.md` | `ss-sdd-writing-plans` (Stage 8) | `validate-plan.sh` |
+| ADR | `docs/adr/NNNN-<kebab-title>.md` | `ss-sdd-maintaining-adrs` (Stage 6) | (no automated validator) |
+| Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `ss-sdd-generating-handoff` (Stage 15) | `validate-handoff.sh` |
+| State | `.sublime-skills/state.json` | `ss-sdd-writing-specs` initializes; coordinator + other skills update | (schema at `framework/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
 
@@ -479,7 +479,7 @@ The reason line must match one of the [NO-TDD] allowed categories (see [operatio
 
 ### Status lifecycle
 
-- **Proposed** — default when first written by `maintaining-adrs`. Awaiting user approval.
+- **Proposed** — default when first written by `ss-sdd-maintaining-adrs`. Awaiting user approval.
 - **Accepted** — default outcome of Stage 7 (user spec approval). The coordinator flips ADRs to Accepted unless the user explicitly chooses "Approve, keep ADRs as Proposed".
 - **Superseded by ADR-NNNN** — automatically set when a new ADR explicitly supersedes this one.
 - **Deprecated** — manually set when an ADR is no longer relevant (rare).
@@ -683,9 +683,9 @@ See [state-and-config.md](state-and-config.md) for the full state file schema, f
 Quick reference:
 
 - **Path:** `.sublime-skills/state.json`
-- **Created:** Stage 2 (`writing-specs`)
-- **Updated:** at every stage boundary by the coordinator; per-task by `implementing-plans`
-- **Deleted:** Stage 17 (`finishing-sdd`) via plain `rm` — no commit anywhere
+- **Created:** Stage 2 (`ss-sdd-writing-specs`)
+- **Updated:** at every stage boundary by the coordinator; per-task by `ss-sdd-implementing-plans`
+- **Deleted:** Stage 17 (`ss-sdd-finishing`) via plain `rm` — no commit anywhere
 - **Atomic writes** via `state.json.tmp` + `mv`
 - **Permanently gitignored throughout.** The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed; no SDD stage ever commits the state file. Branch operations (`git checkout`, `git stash -u`) leave it in place.
 
@@ -695,9 +695,9 @@ Quick reference:
 
 The skill files themselves contain authoritative templates. If you're looking for the exact text to copy-paste:
 
-- Spec template: `spec-driven-development/writing-specs/SKILL.md` → "Spec Structure" section
-- Plan template: `spec-driven-development/writing-plans/SKILL.md` → "Plan Structure" section
-- ADR template: `spec-driven-development/maintaining-adrs/SKILL.md` → "Step 5: Write ADRs"
-- Handoff template: `spec-driven-development/generating-handoff/SKILL.md` → "Handoff Structure" section
+- Spec template: `skills/spec-driven-development/ss-sdd-writing-specs/SKILL.md` → "Spec Structure" section
+- Plan template: `skills/spec-driven-development/ss-sdd-writing-plans/SKILL.md` → "Plan Structure" section
+- ADR template: `skills/spec-driven-development/ss-sdd-maintaining-adrs/SKILL.md` → "Step 5: Write ADRs"
+- Handoff template: `skills/spec-driven-development/ss-sdd-generating-handoff/SKILL.md` → "Handoff Structure" section
 
 The templates in this doc and those in the SKILL.md files should always match. If they drift, the SKILL.md is authoritative (skills are the executable spec; docs are the explanation).

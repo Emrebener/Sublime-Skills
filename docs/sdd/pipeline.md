@@ -1,6 +1,6 @@
 # The SDD Pipeline
 
-The pipeline is a strict 18-stage sequence (Stages 0-17) with several optional stages the user gates explicitly. The coordinator (`sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
+The pipeline is a strict 18-stage sequence (Stages 0-17) with several optional stages the user gates explicitly. The coordinator (`ss-sdd-coordinator`) drives the sequence; specific work is delegated to phase-skills (loaded inline) or subagents (dispatched in fresh context).
 
 This document explains each stage in detail: what runs, what it produces, how failure is handled, and what the next stage expects.
 
@@ -10,24 +10,24 @@ This document explains each stage in detail: what runs, what it produces, how fa
 
 | # | Stage | Mechanism | Optional? | Writes to disk? |
 |---|---|---|---|---|
-| 0 | Preflight | Inline via `preflight-checks` | No | No (git state only) |
-| 1 | Discovering requirements | Inline via `discovering-requirements` | No | No (in-memory only) |
-| 2 | Writing the spec | Inline via `writing-specs` | No | `spec.md` (uncommitted), `.sublime-skills/state.json` (gitignored) |
-| 3 | Auto spec-review | Subagent via `reviewing-specs` | No | No (returns findings) |
-| 4 | Grill session | Inline via `grilling-specs` | **Yes** | `spec.md` (updates inline; uncommitted) |
-| 5 | 2nd spec-review | Subagent via `reviewing-specs` | **Yes** | No (returns findings) |
-| 6 | ADR maintenance | Subagent via `maintaining-adrs` | No | `docs/adr/NNNN-*.md` (zero or more; uncommitted) |
+| 0 | Preflight | Inline via `ss-sdd-preflight-checks` | No | No (git state only) |
+| 1 | Discovering requirements | Inline via `ss-sdd-discovering-requirements` | No | No (in-memory only) |
+| 2 | Writing the spec | Inline via `ss-sdd-writing-specs` | No | `spec.md` (uncommitted), `.sublime-skills/state.json` (gitignored) |
+| 3 | Auto spec-review | Subagent via `ss-sdd-reviewing-specs` | No | No (returns findings) |
+| 4 | Grill session | Inline via `ss-sdd-grilling-specs` | **Yes** | `spec.md` (updates inline; uncommitted) |
+| 5 | 2nd spec-review | Subagent via `ss-sdd-reviewing-specs` | **Yes** | No (returns findings) |
+| 6 | ADR maintenance | Subagent via `ss-sdd-maintaining-adrs` | No | `docs/adr/NNNN-*.md` (zero or more; uncommitted) |
 | 7 | User spec approval | Inline (coordinator) | No | Updates ADR statuses to Accepted (uncommitted) |
-| 8 | Writing the plan | Inline via `writing-plans` | No | `plan.md` (uncommitted), `.sublime-skills/state.json` (gitignored) |
-| 9 | Auto plan-review | Subagent via `reviewing-plans` | No | No (returns findings) |
-| 10 | 2nd plan-review | Subagent via `reviewing-plans` | **Yes** | No (returns findings) |
+| 8 | Writing the plan | Inline via `ss-sdd-writing-plans` | No | `plan.md` (uncommitted), `.sublime-skills/state.json` (gitignored) |
+| 9 | Auto plan-review | Subagent via `ss-sdd-reviewing-plans` | No | No (returns findings) |
+| 10 | 2nd plan-review | Subagent via `ss-sdd-reviewing-plans` | **Yes** | No (returns findings) |
 | 11 | User plan approval | Inline (coordinator) | No | No (approval gate; artifacts remain uncommitted) |
-| 12 | Choosing feature branch + batch commit | Inline via `choosing-feature-branch` | No | Optionally creates branch; batch-commits all SDD planning artifacts (spec, plan, ADRs) on the chosen branch |
+| 12 | Choosing feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` | No | Optionally creates branch; batch-commits all SDD planning artifacts (spec, plan, ADRs) on the chosen branch |
 | 13 | Implementation (sub-pipeline) | Per-task subagents | No | Code files and tests (committed per task); `state.json` updated atomically (never committed) |
-| 14 | Feature testing | Subagent via `testing-implementation` | **Yes** | `.sublime-skills/state.json` updated with test result (gitignored) |
-| 15 | Handoff generation | Subagent via `generating-handoff` | **Yes** | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-*.md` |
-| 16 | Memory file maintenance | Subagent via `maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
-| 17 | Finishing | Inline via `finishing-sdd` | No | Deletes `state.json` (no commit; gitignored) |
+| 14 | Feature testing | Subagent via `ss-sdd-testing-implementation` | **Yes** | `.sublime-skills/state.json` updated with test result (gitignored) |
+| 15 | Handoff generation | Subagent via `ss-sdd-generating-handoff` | **Yes** | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-*.md` |
+| 16 | Memory file maintenance | Subagent via `ss-sdd-maintaining-memory-file` | **Yes** (auto-skips if no memory file configured/detected — no prompt in that case) | Possibly updates `CLAUDE.md` / `AGENTS.md` / etc. (often: no update) |
+| 17 | Finishing | Inline via `ss-sdd-finishing` | No | Deletes `state.json` (no commit; gitignored) |
 
 Subagent stages run with no inherited conversation context; the coordinator builds their prompts from scratch.
 
@@ -35,7 +35,7 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-Every invocation of `sdd-coordinator` begins with a quick resume check, then a todo-list build, then the pipeline. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`preflight-checks`), not in this entry sequence.
+Every invocation of `ss-sdd-coordinator` begins with a quick resume check, then a todo-list build, then the pipeline. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`ss-sdd-preflight-checks`), not in this entry sequence.
 
 1. **Resume check.** Check `.sublime-skills/state.json`:
    - **File not found** → fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
@@ -49,7 +49,7 @@ After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 
 
 ### Commit timing (important)
 
-Through Stages 2–11, SDD writes files (spec, plan, ADRs) but does **not** commit them — they live uncommitted in the working tree. (`state.json` lives at `.sublime-skills/state.json` and is gitignored, so it's never committed in any stage.) The `choosing-feature-branch` skill at Stage 12 batch-commits the spec/plan/ADRs on the user's chosen branch in two thematic commits. From Stage 13 onward, commits happen normally per stage.
+Through Stages 2–11, SDD writes files (spec, plan, ADRs) but does **not** commit them — they live uncommitted in the working tree. (`state.json` lives at `.sublime-skills/state.json` and is gitignored, so it's never committed in any stage.) The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits the spec/plan/ADRs on the user's chosen branch in two thematic commits. From Stage 13 onward, commits happen normally per stage.
 
 **Why:** Stage 12 is where the user decides which branch the work lives on. Committing earlier would force SDD to make a branch decision up front (or land commits on `main`/wherever the user happened to be).
 
@@ -59,7 +59,7 @@ Through Stages 2–11, SDD writes files (spec, plan, ADRs) but does **not** comm
 
 ## Stage 0 — Preflight
 
-**Skill:** `preflight-checks` (inline)
+**Skill:** `ss-sdd-preflight-checks` (inline)
 **Output:** validated `.sublime-skills/config.yml`, confirmed git repo, named branch, dirty-tree warning acknowledged (if applicable).
 
 Stage 0 is a permissive validation gate. It runs in this order:
@@ -73,7 +73,7 @@ The abort matrix:
 
 | Condition | Result |
 |---|---|
-| `.sublime-skills/config.yml` missing | **ABORT** with `config_missing` — direct user to `bootstrapping-project` |
+| `.sublime-skills/config.yml` missing | **ABORT** with `config_missing` — direct user to `ss-bs-bootstrapping-project` |
 | `.sublime-skills/config.yml` invalid (`validate-config.sh` exit 1) | **ABORT** with `config_invalid` — surface validator output verbatim |
 | Not a git repo (`git rev-parse --git-dir` fails) | **ABORT** with `not_a_git_repo` — direct user to `git init` |
 | Detached HEAD | **ABORT** with `detached_head` — no branch to commit to |
@@ -92,7 +92,7 @@ The abort matrix:
 
 ## Stage 1 — Discovering requirements
 
-**Skill:** `discovering-requirements` (inline)
+**Skill:** `ss-sdd-discovering-requirements` (inline)
 **Output:** shared understanding of the feature, held in the coordinator's conversation context.
 
 This is the conversational stage. The skill drives a Q&A with the user — one question per message, multiple choice preferred where applicable, with a recommended answer when there's a clear best choice.
@@ -125,7 +125,7 @@ The skill walks through (and skips dimensions already covered by the user's init
 
 ## Stage 2 — Writing the spec
 
-**Skill:** `writing-specs` (inline)
+**Skill:** `ss-sdd-writing-specs` (inline)
 **Output:** `docs/specs/NNN-<short-name>/spec.md`, `.sublime-skills/state.json`
 
 The coordinator passes the in-memory understanding from Stage 1 to this skill. The skill:
@@ -150,13 +150,13 @@ The coordinator passes the in-memory understanding from Stage 1 to this skill. T
 
 Note: `current_stage` stays as `spec_writing` (still mid-stage from the skill's perspective). After the skill returns, the coordinator advances and adds `spec_written` to `stages_completed`.
 
-**No commit.** The spec stays uncommitted; `choosing-feature-branch` (Stage 12) batch-commits it on the chosen branch. The state file is at `.sublime-skills/state.json` (gitignored — never committed).
+**No commit.** The spec stays uncommitted; `ss-sdd-choosing-feature-branch` (Stage 12) batch-commits it on the chosen branch. The state file is at `.sublime-skills/state.json` (gitignored — never committed).
 
 ---
 
 ## Stage 3 — Auto spec-review
 
-**Subagent:** fresh subagent invoking `reviewing-specs`
+**Subagent:** fresh subagent invoking `ss-sdd-reviewing-specs`
 **Output:** structured findings report (returned to coordinator)
 
 The coordinator dispatches a fresh subagent with a prompt like:
@@ -164,7 +164,7 @@ The coordinator dispatches a fresh subagent with a prompt like:
 ```
 You are reviewing a spec for the SDD pipeline.
 
-Use the `reviewing-specs` skill.
+Use the `ss-sdd-reviewing-specs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
 CONTEXT_FILES:
@@ -177,9 +177,9 @@ REVIEW_FOCUS: first-pass
 Return your findings report.
 ```
 
-The subagent reads the spec, all listed context files, and runs the detection passes specified in `reviewing-specs` (completeness, consistency, clarity, constitution alignment, scope, YAGNI, vocabulary). It returns findings categorized as CRITICAL / HIGH / MEDIUM / LOW.
+The subagent reads the spec, all listed context files, and runs the detection passes specified in `ss-sdd-reviewing-specs` (completeness, consistency, clarity, constitution alignment, scope, YAGNI, vocabulary). It returns findings categorized as CRITICAL / HIGH / MEDIUM / LOW.
 
-**The coordinator processes the findings via `receiving-review-findings`** — a separate skill that establishes the protocol for evaluating reviewer output:
+**The coordinator processes the findings via `ss-sdd-receiving-review-findings`** — a separate skill that establishes the protocol for evaluating reviewer output:
 
 - Read all findings end-to-end before reacting
 - For each CRITICAL/HIGH: verify it's a real issue (read the cited section, check against project context), then fix or push back
@@ -189,7 +189,7 @@ The subagent reads the spec, all listed context files, and runs the detection pa
 
 If the coordinator pushes back on a finding, the rationale is logged in the state file's `reviewer_pushbacks` array.
 
-**Fix-loop cap: 2 iterations (hard ceiling).** If iteration 2's re-dispatch still surfaces CRITICAL/HIGH findings, the coordinator follows `receiving-review-findings` Step 8 (escalation protocol):
+**Fix-loop cap: 2 iterations (hard ceiling).** If iteration 2's re-dispatch still surfaces CRITICAL/HIGH findings, the coordinator follows `ss-sdd-receiving-review-findings` Step 8 (escalation protocol):
 
 - Surface the fix history (what was attempted in each iteration) and currently-unresolved findings to the user
 - Offer four options: (1) iterate with user guidance (user dictates exact edits; no further auto-review), (2) override the reviewer (each push-back recorded with user's reason), (3) accept current state with known issues (records `reviewer_pushbacks` with "accepted with known issues"), (4) abort the stage and pause SDD
@@ -201,7 +201,7 @@ If the coordinator pushes back on a finding, the rationale is logged in the stat
 
 ## Stage 4 — Grill session (optional, user-gated)
 
-**Skill:** `grilling-specs` (inline)
+**Skill:** `ss-sdd-grilling-specs` (inline)
 **Output:** updated `spec.md` (atomic per-answer save)
 
 The coordinator asks:
@@ -210,7 +210,7 @@ The coordinator asks:
 
 On `no`: `spec_grill` added to `stages_skipped`. Skip to Stage 5.
 
-On `yes`: load `grilling-specs`. The skill:
+On `yes`: load `ss-sdd-grilling-specs`. The skill:
 
 1. Loads the current spec and project context.
 2. Builds an internal queue of prioritized questions across categories (goal sharpness, story priority rationale, acceptance testability, FR coverage, SC measurability, entity completeness, edge case depth, constraint rigor, integration risk, constitution/ADR fit, out-of-scope explicitness).
@@ -223,7 +223,7 @@ On `yes`: load `grilling-specs`. The skill:
 
 **Why inline (not subagent)?** Grilling is a multi-turn user conversation. Subagents can't have back-and-forth with the user — they take a prompt and return a result. So this stage runs in the coordinator's session.
 
-**No commit.** Spec edits stay uncommitted; `choosing-feature-branch` (Stage 12) batch-commits the final spec on the chosen branch.
+**No commit.** Spec edits stay uncommitted; `ss-sdd-choosing-feature-branch` (Stage 12) batch-commits the final spec on the chosen branch.
 
 ---
 
@@ -238,7 +238,7 @@ The coordinator asks:
 
 On `no`: `spec_second_review` is added to `stages_skipped`. Skip to Stage 6.
 
-On `yes`: optionally ask the user to specify a focus (e.g., "security implications", "edge cases", "API design"). Dispatch a fresh `reviewing-specs` subagent with `REVIEW_FOCUS: second-pass — focus on <whatever>`. Process findings via `receiving-review-findings` exactly like Stage 3.
+On `yes`: optionally ask the user to specify a focus (e.g., "security implications", "edge cases", "API design"). Dispatch a fresh `ss-sdd-reviewing-specs` subagent with `REVIEW_FOCUS: second-pass — focus on <whatever>`. Process findings via `ss-sdd-receiving-review-findings` exactly like Stage 3.
 
 **Why a second pass?** Two reasons:
 1. A different angle catches issues the first pass missed — especially relevant now that the spec may have been substantively edited in the grill.
@@ -250,7 +250,7 @@ On `yes`: optionally ask the user to specify a focus (e.g., "security implicatio
 
 ## Stage 6 — ADR maintenance
 
-**Subagent:** fresh subagent invoking `maintaining-adrs`
+**Subagent:** fresh subagent invoking `ss-sdd-maintaining-adrs`
 **Output:** zero or more new ADR files at `docs/adr/NNNN-<title>.md`, possibly updates to existing ADRs (supersession markers)
 
 The coordinator dispatches with:
@@ -258,7 +258,7 @@ The coordinator dispatches with:
 ```
 You are maintaining ADRs for the SDD pipeline.
 
-Use the `maintaining-adrs` skill.
+Use the `ss-sdd-maintaining-adrs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
 ADR_DIR: docs/adr (hardcoded)
@@ -279,7 +279,7 @@ The subagent:
 
 **Zero ADRs is a valid outcome.** Not every spec contains architecturally significant decisions. The subagent should return "0 ADRs created" with a one-sentence explanation when that's the case.
 
-**No commit.** New/modified ADR files stay uncommitted; `choosing-feature-branch` (Stage 12) batch-commits them.
+**No commit.** New/modified ADR files stay uncommitted; `ss-sdd-choosing-feature-branch` (Stage 12) batch-commits them.
 
 ADRs are written with `Status: Proposed`. Stage 7's default behavior on approval flips them to `Accepted`.
 
@@ -301,16 +301,16 @@ The coordinator tells the user:
 > - **Approve, keep ADRs as Proposed** — proceed but leave ADR statuses untouched
 > - **Request changes** — tell me what to change"
 
-All artifact updates from approval (ADR status flips, any inline spec edits from "request changes") stay uncommitted in the working tree. Stage 12 (`choosing-feature-branch`) batch-commits them on the chosen branch.
+All artifact updates from approval (ADR status flips, any inline spec edits from "request changes") stay uncommitted in the working tree. Stage 12 (`ss-sdd-choosing-feature-branch`) batch-commits them on the chosen branch.
 
 The user reads the files and responds. Possibilities:
 
 - **Approve** (default flow): the coordinator flips every ADR file's status from `Proposed` to `Accepted` (file edits only — uncommitted), advances to Stage 8.
 - **Approve, keep ADRs as Proposed**: ADRs stay as-is; the coordinator advances to Stage 8 (no commit).
 - **Request changes**: classify before applying.
-  - **Light-touch edit** (typo, wording, tightening an FR, adding an edge case, ADR text adjustment): apply inline using `receiving-review-findings` discipline, re-run validator, re-ask.
+  - **Light-touch edit** (typo, wording, tightening an FR, adding an edge case, ADR text adjustment): apply inline using `ss-sdd-receiving-review-findings` discipline, re-run validator, re-ask.
   - **Substantive — re-discovery needed** (decomposition, fundamental requirement change, story added/removed, big rethink): do NOT edit inline. Confirm with user, then reset `current_stage` to `discovering` and re-enter Stage 1. The new discovery may produce a revised spec that supersedes the current one.
-  - **Substantive — ADR overhaul** (an ADR needs replacing, or new ADR-worthy decisions emerge): re-dispatch `maintaining-adrs` after any spec changes; the subagent handles supersession.
+  - **Substantive — ADR overhaul** (an ADR needs replacing, or new ADR-worthy decisions emerge): re-dispatch `ss-sdd-maintaining-adrs` after any spec changes; the subagent handles supersession.
   - If unsure, default to light-touch and apply inline; if it becomes clear the change is substantive, stop and reclassify.
 - **Reject and abandon**: coordinator exits the pipeline; user decides what to do with the work-in-progress branch.
 
@@ -322,7 +322,7 @@ The user reads the files and responds. Possibilities:
 
 ## Stage 8 — Writing the plan
 
-**Skill:** `writing-plans` (inline)
+**Skill:** `ss-sdd-writing-plans` (inline)
 **Output:** `docs/specs/NNN-<short-name>/plan.md`, updated `.sublime-skills/state.json`
 
 The skill:
@@ -345,15 +345,15 @@ The skill:
 
 **Atomic write:** the plan content is written to `<plan_path>.tmp` and atomically moved to the final path.
 
-**Validator enforcement:** `writing-plans` returns the validator's PASS line verbatim in its report. The coordinator re-runs `validate-plan.sh` — if the fresh run disagrees with the writer's report, the stage halts. Validator catches duplicate T### IDs, placeholders, missing required sections, and forbidden diagram syntax.
+**Validator enforcement:** `ss-sdd-writing-plans` returns the validator's PASS line verbatim in its report. The coordinator re-runs `validate-plan.sh` — if the fresh run disagrees with the writer's report, the stage halts. Validator catches duplicate T### IDs, placeholders, missing required sections, and forbidden diagram syntax.
 
-**No commit.** The plan stays uncommitted; `choosing-feature-branch` (Stage 12) batch-commits it on the chosen branch. The state file is at `.sublime-skills/state.json` (gitignored — never committed).
+**No commit.** The plan stays uncommitted; `ss-sdd-choosing-feature-branch` (Stage 12) batch-commits it on the chosen branch. The state file is at `.sublime-skills/state.json` (gitignored — never committed).
 
 ---
 
 ## Stage 9 — Auto plan-review
 
-**Subagent:** fresh subagent invoking `reviewing-plans`
+**Subagent:** fresh subagent invoking `ss-sdd-reviewing-plans`
 **Output:** structured findings report
 
 Same pattern as Stage 3. The subagent runs detection passes specific to plans:
@@ -366,7 +366,7 @@ Same pattern as Stage 3. The subagent runs detection passes specific to plans:
 - **Constitution/ADR alignment**
 - **Granularity** (tasks bite-sized, 2-5 minutes each)
 
-The coordinator processes findings via `receiving-review-findings`. Fix-loop cap: 2 iterations (hard). At cap, same escalation protocol as Stage 3 — user picks from iterate-with-guidance / override / accept-with-known-issues / abort.
+The coordinator processes findings via `ss-sdd-receiving-review-findings`. Fix-loop cap: 2 iterations (hard). At cap, same escalation protocol as Stage 3 — user picks from iterate-with-guidance / override / accept-with-known-issues / abort.
 
 ---
 
@@ -387,7 +387,7 @@ The coordinator tells the user:
 
 Possibilities:
 
-- **Approve**: advance to Stage 12 (`choosing-feature-branch`). No commit here — artifacts remain uncommitted through Stage 11.
+- **Approve**: advance to Stage 12 (`ss-sdd-choosing-feature-branch`). No commit here — artifacts remain uncommitted through Stage 11.
 - **Request changes**: coordinator applies inline, re-validates, re-asks.
 - **Loop back to spec**: if the plan reveals a spec gap, the coordinator can return to earlier stages. (Practically rare — Stage 9 should catch most issues.)
 - **Reject and abandon**: coordinator exits.
@@ -398,7 +398,7 @@ Possibilities:
 
 ## Stage 12 — Choosing feature branch + batch commit
 
-**Skill:** `choosing-feature-branch` (inline)
+**Skill:** `ss-sdd-choosing-feature-branch` (inline)
 **Output:** branch decided (and optionally created); two thematic commits landing all SDD planning artifacts on the chosen branch.
 
 The skill asks the user a single 3-way prompt:
@@ -435,7 +435,7 @@ After commits, update `state.json` (`current_stage: implementing`, append `branc
 
 ## Stage 13 — Implementation (sub-pipeline)
 
-**Skill:** `implementing-plans` (inline; orchestrates subagents)
+**Skill:** `ss-sdd-implementing-plans` (inline; orchestrates subagents)
 **Output:** code changes, commits, updated `state.json` per task
 
 The skill drives the per-task loop. For each task in plan order:
@@ -451,7 +451,7 @@ The skill drives the per-task loop. For each task in plan order:
    - `{SPEC_PATH}`, `{PLAN_PATH}` — for targeted lookups only (e.g., verifying a cited `**Requirements:** FR-NNN`)
    - `{WORKING_DIR}` — repo root
 
-   The implementer subagent uses the `implementing-task` skill for guidance. If anything in the task is unclear, the implementer returns `NEEDS_CONTEXT` immediately (with what they need / what they tried / what they'd do if forced to guess) — they do NOT proceed and guess. The four statuses:
+   The implementer subagent uses the `ss-sdd-implementing-task` skill for guidance. If anything in the task is unclear, the implementer returns `NEEDS_CONTEXT` immediately (with what they need / what they tried / what they'd do if forced to guess) — they do NOT proceed and guess. The four statuses:
 
    | Status | Coordinator action |
    |---|---|
@@ -460,13 +460,13 @@ The skill drives the per-task loop. For each task in plan order:
    | NEEDS_CONTEXT | Read the "What you need / tried / forced-guess" sections; provide the missing context inline (from spec/plan); re-dispatch a fresh implementer with the answer appended. If the controller can't answer without user input, surface to user. Never auto-decide on the "forced guess" without confirming. |
    | BLOCKED | Assess: more context, more capable model, smaller pieces, or escalate to user. If commit failure (hook rejection, signing, missing identity), surface the commit error per the Commit Failure Protocol — never bypass with `--no-verify`. |
 
-3. **Dispatch spec-compliance reviewer** using `spec-compliance-reviewer-prompt.md` (dispatch envelope calling the `reviewing-task-compliance` skill). Inputs: task text, `SPEC_PATH`, `PLAN_PATH`, git SHA range. Returns Approved or Issues Found. If Issues Found, re-dispatch a fresh implementer with the findings appended; re-review. Cap: 3 iterations.
+3. **Dispatch spec-compliance reviewer** using `spec-compliance-reviewer-prompt.md` (dispatch envelope calling the `ss-sdd-reviewing-task-compliance` skill). Inputs: task text, `SPEC_PATH`, `PLAN_PATH`, git SHA range. Returns Approved or Issues Found. If Issues Found, re-dispatch a fresh implementer with the findings appended; re-review. Cap: 3 iterations.
 
-4. **Dispatch code-quality reviewer** (only after spec-compliance Approved) using `code-quality-reviewer-prompt.md` (calls the `reviewing-task-quality` skill). Returns findings categorized Critical / Important / Minor. Critical and Important block; Minor is noted but doesn't block. Cap: 3 iterations.
+4. **Dispatch code-quality reviewer** (only after spec-compliance Approved) using `code-quality-reviewer-prompt.md` (calls the `ss-sdd-reviewing-task-quality` skill). Returns findings categorized Critical / Important / Minor. Critical and Important block; Minor is noted but doesn't block. Cap: 3 iterations.
 
 5. **Mark task complete**: state file updates `tasks[T###]: "completed"`.
 
-After all tasks: dispatch a **final code reviewer** using the same code-quality prompt with `TASK_ID=final` and the branch-wide SHA range. The `reviewing-task-quality` skill has explicit "When TASK_ID is `final`" guidance — the reviewer expects a multi-file diff, prioritizes cross-cutting concerns (inconsistencies between tasks, integration points, cumulative drift), and de-prioritizes per-task issues.
+After all tasks: dispatch a **final code reviewer** using the same code-quality prompt with `TASK_ID=final` and the branch-wide SHA range. The `ss-sdd-reviewing-task-quality` skill has explicit "When TASK_ID is `final`" guidance — the reviewer expects a multi-file diff, prioritizes cross-cutting concerns (inconsistencies between tasks, integration points, cumulative drift), and de-prioritizes per-task issues.
 
 Once final review passes, write `final_review_completed: true` to state file.
 
@@ -490,7 +490,7 @@ Once final review passes, write `final_review_completed: true` to state file.
 
 ## Stage 14 — Feature testing (optional, user-gated)
 
-**Skill:** `testing-implementation` (inline; orchestrates subagents)
+**Skill:** `ss-sdd-testing-implementation` (inline; orchestrates subagents)
 **Output:** test result in `state.json`
 
 The coordinator asks:
@@ -520,13 +520,13 @@ On `yes`:
    | FAIL | Dispatch fresh fixer subagent (using `fixer-prompt.md`) with the failure list. Re-test after fixes. Cap: 3 iterations. After 3, escalate to user. |
    | MCP_UNAVAILABLE | **CRITICAL: the coordinator MUST NOT try to test the feature itself.** Present the tester's manual test plan + code-review findings to the user. Ask whether to (a) run manual tests now, (b) skip testing and advance, (c) pause SDD so the user can configure the missing MCP. |
 
-   This last rule is **load-bearing**: the testing-implementation skill repeats it in five different places. Coordinators that have access to Bash/Playwright/curl will be tempted to "just check the feature works." That's not their job; testing is delegated.
+   This last rule is **load-bearing**: the ss-sdd-testing-implementation skill repeats it in five different places. Coordinators that have access to Bash/Playwright/curl will be tempted to "just check the feature works." That's not their job; testing is delegated.
 
 ---
 
 ## Stage 15 — Generate handoff (optional, user-gated)
 
-**Subagent:** fresh subagent invoking `generating-handoff`
+**Subagent:** fresh subagent invoking `ss-sdd-generating-handoff`
 **Output:** `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`
 
 The coordinator asks:
@@ -543,7 +543,7 @@ Dispatch:
 ```
 You are generating the handoff document for the SDD pipeline.
 
-Use the `generating-handoff` skill.
+Use the `ss-sdd-generating-handoff` skill.
 
 STATE_PATH: .sublime-skills/state.json
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
@@ -576,7 +576,7 @@ After the handoff doc is written, the coordinator updates `state.json` with the 
 
 ## Stage 16 — Maintain memory file (optional, user-gated)
 
-**Subagent:** fresh subagent invoking `maintaining-memory-file`
+**Subagent:** fresh subagent invoking `ss-sdd-maintaining-memory-file`
 **Output:** possibly an updated agent memory file (`CLAUDE.md` / `AGENTS.md` / `GEMINI.md` / `.agents.md`); often, no update
 
 Most features don't change project-level truth. This stage exists because when they DO, keeping the memory file in sync is a real, valuable chore that's tedious to do manually — and a stale memory file actively misleads future agents.
@@ -616,7 +616,7 @@ Three outcomes:
 
 ## Stage 17 — Finishing
 
-**Skill:** `finishing-sdd` (inline)
+**Skill:** `ss-sdd-finishing` (inline)
 **Output:** summary report; state file deleted (no commit — `.sublime-skills/state.json` is gitignored).
 
 SDD V1 explicitly does NOT manage branches or merges. Stage 17 is just bookkeeping:
@@ -647,7 +647,7 @@ After Stage 17: the user decides what to do with the feature branch (merge, PR, 
 
 The pipeline is forward-flowing by default, but you can iterate:
 
-- **Spec changes during plan review (Stage 9-10)**: if the plan reviewer surfaces a spec gap, the coordinator can apply minor edits to the spec inline (re-running the spec validator) without going back through Stage 3. For substantive spec changes, the coordinator returns to Stage 8 (writing-plans) after the spec is updated — Stage 7 was already approved; the spec change is treated as a fix not a redo unless the user requests otherwise.
+- **Spec changes during plan review (Stage 9-10)**: if the plan reviewer surfaces a spec gap, the coordinator can apply minor edits to the spec inline (re-running the spec validator) without going back through Stage 3. For substantive spec changes, the coordinator returns to Stage 8 (ss-sdd-writing-plans) after the spec is updated — Stage 7 was already approved; the spec change is treated as a fix not a redo unless the user requests otherwise.
 
 - **Plan changes during implementation (Stage 13)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator surfaces to the user. The user may want to revise the plan and re-enter Stage 8, or override the issue manually.
 

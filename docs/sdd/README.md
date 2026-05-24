@@ -1,14 +1,14 @@
 # Spec-Driven Development (SDD) — Documentation
 
-A reliable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 21 coordinated skills (sdd-coordinator + 20 phase/subagent skills) plus 6 shared scripts and 2 state-schema files. A per-feature state file makes interrupted runs resumable within the same conversation.
+A reliable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 21 coordinated skills (ss-sdd-coordinator + 20 phase/subagent skills) plus 6 shared scripts and 2 state-schema files. A per-feature state file makes interrupted runs resumable within the same conversation.
 
-This document set is the canonical reference. The skill files under `spec-driven-development/<skill>/SKILL.md` are the operational specs that the AI executes; these docs are the human-readable explanations of how everything fits together.
+This document set is the canonical reference. The skill files under `skills/spec-driven-development/<skill>/SKILL.md` are the operational specs that the AI executes; these docs are the human-readable explanations of how everything fits together.
 
 ---
 
 ## TL;DR
 
-You invoke `sdd-coordinator` with a feature description. It walks the pipeline:
+You invoke `ss-sdd-coordinator` with a feature description. It walks the pipeline:
 
 ```
 preflight → discover → spec → reviews → ADRs → user approval
@@ -43,15 +43,15 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 
 ## Quickstart
 
-**First-time setup on a project:** invoke `bootstrapping-project` (in the `project-bootstrap/` family) manually. It walks you through each convention file via five inline conversational `discovering-<topic>` skills (constitution / architecture / glossary / domain-model / design) and scaffolds:
+**First-time setup on a project:** invoke `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family) manually. It walks you through each convention file via five inline conversational `ss-bs-discovering-<topic>` skills (constitution / architecture / glossary / domain-model / design) and scaffolds:
 - `docs/constitution.md` (optional project-wide principles)
 - `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
-- `.sublime-skills/config.yml` (copied from `project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
+- `.sublime-skills/config.yml` (copied from `skills/project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
 - `docs/adr/`, `docs/specs/` directories with README stubs
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
 
-**Starting a feature:** make sure you're on `main` (or `master`) with a clean working tree, then invoke `sdd-coordinator`. It will:
+**Starting a feature:** make sure you're on `main` (or `master`) with a clean working tree, then invoke `ss-sdd-coordinator`. It will:
 1. Run preflight checks (will abort if dirty or on a wrong branch — clean up first)
 2. Interview you to understand the feature
 3. Write a spec, run automated and optional manual reviews, capture ADRs
@@ -61,7 +61,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 7. Generate a handoff doc
 8. Wrap up (merge / PR / keep / discard) per your config or interactive choice
 
-**Resuming an interrupted run:** just invoke `sdd-coordinator` again. It checks for an existing state file at the start of every invocation and asks whether to resume.
+**Resuming an interrupted run:** just invoke `ss-sdd-coordinator` again. It checks for an existing state file at the start of every invocation and asks whether to resume.
 
 ---
 
@@ -96,9 +96,9 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 │       ├── README.md
 │       ├── pipeline.md
 │       └── ...
-└── spec-driven-development/               # the skills themselves
-    ├── sdd-coordinator/SKILL.md
-    ├── preflight-checks/SKILL.md
+└── skills/spec-driven-development/        # the skills themselves (in $SUBLIME_SKILLS_HOME, not the user's repo)
+    ├── ss-sdd-coordinator/SKILL.md
+    ├── ss-sdd-preflight-checks/SKILL.md
     ├── ... (19 more skills)
     └── framework/
         ├── discover-context.sh
@@ -116,7 +116,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 ## Key design properties at a glance
 
 - **Self-contained.** No runtime dependencies on external skill families (superpowers, kiro, spec-kit, etc.).
-- **Resumable.** A gitignored state file at `.sublime-skills/state.json` lets an interrupted conversation pick up where it left off (re-invoke `sdd-coordinator`; it offers to resume).
+- **Resumable.** A gitignored state file at `.sublime-skills/state.json` lets an interrupted conversation pick up where it left off (re-invoke `ss-sdd-coordinator`; it offers to resume).
 - **Coordinator is thin.** It's a state machine + dispatcher; all real work lives in dedicated phase-skills or subagents.
 - **Fresh context per task.** Per-task implementation uses fresh subagents (implementer + 2 reviewers). The coordinator's context stays clean.
 - **Abort-fast preflight.** No magic cleanup. If the repo isn't in a fit state, the user fixes it manually.
@@ -124,7 +124,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 - **TDD strict by default.** `[NO-TDD]` opt-out exists but is allowed only for tightly-scoped non-logic changes.
 - **Two-stage per-task review.** Spec compliance → then code quality. Different reviewers, different focus.
 - **User-gated optional stages.** 2nd spec/plan reviews, the grill, and feature testing are all opt-in per run.
-- **Findings via dedicated skill.** Review output is processed via `receiving-review-findings` — no performative agreement, verify before fixing, push back when reviewer is wrong.
+- **Findings via dedicated skill.** Review output is processed via `ss-sdd-receiving-review-findings` — no performative agreement, verify before fixing, push back when reviewer is wrong.
 - **Handoff doc at the end.** A redacted, summary-style document that lets a fresh agent continue work without re-reading everything.
 
 ---

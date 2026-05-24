@@ -56,6 +56,10 @@ ralph_emit() {
   printf '%s\n' "$*" >> "$EVENT_FILE"
 }
 
+ralph_tui_alive() {
+  [ "$RALPH_TUI" = "1" ] && [ -n "$TUI_PID" ] && kill -0 "$TUI_PID" 2>/dev/null
+}
+
 ralph_emit_text() {
   local type="$1"
   local text="$2"
@@ -65,7 +69,7 @@ ralph_emit_text() {
 }
 
 ralph_print() {
-  if [ "$RALPH_TUI" = "1" ]; then
+  if ralph_tui_alive; then
     ralph_emit_text message "$*"
   else
     echo "$*"
@@ -73,7 +77,7 @@ ralph_print() {
 }
 
 ralph_blank() {
-  if [ "$RALPH_TUI" = "1" ]; then
+  if ralph_tui_alive; then
     ralph_emit_text message ""
   else
     echo
@@ -84,7 +88,7 @@ ralph_capture_output() {
   local line
   while IFS= read -r line; do
     printf '%s\n' "$line" >> "$OUTPUT_FILE"
-    if [ "$RALPH_TUI" = "1" ]; then
+    if ralph_tui_alive; then
       ralph_emit_text log "$line"
       if [[ "$line" == *"▶ Step "* ]]; then
         ralph_emit_text step "$line"
@@ -104,7 +108,7 @@ ralph_heartbeat_loop() {
     local elapsed=$(( $(date +%s) - ITER_START ))
     local mins=$(( elapsed / 60 ))
     local secs=$(( elapsed % 60 ))
-    if [ "$RALPH_TUI" = "1" ]; then
+    if ralph_tui_alive; then
       ralph_emit "heartbeat	$(date +%s)	$elapsed"
     else
       printf "  heartbeat: %dm%02ds elapsed, still running...\n" "$mins" "$secs"

@@ -7,7 +7,7 @@ and teams alike.
 
 ## Skills
 
-### [architecture-review](engineering/architecture-review/)
+### [architecture-review](skills/engineering/architecture-review/)
 
 Reviews a codebase for architectural friction and proposes concrete
 refactoring opportunities — turning **shallow**, leaky modules into
@@ -19,7 +19,7 @@ interfaces). Design-only — it stops at an agreed design and doesn't
 implement the change. Uses a project domain glossary and ADRs if they
 exist, but requires neither.
 
-### [browser-tools](web-utilities/browser-tools/)
+### [ss-web-browser-tools](skills/web-utilities/ss-web-browser-tools/)
 
 Interactive Chromium browser automation and debugging over the Chrome
 DevTools Protocol — a self-contained, MCP-free alternative to Puppeteer MCP
@@ -37,7 +37,7 @@ A set of plain CLI scripts covering:
 - **Debugging** — console and network capture, performance traces,
   page-content extraction, screenshots.
 
-### [restrict-git-commands](workflow/restrict-git-commands/)
+### [restrict-git-commands](skills/workflow/restrict-git-commands/)
 
 A baseline policy preventing destructive git operations (`push`,
 `reset --hard`, `clean -f`, `branch -D`, `checkout .` / `restore .`) from
@@ -46,11 +46,62 @@ load the skill at session start (or whenever about to run git commands)
 and the agent commits to asking before any irreversible operation, with
 the exact command and consequence named in each ask. A reference Claude
 Code `PreToolUse` hook script is bundled at
-`workflow/restrict-git-commands/scripts/block-dangerous-git.sh` as an
+`skills/workflow/restrict-git-commands/scripts/block-dangerous-git.sh` as an
 optional drop-in for users who want deterministic harness-level
 enforcement on top of the instruction layer.
 
-### [web-search](web-utilities/web-search/)
+### Agile (GitHub-issue workflow)
+
+A family of skills + slash commands for driving development off GitHub
+issues, organized into milestones-as-sprints. Coordinator + subagent
+pattern: an orchestrator picks the next issue from the current milestone
+and dispatches implementer and polisher subagents to drive it end-to-end,
+ending in a local merge. Designed to be invoked autonomously (e.g. from a
+ralph-loop wrapper) until all milestones close — no user-approval pauses
+in the inner flow.
+
+Loop wrappers live under [`scripts/`](scripts/): use
+`ralph-loop-claude-code.sh` for Claude Code, or `ralph-loop-codex.sh` for
+Codex CLI. The Codex wrapper takes the complete `codex exec ...` command as
+a quoted argument so the caller controls model, reasoning effort, and other
+CLI flags per run.
+
+All `gh` CLI interaction goes through the `ss-agile-managing-issues`
+reference skill, which covers the full `gh issue` surface plus milestone
+management (which `gh` only exposes via `gh api`).
+
+#### [ss-agile-advancing-milestones](skills/agile/ss-agile-advancing-milestones/)
+
+The coordinator. Auto-selects the current milestone (lowest-numbered open
+one), picks the next logical issue, drives it through implementation +
+polish + local merge by dispatching subagents. Session scope: one issue
+per invocation; ends in one of three terminal states (merged-one-issue,
+all-milestones-closed, milestone-stuck). Designed for repeated invocation
+by an outer wrapper.
+
+#### [ss-agile-implementing-an-issue](skills/agile/ss-agile-implementing-an-issue/)
+
+Subagent skill. Implements a single GitHub issue on an already-checked-out
+feature branch — coordinator briefs with the issue body and acceptance
+criteria; implementer codes, commits locally, reports back. Does not pick
+issues, open PRs, or merge.
+
+#### [ss-agile-polishing-an-issue](skills/agile/ss-agile-polishing-an-issue/)
+
+Subagent skill. Polishes the implementer's diff — naming, comments,
+structure, error messages, dead-code removal — within the scope of the
+existing diff. Has NO veto power, NEVER blocks the merge; "no changes" is
+a valid outcome. Also does a lightweight acceptance-criteria sanity check
+and flags possibly-unmet items as info.
+
+#### [ss-agile-managing-issues](skills/agile/ss-agile-managing-issues/)
+
+Pure reference skill for the `gh` CLI's `gh issue` surface plus milestone
+management via `gh api`. Loaded by autonomous agile skills; insists on
+non-interactive flags (`--title`, `--body`, `--body-file -`, `--yes`),
+never `--web`.
+
+### [ss-web-search](skills/web-utilities/ss-web-search/)
 
 Web search for AI agents via a self-hosted
 [SearXNG](https://docs.searxng.org/) instance — a self-contained, MCP-free
@@ -65,11 +116,11 @@ and safe-search level. The SearXNG endpoint is configured via the
 ### Spec-driven development
 
 A 21-skill family for running structured, spec-driven feature development
-end-to-end (plus a separate 6-skill `project-bootstrap/` family for
+end-to-end (plus a separate 6-skill `skills/project-bootstrap/` family for
 one-time project setup — see below). The pipeline: **preflight → discover
 → spec → reviews → ADRs → plan → reviews → per-task implementation →
 optional feature testing → handoff doc → memory file → finish**. Coordinated
-by `sdd-coordinator`, which is the only entry point the user invokes —
+by `ss-sdd-coordinator`, which is the only entry point the user invokes —
 every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
 skill families), resumable after an interruption via a gitignored state
@@ -78,14 +129,14 @@ file at `.sublime-skills/state.json`, and configurable via `.sublime-skills/conf
 live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
 at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
-Shared scripts at `spec-driven-development/framework/`:
+Shared scripts at `skills/spec-driven-development/framework/`:
 - `discover-context.sh` — reads project convention file paths from
   `.sublime-skills/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
   `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can
   load relevant context from a single source of truth.
 - `validate-config.sh` — validates `.sublime-skills/config.yml` end-to-end (YAML
   shape, required keys, context-path resolution, enum values). Used by
-  `bootstrapping-project`'s fix-and-retry loop and by `preflight-checks`
+  `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight-checks`
   (Stage 0 of the SDD pipeline) to halt if the config is missing or
   invalid.
 - `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
@@ -93,7 +144,7 @@ Shared scripts at `spec-driven-development/framework/`:
   format violations (missing sections, placeholders, forbidden diagram
   syntax, unredacted secrets) before the artifact is committed.
 
-#### [sdd-coordinator](spec-driven-development/sdd-coordinator/)
+#### [ss-sdd-coordinator](skills/spec-driven-development/ss-sdd-coordinator/)
 
 Entry point for SDD runs. Thin state machine + dispatcher — knows the
 18-stage pipeline, checks for an existing per-feature state file on
@@ -106,7 +157,7 @@ testing). Critically: never tests the feature itself — if the tester
 subagent reports MCP unavailability, the coordinator surfaces a manual
 test plan rather than improvising.
 
-#### [preflight-checks](spec-driven-development/preflight-checks/)
+#### [ss-sdd-preflight-checks](skills/spec-driven-development/ss-sdd-preflight-checks/)
 
 First stage of an SDD run. A permissive validation gate that confirms
 `.sublime-skills/config.yml` is valid, the current directory is inside
@@ -114,10 +165,10 @@ a git repo, and HEAD is attached to a named branch. Dirty working trees
 are allowed (with a one-time warn-and-confirm) — SDD's commits are
 path-scoped to its own artifacts, so the user's pre-existing dirty
 files stay untouched. Does NOT create branches: that decision happens
-later at Stage 12 (`choosing-feature-branch`), right before
+later at Stage 12 (`ss-sdd-choosing-feature-branch`), right before
 implementation.
 
-#### [discovering-requirements](spec-driven-development/discovering-requirements/)
+#### [ss-sdd-discovering-requirements](skills/spec-driven-development/ss-sdd-discovering-requirements/)
 
 Interactive discovery conversation. One question at a time, multiple
 choice with a recommended answer where possible. Walks the user through
@@ -126,9 +177,9 @@ constraints, and integration points — skipping dimensions already
 covered. Surfaces 2-3 alternatives with recommendations for major design
 decisions. Includes a scope check that catches and decomposes too-big
 feature requests. Output is shared understanding in the coordinator's
-context, not a written artifact — `writing-specs` renders it next.
+context, not a written artifact — `ss-sdd-writing-specs` renders it next.
 
-#### [writing-specs](spec-driven-development/writing-specs/)
+#### [ss-sdd-writing-specs](skills/spec-driven-development/ss-sdd-writing-specs/)
 
 Renders the agreed understanding from discovery into `spec.md` at
 `docs/specs/NNN-short-name/spec.md`. Opinionated structure: user stories
@@ -138,9 +189,9 @@ SC-### success criteria, key entities, edge cases, assumptions,
 out-of-scope. EARS format allowed where precision matters. Initializes
 the state file. Forbids Mermaid/C4/PlantUML/ASCII diagrams. Includes
 automated schema validation (`validate-spec.sh`) followed by an inline
-fresh-eyes pass before handing off to `reviewing-specs`.
+fresh-eyes pass before handing off to `ss-sdd-reviewing-specs`.
 
-#### [reviewing-specs](spec-driven-development/reviewing-specs/)
+#### [ss-sdd-reviewing-specs](skills/spec-driven-development/ss-sdd-reviewing-specs/)
 
 Subagent skill. Independent fresh-eyes review of a spec before plan
 writing. Detection passes: completeness, internal consistency, clarity/
@@ -150,7 +201,7 @@ read-only — does not modify files. Calibrated to approve unless there's
 a real CRITICAL/HIGH finding (noisy reviewers get ignored). Used for
 both the mandatory first pass and the optional second pass.
 
-#### [grilling-specs](spec-driven-development/grilling-specs/)
+#### [ss-sdd-grilling-specs](skills/spec-driven-development/ss-sdd-grilling-specs/)
 
 Optional bounded grill that interviews the user about weak/unclear/
 underspecified areas of the spec, with a recommended answer per
@@ -161,7 +212,7 @@ the grill produces only actionable changes, no manufactured edits.
 Stop conditions: user signals done, all high-impact areas resolved, or
 hard cap (default 10, configurable, hard ceiling 20).
 
-#### [maintaining-adrs](spec-driven-development/maintaining-adrs/)
+#### [ss-sdd-maintaining-adrs](skills/spec-driven-development/ss-sdd-maintaining-adrs/)
 
 Subagent skill. Reads the spec and existing ADRs, identifies decisions
 that warrant new ADR records (architectural, with real alternatives,
@@ -171,7 +222,7 @@ Alternatives Considered). Avoids duplicates against existing ADRs; marks
 supersession explicitly when applicable. Returns 0 ADRs as a valid
 outcome — not every spec needs new ADRs.
 
-#### [writing-plans](spec-driven-development/writing-plans/)
+#### [ss-sdd-writing-plans](skills/spec-driven-development/ss-sdd-writing-plans/)
 
 Renders the approved spec into `plan.md` at
 `docs/specs/NNN-short-name/plan.md`. Tasks are organized into phases by
@@ -187,7 +238,7 @@ Forbids placeholders, Mermaid/C4/PlantUML/ASCII diagrams, and references
 to things not defined in the plan or codebase. Includes automated schema
 validation (`validate-plan.sh`).
 
-#### [reviewing-plans](spec-driven-development/reviewing-plans/)
+#### [ss-sdd-reviewing-plans](skills/spec-driven-development/ss-sdd-reviewing-plans/)
 
 Subagent skill. Independent review of an implementation plan before
 per-task execution. Detection passes: spec coverage (every FR has a
@@ -196,7 +247,7 @@ discipline, `[P]` correctness, story independence (MVP-first),
 constitution/ADR alignment, granularity. Findings categorized
 CRITICAL / HIGH / MEDIUM / LOW. Strict read-only.
 
-#### [choosing-feature-branch](spec-driven-development/choosing-feature-branch/)
+#### [ss-sdd-choosing-feature-branch](skills/spec-driven-development/ss-sdd-choosing-feature-branch/)
 
 Stage 12: branching decision + batch commit. After plan approval, asks
 the user via a 3-way prompt whether to create a feature branch (default
@@ -206,7 +257,7 @@ then batch-commits all SDD planning artifacts (spec, plan, ADRs) in
 two thematic, **path-scoped** commits on the chosen branch.
 Path-scoping protects the user's pre-existing dirty files.
 
-#### [implementing-plans](spec-driven-development/implementing-plans/)
+#### [ss-sdd-implementing-plans](skills/spec-driven-development/ss-sdd-implementing-plans/)
 
 Per-task orchestration loop. For each task in plan order: dispatch
 implementer subagent → handle status (DONE / DONE_WITH_CONCERNS /
@@ -218,7 +269,7 @@ Continuous execution between tasks — no needless check-ins. Includes
 three prompt templates as separate files (implementer-prompt.md,
 spec-compliance-reviewer-prompt.md, code-quality-reviewer-prompt.md).
 
-#### [implementing-task](spec-driven-development/implementing-task/)
+#### [ss-sdd-implementing-task](skills/spec-driven-development/ss-sdd-implementing-task/)
 
 Protocol skill loaded by implementer subagents when dispatched per task.
 Covers scope discipline (with concrete in-scope vs out-of-scope
@@ -230,7 +281,7 @@ table calling out the most common scope-creep traps. Includes the
 "your work will be reviewed" priming that measurably improves output
 quality.
 
-#### [reviewing-task-compliance](spec-driven-development/reviewing-task-compliance/)
+#### [ss-sdd-reviewing-task-compliance](skills/spec-driven-development/ss-sdd-reviewing-task-compliance/)
 
 Protocol skill loaded by the first-stage per-task reviewer subagent.
 Spec-compliance checks only: coverage + FR traceability, scope creep
@@ -242,7 +293,7 @@ discipline — does NOT flag code quality, naming, or idiom (that's the
 next reviewer). Calibrated to approve clean work and call out real
 problems, not manufacture issues.
 
-#### [reviewing-task-quality](spec-driven-development/reviewing-task-quality/)
+#### [ss-sdd-reviewing-task-quality](skills/spec-driven-development/ss-sdd-reviewing-task-quality/)
 
 Protocol skill loaded by the second-stage per-task reviewer subagent
 after spec compliance is approved. Six-dimension code review:
@@ -254,7 +305,7 @@ maintainability. Severity rubric: Critical (correctness/security/data),
 Important (idiom/readability), Minor (style preferences). Style is
 never Critical. Does NOT re-check spec compliance or re-run tests.
 
-#### [testing-implementation](spec-driven-development/testing-implementation/)
+#### [ss-sdd-testing-implementation](skills/spec-driven-development/ss-sdd-testing-implementation/)
 
 Optional feature-level testing stage (user-gated, default yes).
 Dispatches a tester subagent that chooses strategy based on the feature
@@ -264,11 +315,11 @@ always). Three possible results: **PASS**, **FAIL** (triggers fix-loop
 with hard cap of 3 iterations before escalating), **MCP_UNAVAILABLE**
 (coordinator surfaces a manual test plan + code-review findings to user;
 explicitly forbidden from testing itself). The tester and fixer
-subagents load full protocol skills (`testing-feature` and
-`fixing-test-failures` respectively); the prompts in this directory are
+subagents load full protocol skills (`ss-sdd-testing-feature` and
+`ss-sdd-fixing-test-failures` respectively); the prompts in this directory are
 dispatch envelopes only.
 
-#### [testing-feature](spec-driven-development/testing-feature/)
+#### [ss-sdd-testing-feature](skills/spec-driven-development/ss-sdd-testing-feature/)
 
 Protocol skill loaded by the tester subagent. Strategy selection by
 feature type (UI / backend / library / mixed), explicit tool inventory
@@ -280,7 +331,7 @@ when straightforward, marked "not exercised" otherwise. Hard rule
 against fabricating results — if you can't run real tools, return
 MCP_UNAVAILABLE.
 
-#### [fixing-test-failures](spec-driven-development/fixing-test-failures/)
+#### [ss-sdd-fixing-test-failures](skills/spec-driven-development/ss-sdd-fixing-test-failures/)
 
 Protocol skill loaded by the fixer subagent. Narrow-scope fix discipline
 (no adjacent refactors, no spec/plan edits), per-failure diagnose →
@@ -289,7 +340,7 @@ fix → verify via the tester's exact reproduction. Four-status protocol
 rule that any unverified failure = BLOCKED, never DONE. One commit per
 failure when separable, grouped by root cause when shared.
 
-#### [finishing-sdd](spec-driven-development/finishing-sdd/)
+#### [ss-sdd-finishing](skills/spec-driven-development/ss-sdd-finishing/)
 
 Final stage. Reads the state file, prints a structured summary of what
 the pipeline produced (feature_id, spec/plan/handoff paths, ADRs,
@@ -299,7 +350,7 @@ explicitly does NOT manage source control — no merging, PR creation, or
 branch deletion. The user decides what to do with the feature branch
 after SDD ends.
 
-#### [generating-handoff](spec-driven-development/generating-handoff/)
+#### [ss-sdd-generating-handoff](skills/spec-driven-development/ss-sdd-generating-handoff/)
 
 Subagent skill. Reads spec, plan, ADRs, state file, and git log to
 produce a self-contained handoff document at
@@ -311,7 +362,7 @@ sensitive env-var assignments before writing. Schema-validated via
 `validate-handoff.sh`. Optimized for the "iterating on PR feedback in a
 fresh session" use case.
 
-#### [maintaining-memory-file](spec-driven-development/maintaining-memory-file/)
+#### [ss-sdd-maintaining-memory-file](skills/spec-driven-development/ss-sdd-maintaining-memory-file/)
 
 Subagent skill. After each SDD run, decides whether the project's agent
 memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md` — auto-
@@ -327,7 +378,7 @@ to explain. Includes a substantial Best Practices section on what
 memory files are for, what they're NOT for, healthy size ranges, update
 cadence, pruning, and anti-patterns to avoid.
 
-#### [receiving-review-findings](spec-driven-development/receiving-review-findings/)
+#### [ss-sdd-receiving-review-findings](skills/spec-driven-development/ss-sdd-receiving-review-findings/)
 
 Inline skill loaded by the coordinator whenever a reviewer subagent
 returns findings on a spec or plan (Stages 3, 5, 9, 10). Borrows from
@@ -335,31 +386,31 @@ superpowers' `receiving-code-review`: no performative agreement, verify
 before fixing, push back with technical reasoning when the reviewer is
 wrong, track push-backs in state file, surface to user when findings
 need human judgment. Per-task reviews stay handled by
-`implementing-plans` (different dynamic — fresh implementer re-dispatch).
+`ss-sdd-implementing-plans` (different dynamic — fresh implementer re-dispatch).
 
 ### project-bootstrap (separate family)
 
 One-time project setup — a coordinator plus five inline conversational
 discovering-X skills. Lives under
-[`project-bootstrap/`](project-bootstrap/), separate from the SDD family.
+[`skills/project-bootstrap/`](skills/project-bootstrap/), separate from the SDD family.
 Invoked manually by the user, not by the SDD coordinator.
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics,
 troubleshooting), see [`docs/bootstrap.md`](docs/bootstrap.md).
 
-#### [bootstrapping-project](project-bootstrap/bootstrapping-project/)
+#### [ss-bs-bootstrapping-project](skills/project-bootstrap/ss-bs-bootstrapping-project/)
 
 The coordinator. Walks the user through each convention file: detect
 existing → ask `Skip / Extend / Replace` (or Create if missing) →
-load the matching `discovering-<topic>` skill inline → the skill
+load the matching `ss-bs-discovering-<topic>` skill inline → the skill
 handles its own scan, conversation, and atomic write.
 Then creates `docs/adr/`, `docs/specs/` with stub
 READMEs; copies the canonical config scaffold at
-`project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
+`skills/project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
 `context.<name>_path` to `null` for skipped files; runs
 `validate-config.sh` in a fix-and-retry loop until PASS; commits.
 
-#### [discovering-constitution](project-bootstrap/discovering-constitution/), [discovering-architecture](project-bootstrap/discovering-architecture/), [discovering-glossary](project-bootstrap/discovering-glossary/), [discovering-domain-model](project-bootstrap/discovering-domain-model/)
+#### [ss-bs-discovering-constitution](skills/project-bootstrap/ss-bs-discovering-constitution/), [ss-bs-discovering-architecture](skills/project-bootstrap/ss-bs-discovering-architecture/), [ss-bs-discovering-glossary](skills/project-bootstrap/ss-bs-discovering-glossary/), [ss-bs-discovering-domain-model](skills/project-bootstrap/ss-bs-discovering-domain-model/)
 
 Per-artifact inline conversational skills — loaded into the coordinator's
 own context (NOT dispatched as subagents). Each does
@@ -372,7 +423,7 @@ principles, deliberate boundaries, alias confirmations, workflow
 exceptions, lifecycle gaps). Each skill drafts, refines via a tweak
 loop (cap 3), and atomically writes its file itself.
 
-#### [discovering-design](project-bootstrap/discovering-design/)
+#### [ss-bs-discovering-design](skills/project-bootstrap/ss-bs-discovering-design/)
 
 Per-artifact inline conversational skill for the visual design system.
 Unique among the five for offering an **Import** path in addition to the
@@ -385,24 +436,101 @@ plus targeted user questions about theme intent, brand vibe, color role
 rules, and do's-and-don'ts. Uses one-question-at-a-time structured
 prompts with recommended options.
 
+## Slash commands
+
+Slash commands live as flat `.md` files under [`commands/`](commands/) — one file
+per command, no per-command directory. Claude Code reads them from
+`~/.claude/commands/<name>.md`, so installation is a symlink loop (see
+[`docs/SETUP.md`](docs/SETUP.md)). Each command file is named identically
+to how it'll be invoked: e.g. `commands/ss-agile-populate-issues.md` →
+`/ss-agile-populate-issues` in any session.
+
+#### [`/ss-agile-advance-milestones`](commands/ss-agile-advance-milestones.md)
+
+Zero-argument command — auto-picks the current milestone and advances it
+by one issue end-to-end (implement, polish, local merge). Loads the
+`ss-agile-advancing-milestones` skill. Designed for ralph-loop re-invocation
+until all milestones close.
+
+#### [`/ss-agile-populate-issues`](commands/ss-agile-populate-issues.md)
+
+Three-argument command (`<repo-url> <num-sprints> <path-to-goals-file>`)
+that plans and pre-populates N sprints' worth of GitHub issues from a
+goals document. Distributes work across milestones in a logical order.
+Loads the `ss-agile-managing-issues` skill for all `gh` interaction.
+
 ## Setup
 
 What each skill needs before its tools will run:
 
-### browser-tools
+### spec-driven-development + project-bootstrap
+
+The SDD pipeline and the bootstrap workflow both invoke shared scripts under
+`skills/spec-driven-development/framework/` and copy the canonical config scaffold
+from `skills/project-bootstrap/scaffolds/config.yml`. Those invocations resolve via
+the `SUBLIME_SKILLS_HOME` environment variable, which must point to the
+directory containing this `README.md` — i.e. wherever you've placed this
+repo.
+
+Export it once per machine. For fish (the recommended setup, since Claude
+Code is typically launched from a fish terminal), the cleanest option is a
+universal variable:
+
+```fish
+set -Ux SUBLIME_SKILLS_HOME ~/.claude/skills/sublime-skills
+```
+
+(Adjust the path to match where you cloned / copied this repo.)
+
+Alternatives if you launch Claude Code from outside a fish session
+(`.desktop` launchers, systemd units, other shells):
+
+```fish
+# ~/.config/fish/conf.d/sublime-skills.fish — runs on every fish startup
+set -gx SUBLIME_SKILLS_HOME ~/.claude/skills/sublime-skills
+```
+
+```
+# ~/.config/environment.d/sublime-skills.conf — systemd user-environment, shell-agnostic
+SUBLIME_SKILLS_HOME=%h/.claude/skills/sublime-skills
+```
+
+The skills fail loudly if `SUBLIME_SKILLS_HOME` is unset — the scripts
+won't silently look in the wrong place. If you see an error like
+`SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup`, the
+variable isn't exported in the shell that's running the skill.
+
+The scripts themselves locate sibling helpers via `$0` and the user's project
+via `git rev-parse --show-toplevel`, so neither the script directory layout
+nor the project's location matters once `SUBLIME_SKILLS_HOME` is set.
+
+To expose the skills globally, run the installer for your harness:
+
+```fish
+# Claude Code: skills plus slash commands
+$SUBLIME_SKILLS_HOME/scripts/install-claude.fish
+
+# Codex: skills only
+$SUBLIME_SKILLS_HOME/scripts/install-codex.fish
+```
+
+See `docs/SETUP.md` for the personal machine setup, symlink targets, and
+uninstall notes.
+
+### ss-web-browser-tools
 
 - **Node.js** 20, 22, or 24 LTS (Node 26 has a puppeteer extraction bug — see
   the skill's `SKILL.md`).
-- **`npm install`** in the `web-utilities/browser-tools/` directory — this also downloads a
+- **`npm install`** in the `skills/web-utilities/ss-web-browser-tools/` directory — this also downloads a
   private copy of Chromium (~150 MB, one-time), so no separate browser
   install is needed.
 
-### web-search
+### ss-web-search
 
 - **Node.js** 18 or newer (for the built-in `fetch`). No `npm install` — the
   skill has no dependencies.
 - **A reachable SearXNG instance** with the JSON format enabled (`json` listed
   under `search.formats` in its `settings.yml`).
 - The instance URL configured via the `SEARXNG_URL` environment variable, or
-  by copying `web-utilities/web-search/config.example.json` to
-  `web-utilities/web-search/config.json` and setting `searxng_url`.
+  by copying `skills/web-utilities/ss-web-search/config.example.json` to
+  `skills/web-utilities/ss-web-search/config.json` and setting `searxng_url`.
