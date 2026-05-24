@@ -51,7 +51,7 @@ After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 
 
 Through Stages 2–11, SDD writes files (spec, plan, ADRs) but does **not** commit them — they live uncommitted in the working tree. (`state.json` lives at `.sublime-skills/state.json` and is gitignored, so it's never committed in any stage.) The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits the spec/plan/ADRs on the user's chosen branch in two thematic commits. From Stage 13 onward, commits happen normally per stage.
 
-**Why:** Stage 12 is where the user decides which branch the work lives on. Committing earlier would force SDD to make a branch decision up front (or land commits on `main`/wherever the user happened to be).
+**Why:** Stage 12 is where SDD settles the feature branch (silently when unambiguous, with a prompt otherwise). Committing earlier would force a branch decision before `short_name` is known, or land commits on `main`/wherever the user happened to be.
 
 **Tradeoff:** if you `git stash`, `git restore`, or change branches mid-pipeline (Stages 0–11), the uncommitted SDD artifacts may be displaced. Don't do destructive git operations on a run that hasn't reached Stage 12 yet.
 
@@ -396,22 +396,19 @@ Possibilities:
 
 ---
 
-## Stage 12 — Choosing feature branch + batch commit
+## Stage 12 — Settle feature branch + batch commit
 
 **Skill:** `ss-sdd-choosing-feature-branch` (inline)
-**Output:** branch decided (and optionally created); two thematic commits landing all SDD planning artifacts on the chosen branch.
+**Output:** feature branch decided (and optionally created/switched); `branch_name` persisted to state; two thematic commits landing all SDD planning artifacts on that branch.
 
-The skill asks the user a single 3-way prompt:
+The skill applies an opinionated rule against the current branch (`git branch --show-current`):
 
-> About to start implementation for `<feature_id>`.
-> You're currently on `<current-branch>`. Choose:
-> 1. Create and switch to `<derived-name>` (from `branching.branch_pattern`) — recommended
-> 2. Use a different branch name
-> 3. Stay on `<current-branch>` — commits will land here
+- **`CURRENT == <derived-name>`** (e.g., already on `feat/<short-name>`): **silent stay.** Resume of a prior run, or deliberate build-on-top of a partial implementation.
+- **`CURRENT == "main"`** and the derived branch doesn't exist: **silent `git checkout -b <derived-name>`.** The happy path.
+- **`CURRENT == "main"`** and the derived branch already exists: prompt — switch to existing (default) / pick a different name / abort.
+- **Anything else** (e.g., `feat/some-other-feature`, `develop`): prompt — stay on current / create derived from current / abort. The prompt includes a mandatory **"merged to `main` and deleted at Stage 17"** warning on both proceeding options, since picking "stay" on a long-lived integration branch would delete it at Stage 17.
 
-On options 1 or 2: validates the chosen name, checks for collision, runs `git checkout -b`. The uncommitted spec/plan/ADR files travel with the working tree to the new branch (this is just how git works — uncommitted changes follow you across `checkout`). `.sublime-skills/state.json` is gitignored, so it also stays put across the switch.
-
-On option 3: no branch op.
+The derived name comes from `branching.branch_pattern` (default `feat/{short-name}`) with `{short-name}` substituted; if `state.work_type == "fix"` and the pattern starts with `feat/`, it's swapped to `fix/`. Uncommitted spec/plan/ADR files travel with the working tree across any `git checkout` (this is just how git works); `.sublime-skills/state.json` is gitignored so it also stays put across the switch.
 
 Then the skill batch-commits in two thematic, **path-scoped** commits (skipping any whose paths don't exist):
 
@@ -427,9 +424,9 @@ git commit -m "docs(adr): N decisions for NNN-short-name"
 
 **Path-scoping is mandatory.** Never `git add .` / `git add -A` — the user's pre-existing dirty files (which preflight allowed) must stay untouched.
 
-After commits, update `state.json` (`current_stage: implementing`, append `branch_chosen` to `stages_completed`, write `branch` if changed). Return to the coordinator.
+After commits, update `state.json` atomically with `current_stage: implementing`, `branch_chosen` appended to `stages_completed`, and `branch_name: "<chosen branch>"` (read by Stage 17 to know what to merge). Return to the coordinator.
 
-**On abort** (`branch_creation_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves (e.g., delete the conflicting branch, fix a pre-commit hook) and re-invokes the coordinator.
+**On abort** (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves (e.g., delete the conflicting branch, fix a pre-commit hook) and re-invokes the coordinator.
 
 ---
 
@@ -614,24 +611,36 @@ Three outcomes:
 
 ---
 
-## Stage 17 — Finishing
+## Stage 17 — Merge to `main` and finish
 
 **Skill:** `ss-sdd-finishing` (inline)
-**Output:** summary report; state file deleted (no commit — `.sublime-skills/state.json` is gitignored).
+**Output:** merge commit on `main`; feature branch deleted; summary report; state file deleted (no commit — `.sublime-skills/state.json` is gitignored).
 
-SDD V1 explicitly does NOT manage branches or merges. Stage 17 is just bookkeeping:
+Stage 17 closes the source-control loop with a fixed local-only workflow:
 
-1. **Validate state.** Read `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed`. If `test_status` is `failed_escalated` (or absent and testing wasn't skipped), ask the user "Tests aren't in a passing state. Finish anyway?" before proceeding. (**No** final test re-run — Stage 14 was the test gate.)
+1. **Validate state.** Read `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed` and `branch_name` is set. If `test_status` is `failed_escalated` (or absent and testing wasn't skipped), ask the user "Tests aren't in a passing state. Finish anyway?" before proceeding. (**No** final test re-run — Stage 14 was the test gate.)
 
-2. **Print summary.** A structured report including: feature_id, short_name, started_at, current branch, spec/plan/handoff paths, ADRs created (count + IDs), tasks completed, test_status, memory_file_updated.
+2. **Print summary.** A structured report including: feature_id, short_name, started_at, feature branch (about to be merged + deleted), spec/plan/handoff paths, ADRs created (count + IDs), tasks completed, test_status, memory_file_updated.
 
-3. **Delete state file.** Plain `rm` — the file is gitignored, so no `git rm` and no commit:
+3. **Merge to `main` and delete the feature branch.** Hardcoded workflow — no prompts, no configuration:
+
+   ```bash
+   git checkout main
+   git merge --no-ff "$branch_name" -m "Merge branch '$branch_name'"
+   git branch -d "$branch_name"   # safe-delete; refuses if not fully merged
+   ```
+
+   On merge failure (conflicts, hook rejection, signing failure): halt and surface git's output verbatim. Do NOT auto-`git merge --abort`. Do NOT delete the branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit or `git merge --abort` and investigate), then re-invokes the coordinator. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes.
+
+   On `git branch -d` failure (branch unexpectedly not fully merged): halt and surface; do NOT escalate to `git branch -D`.
+
+4. **Delete state file.** Plain `rm` — the file is gitignored, so no `git rm` and no commit:
 
    ```bash
    rm .sublime-skills/state.json
    ```
 
-After Stage 17: the user decides what to do with the feature branch (merge, PR, leave it). SDD is done.
+After Stage 17: SDD is done. The user is on `main`, the merge commit is in history, the feature branch is gone. No push — that's the user's call.
 
 ---
 

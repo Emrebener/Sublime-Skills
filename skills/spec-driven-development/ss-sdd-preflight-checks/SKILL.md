@@ -181,11 +181,11 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 |---|---|
 | Skipping the config validation step | Mandatory and FIRST — every path the rest of the pipeline reads comes from `.sublime-skills/config.yml`. |
 | Trying to repair `.sublime-skills/config.yml` inline when it fails validation | Don't — abort with `config_invalid` and direct the user to `ss-bs-bootstrapping-project`. |
-| Aborting on a dirty working tree | This is now a WARN, not an abort. Ask the user; default to proceeding if they confirm. |
+| Aborting on a dirty working tree | A dirty tree is a WARN, not an abort. Ask the user; default to proceeding if they confirm. |
 | Trying to commit/stash/discard dirty files | NEVER — SDD lets the user keep their dirty files; path-scoped commits protect them. |
 | Trying to create a feature branch here | NEVER — that's Stage 12's job. Preflight just validates that a branch exists. |
 | Auto-`git init`ing a non-repo | NEVER — surface the abort message and let the user run `git init` themselves. |
-| Aborting on detached HEAD only when state files exist | Detached HEAD is now an UNCONDITIONAL abort. SDD needs a named branch. |
+| Aborting on detached HEAD only when state files exist | Detached HEAD is an UNCONDITIONAL abort. SDD needs a named branch. |
 | Trying to write a state file from this skill | The state file doesn't exist yet — only `ss-sdd-writing-specs` initializes it. |
 | Dispatching a subagent for any work | NEVER — preflight runs entirely inline. |
 

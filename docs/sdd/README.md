@@ -21,7 +21,7 @@ optional feature testing
         ↓
 handoff doc generation
         ↓
-finishing (merge / PR / keep / discard)
+finishing (`git merge --no-ff` to `main`, safe-delete the feature branch, `rm` state)
 ```
 
 Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + per-task spec-compliance review + per-task code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
@@ -51,15 +51,17 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
 
-**Starting a feature:** make sure you're on `main` (or `master`) with a clean working tree, then invoke `ss-sdd-coordinator`. It will:
-1. Run preflight checks (will abort if dirty or on a wrong branch — clean up first)
+**Starting a feature:** invoke `ss-sdd-coordinator` from `main` (the common case) or from an existing feature branch you want to build on top of. It will:
+1. Run preflight checks (warns and asks if your working tree is dirty; aborts on detached HEAD)
 2. Interview you to understand the feature
 3. Write a spec, run automated and optional manual reviews, capture ADRs
 4. Get your approval, write a plan, run reviews, get your approval
-5. Execute the plan task-by-task with fresh implementer + reviewer subagents
-6. Optionally run feature tests
-7. Generate a handoff doc
-8. Wrap up (merge / PR / keep / discard) per your config or interactive choice
+5. Settle the feature branch (auto-silent on `main` / on derived name; ambiguity prompt otherwise) and batch-commit spec / plan / ADRs
+6. Execute the plan task-by-task with fresh implementer + reviewer subagents
+7. Optionally run feature tests
+8. Generate a handoff doc
+9. Update the memory file if applicable
+10. Merge the feature branch into `main` with `--no-ff` and safe-delete it on success (local only — no push)
 
 **Resuming an interrupted run:** just invoke `ss-sdd-coordinator` again. It checks for an existing state file at the start of every invocation and asks whether to resume.
 

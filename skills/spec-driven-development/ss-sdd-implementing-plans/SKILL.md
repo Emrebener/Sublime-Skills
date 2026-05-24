@@ -23,7 +23,7 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 ## Hard Gates
 
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
-- Do NOT start implementation on main/master without explicit user consent — preflight should have moved you to a feature branch
+- Do NOT start implementation on `main` or `master` — Stage 12 (`ss-sdd-choosing-feature-branch`) should have settled the work onto a feature branch by the time you run. If `git branch --show-current` returns `main`/`master`, something went wrong upstream; halt and surface.
 - Do NOT skip reviews. Each task goes through both spec compliance AND code quality.
 - Do NOT proceed to the next task while either review has open issues
 - Do NOT dispatch multiple implementer subagents in parallel — sequential is the rule; conflicts otherwise
@@ -263,7 +263,7 @@ When a BLOCKED implementer needed more reasoning, re-dispatch with a more capabl
 - About to dispatch two implementers in parallel → STOP; sequential only
 - About to "fix it myself" inline instead of dispatching a fresh implementer → STOP; protect controller context
 - Review loop hitting iteration 4 → STOP and escalate
-- About to start a task on a different branch than expected → STOP and verify preflight state
+- About to start a task on `main`/`master` or a branch other than the one Stage 12 settled on (`state.branch_name`) → STOP and surface; branch was set at Stage 12, not preflight
 - About to type `git add -f .sublime-skills/state.json` → STOP
 - About to edit `.sublime-skills/.gitignore` → STOP
 

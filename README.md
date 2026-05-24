@@ -345,11 +345,13 @@ failure when separable, grouped by root cause when shared.
 
 Final stage. Reads the state file, prints a structured summary of what
 the pipeline produced (feature_id, spec/plan/handoff paths, ADRs,
-tasks, test status, branch info), then deletes `.sublime-skills/state.json`
-via plain `rm` (no commit; the file is gitignored throughout). V1
-explicitly does NOT manage source control — no merging, PR creation, or
-branch deletion. The user decides what to do with the feature branch
-after SDD ends.
+tasks, test status, branch info), then closes the loop:
+`git checkout main && git merge --no-ff <branch_name>` and safe-delete
+the feature branch on success. Last step is `rm .sublime-skills/state.json`
+via plain `rm` (no commit; the file is gitignored throughout).
+Local-only — no push, no PR. If the merge fails (conflicts, hook
+rejection), the skill halts and leaves the working tree as-is; re-
+invocation is naturally idempotent once the merge is resolved.
 
 #### [ss-sdd-generating-handoff](skills/spec-driven-development/ss-sdd-generating-handoff/)
 

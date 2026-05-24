@@ -49,6 +49,11 @@
       "type": ["string", "null"],
       "description": "Set by ss-sdd-writing-plans at Stage 8"
     },
+    "branch_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The branch the user committed to at Stage 12. Set by ss-sdd-choosing-feature-branch; read by ss-sdd-finishing (Stage 17) to know which branch to merge into main and delete."
+    },
     "current_stage": {
       "type": "string",
       "enum": [

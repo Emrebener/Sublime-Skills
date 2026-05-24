@@ -44,12 +44,12 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 9 | Auto plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | No |
 | 10 | Optional 2nd plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask user, default no** |
 | 11 | User plan approval | Inline | No |
-| 12 | Choosing feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` | No |
+| 12 | Settle feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` (auto-decides silently when on `main` or already on the derived branch; prompts only when ambiguous; persists `branch_name`) | No |
 | 13 | Implementation (sub-pipeline) | Inline via `ss-sdd-implementing-plans` (dispatches per-task subagents) | No |
 | 14 | Optional feature testing | Inline via `ss-sdd-testing-implementation` (dispatches tester subagent) | **Yes — ask user, default yes** |
 | 15 | Generate handoff | Subagent uses `ss-sdd-generating-handoff` | **Yes — ask user, default yes** |
 | 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask user, default yes** (auto-skipped if no memory file is configured/detected) |
-| 17 | Finishing + cleanup | Inline via `ss-sdd-finishing` | No |
+| 17 | Merge to `main`, delete branch, cleanup | Inline via `ss-sdd-finishing` (`git merge --no-ff` + safe-delete, then `rm` state) | No |
 
 ## On Every Invocation: Resume Check (BEFORE anything else)
 
@@ -146,7 +146,7 @@ Stage name mapping (lookup for `current_stage` advance and `stages_completed` ap
 
 When resuming, advance to the stage one beyond the last `stages_completed` entry. If the last completed stage exists in `stages_skipped` instead, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries only — never mid-stage.
 
-**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits these on the user's chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 makes no commit (state deleted via plain `rm`). The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage.
+**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits these on the chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 produces one commit (the `--no-ff` merge commit on `main`) and then deletes the state file via plain `rm` (no commit for the deletion). The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage.
 
 ## Per-Stage Driving Instructions
 
@@ -250,13 +250,13 @@ Same pattern as Stage 5.
 
 Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a feature branch and start implementation, or request changes." Wait for explicit approval. (No commit — artifacts remain uncommitted through Stage 11.)
 
-### Stage 12 — Choosing Feature Branch + Batch Commit
+### Stage 12 — Settle Feature Branch + Batch Commit
 
-Load `ss-sdd-choosing-feature-branch`. Pass it: `feature_id`, `short_name`, the current branch (`git branch --show-current`), and the set of uncommitted artifact paths (spec.md, plan.md, ADRs). The state file at `.sublime-skills/state.json` is read by the skill but not committed.
+Load `ss-sdd-choosing-feature-branch`. Pass it: `feature_id` and `short_name`. The skill reads the current branch itself (`git branch --show-current`) since the decision rule depends on it; it also reads `state.work_type` and `branching.branch_pattern` from config. The state file at `.sublime-skills/state.json` is read and written by the skill but not committed.
 
-The skill asks the user a 3-way prompt (create suggested branch / different name / stay on current), optionally runs `git checkout -b`, then path-scope batch-commits the planning artifacts in two thematic commits (spec + plan / ADRs).
+The skill applies an opinionated rule: silent stay when already on the derived branch (resume / build-on-top); silent `git checkout -b` when on `main` and the derived branch is free; collision-prompt when on `main` and the derived branch already exists; ambiguity-prompt (with a mandatory "merged + deleted at Stage 17" warning) when on any other branch. Then it path-scope batch-commits the planning artifacts in two thematic commits (spec + plan / ADRs), and persists `branch_name` into state so Stage 17 knows what to merge.
 
-On abort (`branch_creation_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves and re-invokes the coordinator.
+On abort (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves and re-invokes the coordinator.
 
 After success: append `branch_chosen` to `stages_completed`. Advance to Stage 13.
 
@@ -325,9 +325,13 @@ The subagent returns one of:
 
 Record outcome in state: `memory_file_updated: true | false`. If updated, also record `memory_file_path` in state for the handoff doc / debugging.
 
-### Stage 17 — Finishing
+### Stage 17 — Merge to `main` and Finish
 
-Load `ss-sdd-finishing`. Follow it. After finishing: SDD run is done.
+Load `ss-sdd-finishing`. It validates state, prints the summary, then closes the loop by `git checkout main && git merge --no-ff $branch_name` and `git branch -d $branch_name` on success. Finally it deletes the state file via plain `rm`.
+
+If the merge fails (conflicts, hook rejection, signing failure): the skill halts and surfaces git's output verbatim, leaves the working tree as-is, and leaves the state file in place. The user resolves the conflict (or completes the merge commit themselves) and re-invokes the coordinator — Stage 17 is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date").
+
+After finishing: SDD run is done. The user is on `main`, the merge commit is in history, the feature branch is gone. No push — that's the user's call.
 
 ## Loading Skills
 
@@ -344,13 +348,15 @@ Dispatch fresh subagents (no inherited context) via your harness's subagent disp
 
 ## Failure Protocols
 
-The two failure modes coordinators must handle are documented in full in `docs/sdd/operations.md`:
+The three failure modes coordinators must handle are documented in full in `docs/sdd/operations.md`:
 
 - **Commit Failure Protocol** — what to do when `git commit` returns non-zero (hook rejection, missing identity, GPG failure, nothing to commit, missing file, merge conflict). The absolute rules: never `--no-verify`, never `--no-gpg-sign`, never `--force`, never amend a published commit. Retry at most once when the cause is clear and auto-fixable (e.g., formatter modified files). Otherwise halt and surface.
 
+- **Merge Failure Protocol (Stage 17)** — what to do when `git merge --no-ff <branch_name>` returns non-zero at the finishing stage (conflicts, hook rejection, signing failure). Absolute rules: never `--no-verify`/`--no-gpg-sign`, never auto-`git merge --abort`, never `git branch -D`, never delete the state file before the merge succeeds. Halt and surface git's output verbatim; leave the working tree as-is so the user can inspect or complete the merge manually. Re-invocation is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes.
+
 - **Subagent Failure Protocol** — what to do when a dispatch times out, crashes, returns malformed output, or skips required fields. Max one retry per failure mode. Never substitute the coordinator's own work for the failed subagent's. Never run retries in parallel. Surface to user with four options: retry / skip (non-mandatory only) / abort / provide-result-manually.
 
-Both protocols list the exact handling for each common failure mode. When in doubt, follow operations.md.
+All three protocols list the exact handling for each common failure mode. When in doubt, follow operations.md.
 
 ## Common Mistakes
 

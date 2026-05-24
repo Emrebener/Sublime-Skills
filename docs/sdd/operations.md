@@ -256,7 +256,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, Stage 17 `--no-ff` merge commit on `main`, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 
@@ -270,6 +270,8 @@ Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task co
 | Nothing to commit | Investigate: check `git status` and `git log -1`. If intended files are already committed, treat as success. Otherwise halt. |
 | File not found in `git add` | The previous stage's writer may have failed silently. Verify the expected file exists; if not, the prior stage didn't complete properly. |
 | Stage 12 partial batch commit (Commit 1 succeeded, Commit 2 failed) | Halt. Surface to user with both commit outputs and the partial state (Commit 1 is already in history). Do NOT auto-revert; the user decides whether to amend, add a follow-up commit, or reset. |
+| Stage 17 `git merge --no-ff` failure (conflicts, hook rejection, signing failure on the merge commit) | Halt. Surface git's stdout/stderr verbatim. Leave the working tree as-is (do NOT auto-`git merge --abort`). Do NOT delete the feature branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit, or `git merge --abort` and investigate) and re-invokes the coordinator. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes. |
+| Stage 17 `git branch -d` failure (branch not fully merged, despite the merge step succeeding) | Halt. Surface the error. Do NOT escalate to `git branch -D`. Do NOT `rm` the state file. This means the branch is in an unexpected state; the user investigates. |
 
 **Hard rules — never violate:**
 

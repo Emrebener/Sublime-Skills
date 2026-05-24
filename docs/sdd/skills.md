@@ -745,15 +745,21 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 **Loaded:** by the coordinator at Stage 17
 **Stage:** 17
 
-**Purpose:** Close out the SDD run. Validate the state file, print a structured summary report of what the pipeline produced, delete `.sublime-skills/state.json`. V1 explicitly does NOT manage source control — no merging, PR creation, or branch deletion. The user decides what to do with the feature branch.
+**Purpose:** Close out the SDD run by completing the source-control loop. Validate the state file, print a structured summary, merge the feature branch into `main` with `--no-ff`, safe-delete the feature branch on merge success, then `rm .sublime-skills/state.json`. Local-only — no push, no PR.
 
 **Steps:**
-1. Read and validate `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed`. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
-2. Print summary: feature_id, short_name, branch, spec/plan/handoff paths, ADRs created, tasks completed, test_status, memory_file_updated.
-3. `rm .sublime-skills/state.json` — plain `rm`, not `git rm`. No commit follows; the file is gitignored.
+1. Read and validate `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed` and `branch_name` is set. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
+2. Print summary: feature_id, short_name, feature branch (to be merged + deleted), spec/plan/handoff paths, ADRs created, tasks completed, test_status, memory_file_updated.
+3. `git checkout main && git merge --no-ff "$branch_name" -m "Merge branch '$branch_name'"`. On non-zero exit, halt and surface verbatim; leave the working tree as-is, state file in place. Re-invocation is naturally idempotent (already-merged → exit 0 "Already up to date").
+4. `git branch -d "$branch_name"` (safe-delete, not `-D`). On non-zero, halt and surface; leave state in place.
+5. `rm .sublime-skills/state.json` — plain `rm`, not `git rm`. No commit follows; the file is gitignored.
 
 **Hard rules:**
-- No merge / push / PR / branch deletion
+- No push, no PR creation, no remote ops
+- No `--no-verify` / `--no-gpg-sign` / `--force` on the merge commit
+- No `git branch -D` (force-delete) — only `-d`
+- No auto-`git merge --abort` on conflict — surface and let the user inspect
+- No `rm` of `state.json` until the merge and safe-delete both succeed
 - No test re-run
 - No `git add` of `state.json` (gitignored; never force-add)
 

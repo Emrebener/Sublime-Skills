@@ -17,7 +17,7 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 - [Why no diagrams](#why-no-diagrams)
 - [Why strict `[NO-TDD]` criteria](#why-strict-no-tdd-criteria)
 - [Why the coordinator doesn't test itself](#why-the-coordinator-doesnt-test-itself)
-- [Why config-driven finishing](#why-config-driven-finishing)
+- [Why SDD owns the merge to `main` (closes the loop)](#why-sdd-owns-the-merge-to-main-closes-the-loop)
 - [Why a separate skill for receiving review findings](#why-a-separate-skill-for-ss-sdd-receiving-review-findings)
 - [Comparison: SDD vs spec-kit vs brainstorming vs Kiro](#comparison-sdd-vs-spec-kit-vs-brainstorming-vs-kiro)
 
@@ -255,17 +255,24 @@ The `ss-sdd-testing-implementation` skill repeats this rule in five different pl
 
 ---
 
-## Why SDD doesn't manage branches or merges (V1)
+## Why SDD owns the merge to `main` (closes the loop)
 
-The pipeline doesn't merge branches, create PRs, push to remotes, or delete the feature branch. Stage 17 (`ss-sdd-finishing`) prints a summary and deletes `state.json`. That's it. The user decides what happens to the feature branch after SDD ends.
+Stage 17 (`ss-sdd-finishing`) does more than print a summary and delete `state.json` — it runs `git checkout main && git merge --no-ff $branch_name`, and on success `git branch -d $branch_name`. No push, no PR, no prompts.
 
-This is a deliberate V1 scoping choice:
+This is an opinionated, single-workflow choice — this repo is for the maintainer's personal use, not a multi-team library — so we close the loop in the pipeline rather than handing branch management back to the user. The three arguments that originally pushed this out of scope:
 
-- **Source control is the user's responsibility.** Teams have wildly different workflows (PR vs trunk vs fast-forward vs squash-merge vs rebase-and-merge, with or without `gh`, with or without protected branches, with or without draft PRs, with or without signed commits). The combinatorial surface is large; SDD trying to drive it leads to brittle, magic behavior that fails in surprising ways.
-- **Tests already ran.** Stage 14 (feature testing) is the gate. A final test re-run at Stage 17 was redundant — it ran the same suite a second (sometimes third) time. We dropped it.
-- **The artifacts are the durable record.** Spec, plan, ADRs, handoff doc, and per-task commits already exist on the feature branch by the time finishing runs. The user's git skills take it from there.
+- **Workflow diversity.** Was the original blocker: teams have wildly different workflows (PR vs trunk, fast-forward vs no-ff vs squash, with/without `gh`, with/without protected branches, signed commits). The combinatorial surface is large. *Moot here* — one user, one workflow (`--no-ff` merge to `main`, safe-delete, local-only). The branching surface collapses to a constant.
+- **Tests already ran.** Still true. Stage 14 is the test gate; Stage 17 does not re-test. The merge happens on already-tested commits.
+- **Artifacts are durable.** Still true. The merge just propagates the spec / plan / ADRs / per-task commits / memory-file commit from the feature branch onto `main` as a single merge commit, making the feature easy to find later via `git log --first-parent main`.
 
-This also affects where branch creation happens: not in preflight (which is too early — the user doesn't yet know what they're building) but at Stage 12 (`ss-sdd-choosing-feature-branch`), right before code starts landing. By that point the spec and plan exist and the user can decide branch policy with full context.
+Why this works without becoming brittle:
+
+- The merge strategy is a constant (`--no-ff`), not a configurable. No surprise behavior.
+- Safe-delete (`git branch -d`, not `-D`) is a second safety net — git refuses if the branch isn't fully merged, so we'd halt rather than destroy work in a weird intermediate state.
+- The merge step is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date"), so resume after a manual conflict resolution just works.
+- Push is still the user's call. SDD never touches the remote.
+
+Branch creation still happens at Stage 12 (`ss-sdd-choosing-feature-branch`), not preflight — by then the spec and plan exist and `short_name` is known, so the feature branch can be derived from `branch_pattern`. Preflight stays branch-agnostic on purpose: starting SDD on an existing feature branch (to build on top of a partial implementation) is a supported path, and Stage 12's silent "already on derived name" case handles it.
 
 ---
 
