@@ -17,10 +17,13 @@ i=0
 final_state=""
 HEARTBEAT_PID=""
 TUI_PID=""
+LOOP_PID=""
 ITER_START=""
 TOTAL_START=""
 OUTPUT_FILE=""
 EVENT_FILE=""
+CONTROL_FILE=""
+STATUS_FILE=""
 
 ralph_validate_common() {
   if [ ! -d ".git" ]; then
@@ -57,7 +60,7 @@ ralph_emit() {
 }
 
 ralph_tui_alive() {
-  [ "$RALPH_TUI" = "1" ] && [ -n "$TUI_PID" ] && kill -0 "$TUI_PID" 2>/dev/null
+  [ "$RALPH_TUI" = "1" ] && [ -n "$EVENT_FILE" ]
 }
 
 ralph_emit_text() {
@@ -126,14 +129,21 @@ ralph_cleanup_heartbeat() {
 
 ralph_cleanup() {
   ralph_cleanup_heartbeat
-  if [ -n "$TUI_PID" ] && kill -0 "$TUI_PID" 2>/dev/null; then
-    wait "$TUI_PID" 2>/dev/null || true
+  if [ -n "$LOOP_PID" ] && kill -0 "$LOOP_PID" 2>/dev/null; then
+    kill "$LOOP_PID" 2>/dev/null || true
+    wait "$LOOP_PID" 2>/dev/null || true
   fi
   if [ -n "$OUTPUT_FILE" ]; then
     rm -f "$OUTPUT_FILE"
   fi
   if [ -n "$EVENT_FILE" ]; then
     rm -f "$EVENT_FILE"
+  fi
+  if [ -n "$CONTROL_FILE" ]; then
+    rm -f "$CONTROL_FILE"
+  fi
+  if [ -n "$STATUS_FILE" ]; then
+    rm -f "$STATUS_FILE"
   fi
 }
 
@@ -171,20 +181,16 @@ ralph_start_tui() {
   fi
 
   EVENT_FILE=$(mktemp -t ralph-loop-events.XXXXXX)
-  "$RALPH_TUI_CMD" "$EVENT_FILE" &
-  TUI_PID=$!
+  CONTROL_FILE=$(mktemp -t ralph-loop-control.XXXXXX)
+  STATUS_FILE=$(mktemp -t ralph-loop-status.XXXXXX)
   ralph_emit "start	$(date +%s)	$MAX_ITER	$(printf '%s' "$RALPH_RUNNER_NAME" | ralph_b64)	$(printf '%s' "$RALPH_COMMAND_DESC" | ralph_b64)	$(printf '%s' "$RALPH_PROMPT" | ralph_b64)"
 }
 
-ralph_run_loop() {
-  ralph_validate_common
-  OUTPUT_FILE=$(mktemp -t ralph-loop.XXXXXX)
-  TOTAL_START=$(date +%s)
+ralph_stop_after_current_requested() {
+  [ -n "$CONTROL_FILE" ] && grep -qx 'stop_after_current=1' "$CONTROL_FILE" 2>/dev/null
+}
 
-  trap ralph_interrupt INT
-  trap ralph_cleanup EXIT
-
-  ralph_start_tui
+ralph_run_loop_core() {
   ralph_print_header
 
   while [ "$i" -lt "$MAX_ITER" ]; do
@@ -215,6 +221,11 @@ ralph_run_loop() {
     ralph_blank
     case "$state" in
       continue)
+        if ralph_stop_after_current_requested; then
+          ralph_print "Iteration $i complete. Stop-after-current requested; not starting another iteration."
+          final_state="stopped-after-current"
+          break
+        fi
         ralph_print "Iteration $i complete. Continuing to next."
         ;;
       all-done)
@@ -264,7 +275,37 @@ ralph_run_loop() {
   ralph_emit "finish	$(date +%s)	$final_state	$i"
 
   case "$final_state" in
-    all-done) exit 0 ;;
-    *)        exit 1 ;;
+    all-done|stopped-after-current) return 0 ;;
+    *)                            return 1 ;;
   esac
+}
+
+ralph_run_loop() {
+  ralph_validate_common
+  OUTPUT_FILE=$(mktemp -t ralph-loop.XXXXXX)
+  TOTAL_START=$(date +%s)
+
+  trap ralph_interrupt INT
+  trap ralph_cleanup EXIT
+
+  if [ "$RALPH_TUI" = "1" ]; then
+    ralph_start_tui
+    if [ "$RALPH_TUI" = "1" ]; then
+      (
+        set +e
+        ralph_run_loop_core
+        code=$?
+        printf '%s\n' "$code" > "$STATUS_FILE"
+        exit "$code"
+      ) &
+      LOOP_PID=$!
+      "$RALPH_TUI_CMD" "$EVENT_FILE" "$CONTROL_FILE" || true
+      wait "$LOOP_PID" 2>/dev/null || true
+      LOOP_PID=""
+      exit "$(cat "$STATUS_FILE" 2>/dev/null || printf '1')"
+    fi
+  fi
+
+  ralph_run_loop_core
+  exit "$?"
 }

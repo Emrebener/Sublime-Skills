@@ -64,7 +64,8 @@ Loop wrappers live under [`scripts/`](scripts/): use
 `ralph-loop-claude-code.sh` for Claude Code, or `ralph-loop-codex.sh` for
 Codex CLI. The Codex wrapper takes the complete `codex exec ...` command as
 a quoted argument so the caller controls model, reasoning effort, and other
-CLI flags per run.
+CLI flags per run. Add `--tui` to either wrapper to show a minimal terminal
+dashboard via the companion `Ralph-Loop-TUI` renderer.
 
 All `gh` CLI interaction goes through the `ss-agile-managing-issues`
 reference skill, which covers the full `gh issue` surface plus milestone

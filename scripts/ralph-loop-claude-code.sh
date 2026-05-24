@@ -17,6 +17,10 @@
 #   --tui-cmd PATH         TUI renderer path
 #   -h, --help             Show this help
 #
+# Examples:
+#   ./scripts/ralph-loop-claude-code.sh --iter 50 --model opus --effort high
+#   ./scripts/ralph-loop-claude-code.sh --tui --iter 50 --model sonnet --effort high
+#
 # Backward compatibility: a single positional integer is treated as --iter.
 
 set -euo pipefail
@@ -75,6 +79,8 @@ fi
 
 RALPH_RUNNER_NAME="Claude Code"
 RALPH_COMMAND_DESC="claude -p --dangerously-skip-permissions --verbose"
+[[ -n "$MODEL" ]] && RALPH_COMMAND_DESC+=" --model $MODEL"
+[[ -n "$EFFORT" ]] && RALPH_COMMAND_DESC+=" --effort $EFFORT"
 
 ralph_invoke_agent() {
   local args=(-p --dangerously-skip-permissions --verbose)
