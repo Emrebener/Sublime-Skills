@@ -22,7 +22,7 @@ You're invoked when the user picked **Create / Extend / Replace** for testing.
 The coordinator passes:
 
 - `REPO_ROOT` — absolute path to the repo root
-- `MODE` — `create`, `extend`, or `replace`
+- `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3.
 - `EXISTING_CONTENT` — verbatim current `docs/TESTING.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/TESTING.md`; honors `context.testing_path` config override if non-default)
 - **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
@@ -42,6 +42,9 @@ The coordinator passes:
 - Do NOT overwrite an existing TESTING.md in `extend` mode. Extend merges; only `replace` overwrites.
 - Do NOT loop past 3 tweak iterations without surfacing bail options to the user.
 - Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
+- In audit mode, do NOT skip Step 1.6 (drift check). It's the third operation alongside observe and diagnose; without it, audit is just "extend mode with SUGGEST=on".
+- In audit mode, ask Q0 questions ONE drift item per question — do NOT bundle. Drift resolutions are nuanced individually.
+- In audit mode, SUGGEST is always treated as `on` (regardless of input). This is documented in the Inputs section.
 
 ## Top-Level Flow
 
@@ -66,6 +69,14 @@ The coordinator passes:
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
+├─────────────────────────────────────────────────────┤
+│ MODE = audit                                        │
+│   → Step 1: silent code scan                        │
+│   → Step 1.5: silent diagnose (always on for audit) │
+│   → Step 1.6: drift check vs EXISTING_CONTENT       │
+│   → Step 2: announce findings + drift + diagnoses   │
+│   → Step 3: Q0 (drift resolution) → Q1 → Q1.5 → …  │
+│   → Step 4-6: as usual                              │
 ├─────────────────────────────────────────────────────┤
 │ NEW-PROJECT MODE (scan found <2 tests total)        │
 │   → Skip Step 1.5 (no code to diagnose against)     │
@@ -136,7 +147,7 @@ Note structural signals: `unit/` vs `integration/` vs `e2e/` subdirectories insi
 
 - **`create` / `replace`:** ignore `EXISTING_CONTENT`. Build candidates from scratch.
 - **`extend`:** read `EXISTING_CONTENT`. Identify which sections of the canonical Output Template are missing, outdated, or incomplete. Note any conflicts between the existing doc and the current code (e.g., file says "Jest" but config shows Vitest).
-- **`audit`:** see Step 1.6 (added in Phase 7) for drift checks.
+- **`audit`:** read `EXISTING_CONTENT`. Then proceed to Step 1.6 for drift checks.
 
 ### 1k. Compile candidate sections in memory
 
@@ -183,6 +194,27 @@ If more than 5 candidates remain after dropping unsupported ones, rank by:
 
 Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
 
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each entry in `EXISTING_CONTENT` against current code state. The goal is to detect entries that have gone stale.
+
+### 1.6a. Drift categories for testing
+
+- **Runner / framework drift.** Doc says "Jest"; current `package.json` shows "Vitest". Evidence: dep diff.
+- **Command drift.** Doc's "Run all: pnpm test"; current CI uses `pnpm test:ci`. Evidence: CI file path.
+- **Coverage threshold drift.** Doc says "80% gate in CI"; current CI shows 60% or no gate. Evidence: CI file path.
+- **Mocking philosophy drift.** Doc says "Mock externals only"; current tests show heavy DB mocking. Evidence: mock-usage count.
+- **Category coverage drift.** Doc lists "unit + integration + e2e"; current repo has no `e2e/` directory. Evidence: directory listing.
+- **Provenance re-evaluation.** Each suggestion-added category / coverage target / philosophy — has reality caught up? For each section carrying an "Added via bootstrap suggestion pass (YYYY-MM-DD)" marker, check whether the underlying evidence is still present:
+  - If the original evidence pattern is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (the code has changed to match the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (runner-change / command-change / threshold-change / philosophy-change / category-added / category-removed / aspiration-met / aspiration-still-pending), `entry` (the doc text being challenged), `evidence` (file paths or counts showing the current code state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
+
 ## Step 2: Announce Findings
 
 One short message (3–6 sentences; 3–7 when `SUGGEST=on` extends with the diagnose-mention sentence). State what you scanned and the headline finding.
@@ -196,6 +228,9 @@ One short message (3–6 sentences; 3–7 when `SUGGEST=on` extends with the dia
 **`extend` mode:**
 > "Your existing TESTING.md covers [sections]. I scanned the codebase and found [gaps / conflicts]. I'll ask about those, then propose additions."
 
+**`audit` mode:**
+> "Audit mode. Scan + diagnose + drift check complete. Found N drift items (X runner/command/threshold changes, Y category changes, Z provenance re-evaluations) — I'll surface those first in the questions, then walk through observed candidates and suggestions as usual."
+
 **New-project mode (`new_project_mode = true`):**
 > "I didn't find a test suite — looks like this is a new or pre-test project. I can still draft a starter TESTING.md, but I'll need to ask you a few decisions about the strategy you want to set rather than scan for it. Want to continue?"
 
@@ -204,6 +239,33 @@ Wait for confirmation before proceeding to Step 3.NP.
 ## Step 3: Targeted Questions
 
 Ask in this order, one question per turn. Skip a question if the scan already answered it definitively.
+
+### Q0 — Drift Resolution (only if `MODE=audit` AND Step 1.6 produced ≥1 drift finding)
+
+Ask one question per drift finding (do NOT bundle — drift items often have nuanced individual resolutions):
+
+```
+Question: "Drift detected: <entry summary>. Current code state: <evidence>. What's the right resolution?"
+
+Options:
+  - "Update the doc to match code"
+  - "Keep the doc — code is wrong / will be fixed"
+  - "Remove the entry — no longer applies"
+  - "Both — clarify scope (split into multiple entries)"
+```
+
+For **provenance re-evaluation** findings, the question is different:
+
+```
+Question: "Aspirational entry '<title>' was added on <date>. Evidence at that time: <original evidence>. Current code state: <current evidence>. Has this aspiration been realized?"
+
+Options:
+  - "Yes — code has caught up. Remove the provenance marker (promote to normal)."
+  - "No — code still has the original problem. Keep as aspirational; refresh the marker date."
+  - "Drop the entry — we've decided not to pursue this aspiration."
+```
+
+Record each resolution. Apply during Step 4 (Draft Synthesis).
 
 ### Q1 — Confirm observed test setup (multi-select)
 
@@ -344,6 +406,8 @@ Synthesize the draft using:
 - Q4 fixture location
 - (extend mode) Q5 conflict resolutions
 - (new-project mode) NP-Q1 through NP-Q5 answers
+- (audit mode) Q0 drift resolutions (per drift item: update / keep / remove / clarify)
+- (audit mode) Q0 provenance re-evaluations (per aspirational entry: promote / refresh / drop)
 
 Use the Output Template below. Show the full draft, then ask:
 
@@ -457,6 +521,10 @@ Replace `YYYY-MM-DD` with today's date. The three blockquote lines each carry a 
 | Bundling multiple questions in one ask | One question per turn |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
+| Skipping Step 1.6 in audit mode | Drift detection is the audit's reason for existing |
+| Bundling Q0 drift resolutions into one multi-select | Each item gets its own question — resolutions are not collectively decidable |
+| Forgetting to refresh the provenance marker date when "Keep aspirational" is chosen | Audit needs the refresh to track time-since-last-evaluation |
+| Forgetting to strip the provenance marker when "Promote to normal" is chosen | The marker is the audit's hook; promoting means removing it |
 
 ## Red Flags
 
