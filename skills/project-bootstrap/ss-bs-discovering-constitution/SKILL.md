@@ -18,7 +18,7 @@ You are loaded **inline** by `ss-bs-bootstrapping-project` (NOT dispatched as a 
 You're invoked when the user picked **Create / Extend / Replace** for constitution. The coordinator passes you:
 
 - `REPO_ROOT` — absolute path to the repo root
-- `MODE` — `create`, `extend`, or `replace`
+- `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3.
 - `EXISTING_CONTENT` — verbatim current `docs/constitution.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/constitution.md`; honors `context.constitution_path` config override if non-default)
 - **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
@@ -39,6 +39,9 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 - Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
 - Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
 - Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
+- In audit mode, do NOT skip Step 1.6 (drift check). It's the third operation alongside observe and diagnose; without it, audit is just "extend mode with SUGGEST=on".
+- In audit mode, ask Q0 questions ONE drift item per question — do NOT bundle. Drift resolutions are nuanced individually.
+- In audit mode, SUGGEST is always treated as `on` (regardless of input). This is documented in the Inputs section.
 
 ## Top-Level Flow
 
@@ -62,6 +65,14 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
+├─────────────────────────────────────────────────────┤
+│ MODE = audit                                        │
+│   → Step 1: silent code scan                        │
+│   → Step 1.5: silent diagnose (always on for audit) │
+│   → Step 1.6: drift check vs EXISTING_CONTENT       │
+│   → Step 2: announce findings + drift + diagnoses   │
+│   → Step 3: Q0 (drift resolution) → Q1 → Q1.5 → ...│
+│   → Step 4-6: as usual                              │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -142,6 +153,25 @@ For each candidate principle, hold:
 
 Keep this list to ≤10 candidates internally — you'll trim to 7 with the user.
 
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each entry in `EXISTING_CONTENT` against current code state. The goal is to detect principles that have gone stale.
+
+### 1.6a. Drift categories for constitution
+
+- **Evidence-file removed.** A principle's `**Evidence:**` field cites `<path>` (e.g. `.eslintrc.json`); that file no longer exists. Evidence: the principle title + the missing path.
+- **Evidence-rule weakened or removed.** A principle cites a lint rule "no-any: error"; current `.eslintrc.json` shows `no-any: warn` or omits it. Evidence: the principle + the current rule state.
+- **Code now contradicts a stated principle.** A MUST principle says "API handlers MUST validate via Zod"; current `src/api/*.ts` shows N handlers without Zod calls. Evidence: handler counts.
+- **Provenance re-evaluation.** Each principle marked "Added via bootstrap suggestion pass (YYYY-MM-DD)" → has the underlying evidence (the unenforced pattern) been remedied?
+  - If the original evidence pattern is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (the code has changed to match the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (evidence-file-removed / rule-weakened / code-contradicts-principle / aspiration-met / aspiration-still-pending), `entry` (the principle being challenged), `evidence` (file paths or counts showing the current code state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
+
 ## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
 
 If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
@@ -185,9 +215,38 @@ If `extend` mode:
 
 If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few principles worth declaring even though they're not currently codified. I'll surface those after we confirm the observed ones."
 
+If `MODE=audit`: "Audit mode. Scan + diagnose + drift check complete. Found N drift items (X evidence-file removals, Y rule weaknesses, Z provenance re-evaluations) — I'll surface those first in the questions, then walk through observed candidates and suggestions as usual."
+
 ## Step 3: Targeted Questions
 
 Ask in this order, one question per turn. Skip a question if the scan and (for extend mode) the existing file already answered it.
+
+### Q0 — Drift Resolution (only if `MODE=audit` AND Step 1.6 produced ≥1 drift finding)
+
+Ask one question per drift finding (do NOT bundle — drift items often have nuanced individual resolutions):
+
+```
+Question: "Drift detected: <principle summary>. Current code state: <evidence>. What's the right resolution?"
+
+Options:
+  - "Update the doc to match code"
+  - "Keep the doc — code is wrong / will be fixed"
+  - "Remove the entry — no longer applies"
+  - "Both — clarify scope (split into multiple entries)"
+```
+
+For **provenance re-evaluation** findings, the question is different:
+
+```
+Question: "Aspirational entry '<title>' was added on <date>. Evidence at that time: <original evidence>. Current code state: <current evidence>. Has this aspiration been realized?"
+
+Options:
+  - "Yes — code has caught up. Remove the provenance marker (promote to normal)."
+  - "No — code still has the original problem. Keep as aspirational; refresh the marker date."
+  - "Drop the entry — we've decided not to pursue this aspiration."
+```
+
+Record each resolution. Apply during Step 4 (Draft Synthesis).
 
 ### Q1 — Confirm scanned candidate principles (multi-select)
 
@@ -276,6 +335,8 @@ Synthesize the draft using:
 - Severity choices from Q2
 - Free-form intent additions from Q3
 - (For extend mode) Conflict resolutions from Q4
+- Q0 drift resolutions (per drift item: update / keep / remove / clarify)
+- Q0 provenance re-evaluations (per aspirational entry: promote / refresh / drop)
 
 Cap the final principles list at 7 total. If observed + accepted suggestions exceed 7, ask the user which to drop.
 
@@ -415,8 +476,12 @@ Record version + date on every change.
 | Citing external authorities ("Google style guide says...") | Describe THIS project; lineage is irrelevant |
 | Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
 | Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
-| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries; without it, drift detection breaks |
 | Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
+| Skipping Step 1.6 in audit mode | Drift detection is the audit's reason for existing |
+| Bundling Q0 drift resolutions into one multi-select | Each item gets its own question — resolutions are not collectively decidable |
+| Forgetting to refresh the provenance marker date when "Keep aspirational" is chosen | Audit needs the refresh to track time-since-last-evaluation |
+| Forgetting to strip the provenance marker when "Promote to normal" is chosen | The marker is the audit's hook; promoting means removing it |
 
 ## Red Flags
 
