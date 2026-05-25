@@ -10,6 +10,7 @@
 context:
   constitution_path: docs/constitution.md       # project-wide principles (MUST/SHALL rules)
   architecture_path: docs/ARCHITECTURE.md       # system structure overview
+  testing_path: docs/TESTING.md                 # test strategy (frameworks, fixtures, coverage)
   glossary_path: docs/GLOSSARY.md               # canonical domain vocabulary
   domain_path: docs/DOMAIN.md                   # conceptual entities and relationships
   design_path: docs/DESIGN.md                   # visual design system (colors, type, spacing, components)
@@ -43,3 +44,13 @@ memory_file:
   # of this value and refuses to push past 100% (must prune first).
   # 40000 is a widely-recommended ceiling for agent memory files.
   character_limit: 40000
+
+# ── Suggestion pass default (bootstrap and audit) ──────────────────
+# How the coordinators handle the prescriptive diagnose pass that
+# each discovering-X skill optionally runs to propose improvements
+# the project hasn't codified yet.
+suggest:
+  # ask = coordinator asks once at bootstrap start (preserves current UX)
+  # on  = always run diagnose; no question
+  # off = never run diagnose
+  default: ask
