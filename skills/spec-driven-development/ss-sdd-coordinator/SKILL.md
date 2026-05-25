@@ -21,7 +21,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
 - ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool to track progress through the pipeline. Build the initial list in Step 2: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
+- ALWAYS use the harness's todo/task tool to track progress through the pipeline. Build the initial list in Step 3: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
@@ -30,26 +30,30 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 
 ## The Pipeline
 
-| # | Stage | Mechanism | Optional? |
-|---|---|---|---|
-| 0 | Preflight | Inline via `ss-sdd-preflight-checks` | No |
-| 1 | Discovering requirements | Inline via `ss-sdd-discovering-requirements` | No |
-| 2 | Writing the spec | Inline via `ss-sdd-writing-specs` | No |
-| 3 | Auto spec-review | Subagent uses `ss-sdd-reviewing-specs`; findings via `ss-sdd-receiving-review-findings` | No |
-| 4 | Optional grill | Inline via `ss-sdd-grilling-specs` | **Yes — ask user, default no** |
-| 5 | Optional 2nd spec-review | Subagent uses `ss-sdd-reviewing-specs`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask user, default no** |
-| 6 | ADR maintenance | Subagent uses `ss-sdd-maintaining-adrs` | No |
-| 7 | User spec approval + commit | Inline | No |
-| 8 | Writing the plan | Inline via `ss-sdd-writing-plans` | No |
-| 9 | Auto plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | No |
-| 10 | Optional 2nd plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask user, default no** |
-| 11 | User plan approval | Inline | No |
-| 12 | Settle feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` (auto-decides silently when on `main` or already on the derived branch; prompts only when ambiguous; persists `branch_name`) | No |
-| 13 | Implementation (sub-pipeline) | Inline via `ss-sdd-implementing-plans` (dispatches per-task subagents) | No |
-| 14 | Optional feature testing | Inline via `ss-sdd-testing-implementation` (dispatches tester subagent) | **Yes — ask user, default yes** |
-| 15 | Generate handoff | Subagent uses `ss-sdd-generating-handoff` | **Yes — ask user, default yes** |
-| 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask user, default yes** (auto-skipped if no memory file is configured/detected) |
-| 17 | Merge to `main`, delete branch, cleanup | Inline via `ss-sdd-finishing` (`git merge --no-ff` + safe-delete, then `rm` state) | No |
+`current_stage` is the value the coordinator writes while in the stage; `stages_completed` is what it appends after the stage finishes. Use these for both forward advance and resume mapping.
+
+| # | Stage | Mechanism | Optional? | `current_stage` | `stages_completed` |
+|---|---|---|---|---|---|
+| 0 | Preflight | Inline via `ss-sdd-preflight-checks` | No | `preflight` | `preflight` |
+| 1 | Discovering requirements | Inline via `ss-sdd-discovering-requirements` | No | `discovering` | `discovering` |
+| 2 | Writing the spec | Inline via `ss-sdd-writing-specs` | No | `spec_writing` | `spec_written` |
+| 3 | Auto spec-review | Subagent uses `ss-sdd-reviewing-specs`; findings via `ss-sdd-receiving-review-findings` | No | `spec_auto_review` | `spec_auto_reviewed` |
+| 4 | Optional grill | Inline via `ss-sdd-grilling-specs` | **Yes — ask, default no** | `spec_grill` | `spec_grilled` |
+| 5 | Optional 2nd spec-review | Subagent uses `ss-sdd-reviewing-specs`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask, default no** | `spec_second_review` | `spec_second_reviewed` |
+| 6 | ADR maintenance | Subagent uses `ss-sdd-maintaining-adrs` | No | `adr_maintenance` | `adrs_maintained` |
+| 7 | User spec approval | Inline | No | `spec_approval` | `spec_approved` |
+| 8 | Writing the plan | Inline via `ss-sdd-writing-plans` | No | `plan_writing` | `plan_written` |
+| 9 | Auto plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | No | `plan_auto_review` | `plan_auto_reviewed` |
+| 10 | Optional 2nd plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask, default no** | `plan_second_review` | `plan_second_reviewed` |
+| 11 | User plan approval | Inline | No | `plan_approval` | `plan_approved` |
+| 12 | Settle feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` (silent when on `main` or already on derived branch; prompts when ambiguous; persists `branch_name`) | No | `choosing_branch` | `branch_chosen` |
+| 13 | Implementation (sub-pipeline) | Inline via `ss-sdd-implementing-plans` (dispatches per-task subagents) | No | `implementing` | `implementation_complete` |
+| 14 | Optional feature testing | Inline via `ss-sdd-testing-implementation` (dispatches tester subagent) | **Yes — ask, default yes** | `testing` | `testing_complete` |
+| 15 | Generate handoff | Subagent uses `ss-sdd-generating-handoff` | **Yes — ask, default yes** | `handoff` | `handoff_generated` |
+| 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask, default yes** (auto-skipped if no memory file configured/detected) | `memory_file` | `memory_file_maintained` |
+| 17 | Merge to `main`, delete branch, cleanup | Inline via `ss-sdd-finishing` (`git merge --no-ff` + safe-delete, then `rm` state) | No | `finishing` | `finished` |
+
+When resuming, advance to the stage one beyond the last `stages_completed` entry. If that stage is also in `stages_skipped`, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries — never mid-stage.
 
 ## On Every Invocation: Resume Check (BEFORE anything else)
 
@@ -63,41 +67,37 @@ Check whether an SDD state file is present at the single global path:
 test -f .sublime-skills/state.json && echo found || echo missing
 ```
 
-- **`missing`** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 2.
-- **`found`** → read the file and verify its references still exist (see Step 1b below), then ask the user: "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage` (see the Stage Name Mapping below). On no, prompt: "Discard this state and start a fresh feature, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
+- **`missing`** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 3.
+- **`found`** → read the file and verify its references still exist (see Step 2 below), then ask the user: "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage` (per the Pipeline table's `current_stage` column). On no, prompt: "Discard this state and start a fresh feature, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
 
 Multiple concurrent active runs are NOT supported in this design — there's a single global state file. If a user truly needs concurrent runs, they use git worktrees (each worktree has its own `.sublime-skills/state.json`).
 
-### Step 1b: Verify state references on resume
+### Step 2: Verify state references on resume
 
 When a state file is found, before offering resume, verify the files it references still exist on disk. The state file lives at the fixed global path but the spec/plan it references live under `docs/specs/<feature_id>/`, so the user could have manually deleted them since the state was last written.
 
 ```bash
-SPEC_PATH=$(jq -r '.spec_path // empty' .sublime-skills/state.json)
-PLAN_PATH=$(jq -r '.plan_path // empty' .sublime-skills/state.json)
-
-[ -n "$SPEC_PATH" ] && [ ! -f "$SPEC_PATH" ] && MISSING="$MISSING"$'\n'"  - $SPEC_PATH"
-[ -n "$PLAN_PATH" ] && [ ! -f "$PLAN_PATH" ] && MISSING="$MISSING"$'\n'"  - $PLAN_PATH"
+"${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/verify-state-references.sh
 ```
 
-If either path is set in state but doesn't exist on disk, prompt the user via the harness's interactive question tool:
+Exit 0 = all referenced paths exist; proceed to the resume prompt. Exit 1 = at least one referenced path is missing (the script prints each missing path on its own line, prefixed with `  - `, ready to splice into the prompt below). Exit 2 = state file unreadable; halt and surface.
+
+On exit 1, prompt the user via the harness's interactive question tool:
 
 ```
 State file references files that no longer exist:
-$MISSING
+<script output>
 
 Options:
 - Discard state and start fresh (runs `rm .sublime-skills/state.json`)
 - Abort (let me investigate)
 ```
 
-On **Discard:** `rm .sublime-skills/state.json` and proceed to Step 2 as if no state file was found. On **Abort:** halt and surface.
-
-If both `spec_path` and (when present) `plan_path` exist, proceed to the resume prompt as described above.
+On **Discard:** `rm .sublime-skills/state.json` and proceed to Step 3 as if no state file was found. On **Abort:** halt and surface.
 
 Halts on bad config / not-a-repo / detached HEAD happen later inside Stage 0 (`ss-sdd-preflight-checks`) — not here.
 
-### Step 2: Build the Todo List
+### Step 3: Build the Todo List
 
 Before running any stage, build the progress todo list using the harness's todo/task tool. One todo per stage you're about to run:
 
@@ -119,57 +119,47 @@ Created in **Stage 2** (`ss-sdd-writing-specs`). Stages 0-1 run before it exists
 
 Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins.
 
-**You write to** `current_stage`, `stages_completed`, `stages_skipped`, `updated_at`, `adr_results`, `handoff_path` at stage boundaries (atomic: write `.tmp`, then `mv`). Other fields are owned by their respective skills — don't touch them.
+The coordinator persists these fields at stage boundaries (atomic: write `.tmp`, then `mv`): `current_stage`, `stages_completed`, `stages_skipped`, `adr_results` (transcribed from Stage 6 subagent's report), `handoff_path` (from Stage 15 subagent's report), and `memory_file_updated` / `memory_file_path` (from Stage 16 subagent's report). `updated_at` is touched by every writer on every atomic write — coordinator included. All other fields are owned and written by their respective skills (coordinator reads only): `branch_name` by `ss-sdd-choosing-feature-branch`, the per-task `tasks` map and `final_review_completed` by `ss-sdd-implementing-plans`, `test_status` / `fix_iterations` by `ss-sdd-testing-implementation`, `reviewer_pushbacks` and `spec_auto_review_iterations` / `plan_auto_review_iterations` by `ss-sdd-receiving-review-findings`, plus init-only fields (`feature_id`, `short_name`, `started_at`, `spec_path`, `work_type`, `plan_path`) by their respective writer skills. The full authoritative table lives in `framework/state-schema.md` under "Field Ownership".
 
-Stage name mapping (lookup for `current_stage` advance and `stages_completed` append):
+### Commit timing
 
-| # | `current_stage` | `stages_completed` |
+Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. `ss-sdd-choosing-feature-branch` at Stage 12 batch-commits them on the chosen branch in two thematic, path-scoped commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 produces one commit (the `--no-ff` merge on `main`) and then deletes the state file via plain `rm`. `.sublime-skills/state.json` is gitignored and is never committed at any stage. In stage descriptions below, "**No commit (Stage 12 batches)**" is shorthand for this rule.
+
+## User-Requested Changes Classification
+
+Used at Stages 7 (spec approval) and 11 (plan approval). When the user requests changes instead of approving, classify before applying. Default to light-touch when unsure; if it grows substantive mid-edit, stop and reclassify.
+
+| Change type | Examples | Handling |
 |---|---|---|
-| 0 | `preflight` | `preflight` |
-| 1 | `discovering` | `discovering` |
-| 2 | `spec_writing` | `spec_written` |
-| 3 | `spec_auto_review` | `spec_auto_reviewed` |
-| 4 | `spec_grill` | `spec_grilled` |
-| 5 | `spec_second_review` | `spec_second_reviewed` |
-| 6 | `adr_maintenance` | `adrs_maintained` |
-| 7 | `spec_approval` | `spec_approved` |
-| 8 | `plan_writing` | `plan_written` |
-| 9 | `plan_auto_review` | `plan_auto_reviewed` |
-| 10 | `plan_second_review` | `plan_second_reviewed` |
-| 11 | `plan_approval` | `plan_approved` |
-| 12 | `choosing_branch` | `branch_chosen` |
-| 13 | `implementing` | `implementation_complete` |
-| 14 | `testing` | `testing_complete` |
-| 15 | `handoff` | `handoff_generated` |
-| 16 | `memory_file` | `memory_file_maintained` |
-| 17 | `finishing` | `finished` |
-
-When resuming, advance to the stage one beyond the last `stages_completed` entry. If the last completed stage exists in `stages_skipped` instead, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries only — never mid-stage.
-
-**Commit timing.** Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits these on the chosen branch in two thematic commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 produces one commit (the `--no-ff` merge commit on `main`) and then deletes the state file via plain `rm` (no commit for the deletion). The state file at `.sublime-skills/state.json` is gitignored and never committed at any stage.
+| **Light-touch** | Typo, wording, tightening an FR, adding an edge case, ADR text adjustment, plan task wording | Apply inline via `ss-sdd-receiving-review-findings` discipline. Re-validate. Re-ask for approval. |
+| **Substantive — re-discovery** | Decomposition needed, fundamental requirement change, whole story added/removed | Do NOT edit inline. Reset `current_stage` to `discovering`; re-invoke `ss-sdd-discovering-requirements`. |
+| **Substantive — ADR overhaul** | An ADR needs replacing, new ADR-worthy decisions emerge (Stage 7 only) | Re-dispatch `ss-sdd-maintaining-adrs` after any spec changes. |
+| **Substantive — plan rework** | Phases need restructuring, big chunks of tasks rewritten (Stage 11 only) | Re-enter Stage 8 (`ss-sdd-writing-plans`); the prior plan is overwritten in place. |
 
 ## Per-Stage Driving Instructions
 
 For every stage:
 
 1. Update state: `current_stage: "<stage_name>"` (atomic write)
-2. Run the stage (load skill, or dispatch subagent, per the pipeline table)
-3. On success: add stage name to `stages_completed`, write state. Commit only if the stage is at or past Stage 12 (`ss-sdd-choosing-feature-branch`) — Stages 2–11 defer commits per the Commit Timing note above.
-4. Advance
+2. Run the stage (load skill, or dispatch subagent, per the Pipeline table)
+3. On success: append the stage's `stages_completed` entry, atomic-write. Commit only per the Commit timing section above.
+4. Advance.
 
 If a stage fails (subagent returns Issues Found, validator fails, etc.): handle the loop per that stage's protocol. Do not advance until the stage is genuinely complete.
 
 ### Stage 0 — Preflight
 
-Load `ss-sdd-preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, and warns (does not abort) on a dirty working tree. **It does NOT create branches** — branch decision happens at Stage 12 (`ss-sdd-choosing-feature-branch`). State file does NOT yet exist.
+Load `ss-sdd-preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, and warns (does not abort) on a dirty working tree. **It does NOT create branches** — branch decision happens at Stage 12. State file does NOT yet exist.
 
 After preflight returns ready, the config is known-valid and you can use `framework/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
+
+The coordinator carries from Stage 0 in-memory (no state file yet): the current branch name (preflight already read it) and any cached config values used downstream (e.g., `branching.branch_pattern`, grill cap, memory file size budget).
 
 On any abort (`config_missing` / `config_invalid` / `not_a_git_repo` / `detached_head` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
 
 ### Stage 1 — Discovering Requirements
 
-Load `ss-sdd-discovering-requirements`. Follow it. State file still doesn't exist; hold discovery outputs (short name, work type, approved sections, ADR-candidate decisions) in-memory. The `work_type` (`feature` or `fix`) gets persisted into state.json at Stage 2 and is later read by `ss-sdd-choosing-feature-branch` at Stage 12 to derive the suggested branch prefix.
+Load `ss-sdd-discovering-requirements`. Follow it. State file still doesn't exist; the coordinator carries the discovery outputs in-memory: `short_name`, `work_type` (`feature` or `fix`), the user-approved discovery sections, and ADR-candidate decisions. `ss-sdd-writing-specs` (Stage 2) persists `work_type` into state.json; `ss-sdd-choosing-feature-branch` (Stage 12) reads it back to derive the branch prefix.
 
 ### Stage 2 — Writing the Spec
 
@@ -181,7 +171,7 @@ Load `ss-sdd-writing-specs`. Pass it the in-memory discovery outputs (including 
 "${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/validate-spec.sh docs/specs/NNN-<short-name>/spec.md
 ```
 
-If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. **Do NOT commit** — the spec stays uncommitted in the working tree; `ss-sdd-choosing-feature-branch` (Stage 12) will batch-commit it alongside the plan and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed.
+If the fresh run disagrees with the writer's report, halt and surface (writer drift or lie). After PASS, advance `current_stage` to `spec_auto_review`, append `spec_written`. **No commit (Stage 12 batches).**
 
 ### Stage 3 — Auto Spec-Review
 
@@ -193,7 +183,7 @@ Process findings via `ss-sdd-receiving-review-findings` (load it inline). It han
 
 Ask: "Want a grill session to stress-test the spec? (yes/no, default no)"
 
-If yes: load `ss-sdd-grilling-specs`. Follow it. **Do NOT commit** — spec edits accumulate uncommitted until `ss-sdd-choosing-feature-branch` (Stage 12) batch-commits them.
+If yes: load `ss-sdd-grilling-specs`. Follow it. **No commit (Stage 12 batches).**
 
 ### Stage 5 — Optional 2nd Spec-Review (User-Gated)
 
@@ -205,7 +195,7 @@ If no: add `spec_second_review` to `stages_skipped`. If yes: dispatch with `REVI
 
 Dispatch a fresh subagent. Prompt includes: `SPEC_PATH`, `ADR_DIR` (hardcoded `docs/adr`), `EXISTING_ADRS` (list), `DECISIONS_CAPTURED` (in-memory from discovery + grill), and "Use the `ss-sdd-maintaining-adrs` skill."
 
-If ADRs were created or superseded, record `adr_results` in state. Zero ADRs is a valid outcome. **Do NOT commit** the new ADR files — `ss-sdd-choosing-feature-branch` (Stage 12) will batch-commit them.
+If ADRs were created or superseded, record `adr_results` in state (transcribed from the subagent's report). Zero ADRs is a valid outcome. **No commit (Stage 12 batches).**
 
 ### Stage 7 — User Spec Approval
 
@@ -216,27 +206,16 @@ Tell user:
 > - ADRs (currently `Proposed`): [list]
 >
 > One of:
-> - **Approve** — flip ADRs Proposed → Accepted (in your working tree; commits happen at Stage 12), proceed (default)
-> - **Approve, keep ADRs as Proposed** — proceed but leave ADRs untouched (no edits to working tree)
+> - **Approve** — flip ADRs Proposed → Accepted in your working tree, then proceed (default)
 > - **Request changes** — what to change"
 
-**On Approve:** edit each ADR's `Status: Proposed` → `Status: Accepted` (file edits only — do NOT commit). Advance.
+**On Approve:** edit each ADR's `Status: Proposed` → `Status: Accepted` (file edits only). Advance. **No commit (Stage 12 batches).**
 
-**On Approve, keep ADRs as Proposed:** Advance. (No commit; planning artifacts remain uncommitted until Stage 12.)
-
-**On Request changes:** classify before applying.
-
-| Change type | Examples | Handling |
-|---|---|---|
-| **Light-touch** | Typo, wording, tightening an FR, adding an edge case, ADR text adjustment | Apply inline via `ss-sdd-receiving-review-findings` discipline. Re-validate. Re-ask for approval. |
-| **Substantive — re-discovery** | Decomposition needed, fundamental requirement change, whole story added/removed | Do NOT edit inline. Reset `current_stage` to `discovering`; re-invoke `ss-sdd-discovering-requirements`. |
-| **Substantive — ADR overhaul** | An ADR needs replacing, new ADR-worthy decisions emerge | Re-dispatch `ss-sdd-maintaining-adrs` after any spec changes. |
-
-If unsure, default to light-touch; if it grows substantive mid-edit, stop and reclassify.
+**On Request changes:** classify per the [User-Requested Changes Classification](#user-requested-changes-classification) subsection above, then apply.
 
 ### Stage 8 — Writing the Plan
 
-Load `ss-sdd-writing-plans`. Follow it. Same validator-enforcement pattern as Stage 2 — re-run `validate-plan.sh`; halt on disagreement. **Do NOT commit** — the plan stays uncommitted; `ss-sdd-choosing-feature-branch` (Stage 12) will batch-commit it alongside the spec.
+Load `ss-sdd-writing-plans`. Follow it. Same validator-enforcement pattern as Stage 2 — re-run `validate-plan.sh`; halt on disagreement. **No commit (Stage 12 batches).**
 
 ### Stage 9 — Auto Plan-Review
 
@@ -248,7 +227,11 @@ Same pattern as Stage 5.
 
 ### Stage 11 — User Plan Approval
 
-Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a feature branch and start implementation, or request changes." Wait for explicit approval. (No commit — artifacts remain uncommitted through Stage 11.)
+Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a feature branch and start implementation, or request changes." Wait for explicit approval.
+
+**On Approve:** advance to Stage 12. **No commit (Stage 12 batches).**
+
+**On Request changes:** classify per the [User-Requested Changes Classification](#user-requested-changes-classification) subsection above, then apply.
 
 ### Stage 12 — Settle Feature Branch + Batch Commit
 
@@ -262,9 +245,11 @@ After success: append `branch_chosen` to `stages_completed`. Advance to Stage 13
 
 ### Stage 13 — Implementation (sub-pipeline)
 
-Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is initialized/synced and updated per task.
+Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is owned by that skill — initialized/synced on entry, updated per task. On resume into Stage 13, `ss-sdd-implementing-plans` handles per-task resumption (continuing an `in_progress` task or picking up the first `pending` one); the coordinator just loads it.
 
-After all tasks complete and final review passes, the implementation stage is done. State is updated on disk (atomic write) but NOT committed — `.sublime-skills/state.json` is gitignored. Advance to Stage 14.
+**Continuous execution:** Stage 13 does NOT pause between tasks for human check-in. Only stop when: a task returns BLOCKED that can't be resolved by the coordinator (e.g., needs user input); a review loop hits its 3-iteration cap; the plan itself appears wrong; or all tasks complete. Coordinator-driven pauses between tasks waste run time and break the per-task isolation.
+
+After all tasks complete and final review passes, advance to Stage 14.
 
 ### Stage 14 — Optional Feature Testing (User-Gated)
 
@@ -290,11 +275,7 @@ mkdir -p "$HANDOFF_DIR"
 
 Dispatch a fresh subagent with: `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `BRANCH`, `BASE_SHA` (`git merge-base HEAD <base>`), `HEAD_SHA`, `HANDOFF_DIR`, and "Use the `ss-sdd-generating-handoff` skill."
 
-After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT record `handoff_path`. Otherwise:
-
-Record `handoff_path` in state file (atomic write — no commit; `.sublime-skills/state.json` is gitignored). The handoff file itself lives outside the repo and is never committed.
-
-Tell the user where the handoff was written (the absolute path now in `state.handoff_path`).
+After return: re-run `validate-handoff.sh <handoff-path>`. If FAIL — especially "potential unredacted secret" — halt; do NOT record `handoff_path`. Otherwise record `handoff_path` in state and tell the user the absolute path. The handoff file lives outside the repo; no commit.
 
 ### Stage 16 — Maintain Memory File (User-Gated)
 
@@ -314,13 +295,13 @@ Read `EXISTING_CONTENT` from `MEMORY_FILE_PATH` (empty string if file doesn't ex
 Dispatch a fresh subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT`, `EXISTING_CONTENT`, and "Use the `ss-sdd-maintaining-memory-file` skill."
 
 The subagent returns one of:
-- **updated** — memory file was written. Commit it:
+- **updated** — memory file was written. If `MEMORY_FILE_PATH` is inside the repo, commit it path-scoped:
   ```
   git add <MEMORY_FILE_PATH>
   git commit -m "docs(memory): update from NNN-short-name"
   ```
-  (If `MEMORY_FILE_PATH` resolves outside the repo, no commit is needed — inform the user where the external file was written. State is recorded on disk via atomic write, never committed.)
-- **no update needed** — the most common outcome. No commit needed for the memory file; advance.
+  If it resolves outside the repo, skip the commit and inform the user where it was written.
+- **no update needed** — most common outcome. Advance.
 - **skipped** — no memory file configured or detected. Add `memory_file` to `stages_skipped`; advance.
 
 Record outcome in state: `memory_file_updated: true | false`. If updated, also record `memory_file_path` in state for the handoff doc / debugging.
@@ -348,15 +329,15 @@ Dispatch fresh subagents (no inherited context) via your harness's subagent disp
 
 ## Failure Protocols
 
-The three failure modes coordinators must handle are documented in full in `docs/sdd/operations.md`:
+Compact rule table for the three failure modes. Full per-mode handling lives in `docs/sdd/operations.md`; consult it only when this table doesn't cover the situation.
 
-- **Commit Failure Protocol** — what to do when `git commit` returns non-zero (hook rejection, missing identity, GPG failure, nothing to commit, missing file, merge conflict). The absolute rules: never `--no-verify`, never `--no-gpg-sign`, never `--force`, never amend a published commit. Retry at most once when the cause is clear and auto-fixable (e.g., formatter modified files). Otherwise halt and surface.
+| Failure | When it fires | Absolute rules | Action |
+|---|---|---|---|
+| **Commit failure** | `git commit` returns non-zero at Stage 12 batch commits, Stage 13 task commits, or Stage 16 memory commit | Never `--no-verify`, `--no-gpg-sign`, `--force`. Never amend a published commit. | Retry once **only** when the cause is clear and auto-fixable (e.g., formatter modified files; re-stage path-scoped, re-commit). Otherwise halt and surface git's output verbatim. |
+| **Merge failure** | `git merge --no-ff <branch_name>` returns non-zero at Stage 17 (conflicts, hook rejection, signing failure) | Never `--no-verify`/`--no-gpg-sign`. Never auto-`git merge --abort`. Never `git branch -D`. Never delete `.sublime-skills/state.json` before the merge succeeds. | Halt and surface git's output verbatim; leave the working tree as-is. User resolves manually and re-invokes — Stage 17 is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date"). |
+| **Subagent failure** | Dispatched subagent times out, crashes, returns malformed output, or skips required fields (any of Stages 3, 5, 6, 9, 10, 13 reviewers, 14 tester, 15 handoff, 16 memory) | Max one retry per failure mode. Never substitute the coordinator's own work for the failed subagent's. Never run retries in parallel. | Retry once. If still failing, surface to user with four options: retry again with adjusted prompt / skip (optional stages only) / abort the run / provide-result-manually (user pastes the expected output and coordinator continues). |
 
-- **Merge Failure Protocol (Stage 17)** — what to do when `git merge --no-ff <branch_name>` returns non-zero at the finishing stage (conflicts, hook rejection, signing failure). Absolute rules: never `--no-verify`/`--no-gpg-sign`, never auto-`git merge --abort`, never `git branch -D`, never delete the state file before the merge succeeds. Halt and surface git's output verbatim; leave the working tree as-is so the user can inspect or complete the merge manually. Re-invocation is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes.
-
-- **Subagent Failure Protocol** — what to do when a dispatch times out, crashes, returns malformed output, or skips required fields. Max one retry per failure mode. Never substitute the coordinator's own work for the failed subagent's. Never run retries in parallel. Surface to user with four options: retry / skip (non-mandatory only) / abort / provide-result-manually.
-
-All three protocols list the exact handling for each common failure mode. When in doubt, follow operations.md.
+When in doubt about edge cases, follow operations.md.
 
 ## Common Mistakes
 

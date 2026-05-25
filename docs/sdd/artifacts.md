@@ -480,7 +480,7 @@ The reason line must match one of the [NO-TDD] allowed categories (see [operatio
 ### Status lifecycle
 
 - **Proposed** — default when first written by `ss-sdd-maintaining-adrs`. Awaiting user approval.
-- **Accepted** — default outcome of Stage 7 (user spec approval). The coordinator flips ADRs to Accepted unless the user explicitly chooses "Approve, keep ADRs as Proposed".
+- **Accepted** — outcome of Stage 7 (user spec approval): on Approve, the coordinator flips every ADR's status from `Proposed` to `Accepted` in the working tree (Stage 12 batch-commits the change).
 - **Superseded by ADR-NNNN** — automatically set when a new ADR explicitly supersedes this one.
 - **Deprecated** — manually set when an ADR is no longer relevant (rare).
 

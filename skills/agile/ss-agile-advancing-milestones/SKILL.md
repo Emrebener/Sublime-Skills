@@ -4,7 +4,7 @@ description: >-
   Use when advancing GitHub milestone progress — auto-selects the current milestone
   (the open milestone with the lowest number, i.e. the earliest sprint with work
   remaining), picks the next logical issue from it, and drives that issue end-to-end
-  through implementation, polish, and local merge by dispatching subagents. Designed
+  through implementation, optional polish (only when the issue is gnarly), and local merge by dispatching subagents. Designed
   to be invoked repeatedly (e.g. from a ralph-loop wrapper) until all milestones are
   closed. Sister skills (loaded by subagents): `ss-agile-implementing-an-issue`,
   `ss-agile-polishing-an-issue`. For `gh` syntax, lean on `ss-agile-managing-issues`.
@@ -12,9 +12,9 @@ description: >-
 
 # Advancing Milestones
 
-You are the **coordinator** for one cycle of milestone progress. Your job is to find the *current* milestone (the earliest open one), pick one issue from it, and drive that issue through implementation, polish, and local merge via subagents — not to do the implementation or polish yourself. You orchestrate.
+You are the **coordinator** for one cycle of milestone progress. Your job is to find the *current* milestone (the earliest open one), pick one issue from it, and drive that issue through implementation, optional polish, and local merge via subagents — not to do the implementation or polish yourself. You orchestrate.
 
-**Session scope: one issue per invocation.** The flow is linear: find current milestone → pick issue → implementer → polisher → merge. There is no verdict, no iteration loop, no reviewer-as-gatekeeper. The polisher improves the diff and flags possibly-unmet acceptance criteria as info, but never blocks. After the merge, this session ends.
+**Session scope: one issue per invocation.** The flow is linear: find current milestone → pick issue → implementer → (optional polisher) → merge. There is no verdict, no iteration loop, no reviewer-as-gatekeeper. **Polish is opt-in per issue** — skip by default; run only when the issue is gnarly enough that a second-pass sanity check is worth the token cost (decision rules in Step 7). When the polisher does run, it improves the diff and flags possibly-unmet acceptance criteria as info, but never blocks the merge. After the merge, this session ends.
 
 **Designed for ralph-loop re-invocation.** Each invocation is self-contained: it queries live GitHub state, picks one issue, completes it, and exits. The skill can be invoked over and over by an outer wrapper until everything is done. Two clean exit signals tell the outer loop to terminate:
 
@@ -78,8 +78,15 @@ Examples:
 ▶ Step 1: Finding current milestone...
 ▶ Step 5: Pre-flight checks...
 ▶ Step 6: Dispatching implementer subagent for issue #14...
-▶ Step 7: Dispatching polisher subagent...
+▶ Step 7: Polish decision: skip (small diff, all criteria met)
 ▶ Step 8: Merging issue #14 into main...
+```
+
+…or, when polish runs:
+
+```
+▶ Step 7: Polish decision: run (complex label, implementer flagged a TODO)
+▶ Step 7: Dispatching polisher subagent...
 ```
 
 These markers cost almost nothing and dramatically improve visibility. Emit them eagerly — before the model starts a long tool call (like an `Agent` dispatch) is the most valuable place, since otherwise the user sees nothing for the duration of the subagent's work.
@@ -330,9 +337,37 @@ Do not push the branch — this flow is local-merge-only.
 
 Run the agent. When it returns its report, capture it for the polisher's brief.
 
-### 7. Dispatch the polisher
+### 7. Decide whether to polish; dispatch the polisher only if warranted
 
-After the implementer reports done, dispatch a polisher subagent. The polisher is **not a reviewer** — it has no verdict and no veto power. It improves the diff incrementally (naming, comments, structure within scope) and does a lightweight acceptance-criteria sanity check, surfacing any plainly-unmet items as info. The merge happens after polish completes regardless of what the polisher reports.
+Polish is **opt-in per issue**. Skip by default. Polish costs real tokens (a full second pass over the diff) for usually-marginal returns, so reserve it for issues where the value floor — the acceptance-criteria sanity check — actually pays off.
+
+**Run polish when ANY of these signals fires:**
+
+- The issue has a `complex`, `gnarly`, `risky`, `refactor`, `core`, or `infrastructure` label.
+- The issue body lists more than 3 acceptance criteria (more places for something to slip).
+- The implementer's report flagged any criterion as "couldn't satisfy" or "partially done".
+- The implementer's report mentions TODOs left in code, scope cuts, or "things the polisher should know".
+- The diff is large — rough heuristic: more than ~200 lines changed across all files. Quick check: `git diff --shortstat <DEFAULT>...HEAD`.
+
+**Skip polish when none of those fire.** Typical skip cases: a small, single-purpose issue with ≤ 3 criteria, all reported as met, no implementer notes, modest diff.
+
+**Mixed signals:** favor running polish. The token cost is bounded; the criteria sanity check is the load-bearing value.
+
+Announce the decision in one line for ralph-loop log visibility, e.g.:
+
+```
+▶ Step 7: Polish decision: skip (small diff, 2 criteria all met, no implementer notes)
+```
+
+or:
+
+```
+▶ Step 7: Polish decision: run (issue labeled `complex`; implementer flagged a TODO at user.ts:42)
+```
+
+**If skipping**, proceed directly to Step 8. Do **not** dispatch a polisher. The polisher's report fields in the final summary (Step 10) become "skipped" and the issue-comment step (8.7) is also skipped — there's nothing to post.
+
+**If running**, dispatch the polisher subagent below. The polisher is **not a reviewer** — it has no verdict and no veto power. It improves the diff incrementally (naming, comments, structure within scope) and does a lightweight acceptance-criteria sanity check, surfacing any plainly-unmet items as info. The merge happens after polish completes regardless of what the polisher reports.
 
 Use the `Agent` tool with `subagent_type: general-purpose`:
 
@@ -371,7 +406,7 @@ Run the agent. Capture its report — you'll use it in the final summary in step
 
 ### 8. Merge and close out the issue
 
-The merge happens unconditionally after the polisher completes. The polisher's report is *informational* — surfaced to the user in the final summary, but never gating the merge. Even if the polisher flagged criteria as possibly unmet, MERGE ANYWAY — the user reviews the heads-up in the post-merge summary and can roll back via `git reset --hard <pre-merge-sha>` if needed. Do **NOT** pause to confirm; that would break ralph-loop autonomy.
+The merge happens unconditionally after Step 7 — whether polish ran or was skipped. When polish did run, its report is *informational* — surfaced to the user in the final summary, but never gating the merge. Even if the polisher flagged criteria as possibly unmet, MERGE ANYWAY — the user reviews the heads-up in the post-merge summary and can roll back via `git reset --hard <pre-merge-sha>` if needed. Do **NOT** pause to confirm; that would break ralph-loop autonomy.
 
 1. Switch to the default branch:
    ```bash
@@ -394,13 +429,13 @@ The merge happens unconditionally after the polisher completes. The polisher's r
    git branch -d <branch-name>
    ```
    Lowercase `-d` refuses to delete unless the branch is fully merged — a safety net. If it errors, something's wrong; do not escalate to `-D` without investigating.
-7. If the polisher returned any criteria-sanity-check flags or "other observations" worth recording, post them as a comment on the issue:
+7. If polish ran in Step 7 and the polisher returned any criteria-sanity-check flags or "other observations" worth recording, post them as a comment on the issue:
    ```bash
    gh issue comment <N> -R OWNER/REPO --body "Polisher notes (info, not blocking):
    - <flag or observation>
    - ..."
    ```
-   Skip this step if the polisher had no flags and no observations.
+   Skip this substep if polish was skipped in Step 7, or if it ran but had no flags and no observations.
 8. Close the issue:
    ```bash
    gh issue close <N> -R OWNER/REPO --reason completed \
@@ -427,9 +462,9 @@ The merge happens unconditionally after the polisher completes. The polisher's r
 
     Milestone "<milestone-title>" had no remaining open issues — closed it too.   (omit this line if remaining > 0)
 
-    Polish: <N changes made — brief list>      (or: "No changes — diff was already clean.")
-    Criteria heads-up: <list of flagged criteria>   (omit this line if no flags)
-    Other observations: <list>                       (omit if none)
+    Polish: <N changes made — brief list>      (or: "No changes — diff was already clean."; or: "Skipped — <reason from Step 7>" if polish was skipped)
+    Criteria heads-up: <list of flagged criteria>   (omit this line if no flags, or if polish was skipped)
+    Other observations: <list>                       (omit if none, or if polish was skipped)
 
     Push <DEFAULT> to origin when you're ready:
         git push origin <DEFAULT>
@@ -469,7 +504,7 @@ Every row that says "STOP" also requires emitting a `RALPH_EXIT:` marker per the
 - **You don't prompt the user for confirmation at any step.** The flow runs autonomously from start to finish. The only pauses are clean exits — when there's no work, when state is unexpected, or when something fails irrecoverably. This is required for ralph-loop autonomy.
 - You don't write code. The implementer does.
 - You don't polish code. The polisher does.
-- You don't gatekeep quality. There is no APPROVE/REJECT verdict; the merge happens after polish completes regardless.
+- You don't gatekeep quality. There is no APPROVE/REJECT verdict; the merge happens after Step 7 (whether polish ran or was skipped) regardless of any polisher report.
 - You don't open a GitHub PR. This flow is local-merge-only.
 - You don't push the default branch to origin after merging — that's the user's call.
 - You don't auto-revert a merge if post-merge tests fail. Surface the failure; user decides.

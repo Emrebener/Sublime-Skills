@@ -297,8 +297,7 @@ The coordinator tells the user:
 > - ADRs (currently `Proposed`): [list with paths]
 >
 > Please let me know one of:
-> - **Approve** — flip ADRs to Accepted (in your working tree; commits happen at Stage 12) and proceed (default for spec approval)
-> - **Approve, keep ADRs as Proposed** — proceed but leave ADR statuses untouched
+> - **Approve** — flip ADRs to Accepted (in your working tree; commits happen at Stage 12) and proceed (default)
 > - **Request changes** — tell me what to change"
 
 All artifact updates from approval (ADR status flips, any inline spec edits from "request changes") stay uncommitted in the working tree. Stage 12 (`ss-sdd-choosing-feature-branch`) batch-commits them on the chosen branch.
@@ -306,7 +305,6 @@ All artifact updates from approval (ADR status flips, any inline spec edits from
 The user reads the files and responds. Possibilities:
 
 - **Approve** (default flow): the coordinator flips every ADR file's status from `Proposed` to `Accepted` (file edits only — uncommitted), advances to Stage 8.
-- **Approve, keep ADRs as Proposed**: ADRs stay as-is; the coordinator advances to Stage 8 (no commit).
 - **Request changes**: classify before applying.
   - **Light-touch edit** (typo, wording, tightening an FR, adding an edge case, ADR text adjustment): apply inline using `ss-sdd-receiving-review-findings` discipline, re-run validator, re-ask.
   - **Substantive — re-discovery needed** (decomposition, fundamental requirement change, story added/removed, big rethink): do NOT edit inline. Confirm with user, then reset `current_stage` to `discovering` and re-enter Stage 1. The new discovery may produce a revised spec that supersedes the current one.
@@ -314,7 +312,7 @@ The user reads the files and responds. Possibilities:
   - If unsure, default to light-touch and apply inline; if it becomes clear the change is substantive, stop and reclassify.
 - **Reject and abandon**: coordinator exits the pipeline; user decides what to do with the work-in-progress branch.
 
-**Why "flip by default":** leaving ADRs `Proposed` after a shipped feature creates stale statuses users forget to update. The "keep as Proposed" option exists for the rare case where the ADR needs more deliberation but the spec is fine.
+**Why flip on approval:** leaving ADRs `Proposed` after a shipped feature creates stale statuses users forget to update. If a particular ADR genuinely needs more deliberation, the right move is **Request changes** on that ADR — not shipping a still-Proposed decision.
 
 **Hard gate:** the coordinator does NOT advance to Stage 8 without explicit user approval.
 
@@ -388,8 +386,11 @@ The coordinator tells the user:
 Possibilities:
 
 - **Approve**: advance to Stage 12 (`ss-sdd-choosing-feature-branch`). No commit here — artifacts remain uncommitted through Stage 11.
-- **Request changes**: coordinator applies inline, re-validates, re-asks.
-- **Loop back to spec**: if the plan reveals a spec gap, the coordinator can return to earlier stages. (Practically rare — Stage 9 should catch most issues.)
+- **Request changes**: classify before applying, same protocol as Stage 7's "Request changes" branch.
+  - **Light-touch edit** (task wording, fixing a path, tightening a step): apply inline using `ss-sdd-receiving-review-findings` discipline, re-run `validate-plan.sh`, re-ask.
+  - **Substantive — plan rework** (phases need restructuring, big chunks of tasks rewritten): re-enter Stage 8 (`ss-sdd-writing-plans`); the prior plan is overwritten in place.
+  - **Substantive — spec gap** (the plan reveals a missing FR or unclear scope): return to the relevant spec stage. Practically rare — Stage 9 should catch most of these.
+  - If unsure, default to light-touch; if it becomes clear the change is substantive, stop and reclassify.
 - **Reject and abandon**: coordinator exits.
 
 **Hard gate:** no Stage 12 without approval.

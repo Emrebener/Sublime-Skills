@@ -21,7 +21,7 @@
 #   ./scripts/ralph-loop-codex.sh -c "codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5 -c model_reasoning_effort='high'"
 #   ./scripts/ralph-loop-codex.sh --iter 50 --command "codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5"
 #
-#   ./scripts/ralph-loop-codex.sh --iter 50 --command "codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5 -c model_reasoning_effort='medium'" --prompt '$ss-agile-advancing-milestones'
+#   $SUBLIME_SKILLS_HOME/scripts/ralph-loop-codex.sh --iter 50 --command "codex exec --dangerously-bypass-approvals-and-sandbox -m gpt-5.5 -c model_reasoning_effort='medium'" --prompt '$ss-agile-advancing-milestones'
 #
 # The command string is evaluated by bash so normal shell quoting works. Pass
 # only commands you trust. A bare positional command string is still accepted
