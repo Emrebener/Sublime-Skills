@@ -435,13 +435,21 @@ need human judgment. Per-task reviews stay handled by
 
 ### project-bootstrap (separate family)
 
-One-time project setup — a coordinator plus five inline conversational
+One-time project setup — a coordinator plus seven inline conversational
 discovering-X skills. Lives under
 [`skills/project-bootstrap/`](skills/project-bootstrap/), separate from the SDD family.
 Invoked manually by the user, not by the SDD coordinator.
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics,
 troubleshooting), see [`docs/bootstrap.md`](docs/bootstrap.md).
+
+#### [ss-bs-auditing-project](skills/project-bootstrap/ss-bs-auditing-project/)
+
+Re-evaluates an already-bootstrapped project for drift, incoherence, and
+improvement opportunities. Sibling to ss-bs-bootstrapping-project; re-uses the
+discovery skills via MODE=audit with SUGGEST=on. Commits stage-by-stage so the
+user can accept some changes and decline others. Run cases: quarterly health
+checks, post-refactor sweeps, doc-staleness investigations.
 
 #### [ss-bs-bootstrapping-project](skills/project-bootstrap/ss-bs-bootstrapping-project/)
 
@@ -454,24 +462,36 @@ READMEs; copies the canonical config scaffold at
 `skills/project-bootstrap/scaffolds/config.yml` to `.sublime-skills/config.yml`; sets
 `context.<name>_path` to `null` for skipped files; runs
 `validate-config.sh` in a fix-and-retry loop until PASS; commits.
+Pipeline now covers 7 artifacts (constitution → architecture → testing →
+glossary → domain → design → memory file) and runs a cross-artifact coherence
+check before commit. Supports an opt-in prescriptive 'suggestion pass' (SUGGEST=on)
+that flags anti-patterns and missing-but-typically-valuable patterns, cited from
+evidence.
 
-#### [ss-bs-discovering-constitution](skills/project-bootstrap/ss-bs-discovering-constitution/), [ss-bs-discovering-architecture](skills/project-bootstrap/ss-bs-discovering-architecture/), [ss-bs-discovering-glossary](skills/project-bootstrap/ss-bs-discovering-glossary/), [ss-bs-discovering-domain-model](skills/project-bootstrap/ss-bs-discovering-domain-model/)
+#### [ss-bs-discovering-architecture](skills/project-bootstrap/ss-bs-discovering-architecture/)
 
-Per-artifact inline conversational skills — loaded into the coordinator's
-own context (NOT dispatched as subagents). Each does
-a silent code scan (per-skill targets: linter / CI / source patterns for
-the constitution; build files and infra config for the architecture;
-source identifiers and inline comments for the glossary; schemas and
-model files for the domain model), announces findings to the user, then
-asks targeted questions about anything the code can't reveal (intent
-principles, deliberate boundaries, alias confirmations, workflow
-exceptions, lifecycle gaps). Each skill drafts, refines via a tweak
-loop (cap 3), and atomically writes its file itself.
+Per-artifact inline conversational skill — loaded into the coordinator's
+own context (NOT dispatched as subagent). Does a silent code scan (build files
+and infra config), announces findings to the user, then asks targeted questions
+about anything the code can't reveal (system boundaries, service interactions,
+API composition, ownership rules). Drafts, refines via a tweak loop (cap 3),
+and atomically writes its file. Supports an opt-in prescriptive 'suggestion pass'
+(SUGGEST=on) that flags anti-patterns and missing-but-typically-valuable
+patterns, cited from evidence.
+
+#### [ss-bs-discovering-constitution](skills/project-bootstrap/ss-bs-discovering-constitution/)
+
+Per-artifact inline conversational skill for project principles. Does a silent
+code scan (linter / CI / source patterns), announces findings, then asks
+targeted questions about any implicit principles the code reveals. Drafts,
+refines via a tweak loop (cap 3), and atomically writes its file. Supports an
+opt-in prescriptive 'suggestion pass' (SUGGEST=on) that flags anti-patterns and
+missing-but-typically-valuable patterns, cited from evidence.
 
 #### [ss-bs-discovering-design](skills/project-bootstrap/ss-bs-discovering-design/)
 
 Per-artifact inline conversational skill for the visual design system.
-Unique among the five for offering an **Import** path in addition to the
+Unique among the seven for offering an **Import** path in addition to the
 standard **Build** path — the user can supply a path to an existing
 DESIGN.md (from [styles.refero.design](https://styles.refero.design),
 Specify, Tokens Studio, or hand-authored) and the skill verifies +
@@ -479,7 +499,39 @@ previews + atomically copies it. Build path runs a code scan (Tailwind
 config, CSS custom properties, theme/token files, component libraries)
 plus targeted user questions about theme intent, brand vibe, color role
 rules, and do's-and-don'ts. Uses one-question-at-a-time structured
-prompts with recommended options.
+prompts with recommended options. Supports an opt-in prescriptive 'suggestion pass'
+(SUGGEST=on) that flags anti-patterns and missing-but-typically-valuable
+patterns, cited from evidence (Build path only; Import path skips diagnose).
+
+#### [ss-bs-discovering-domain-model](skills/project-bootstrap/ss-bs-discovering-domain-model/)
+
+Per-artifact inline conversational skill for the domain model. Does a silent
+code scan (schemas and model files), announces findings, then asks targeted
+questions about conceptual entities, relationships, and lifecycle. Drafts,
+refines via a tweak loop (cap 3), and atomically writes its file. Supports an
+opt-in prescriptive 'suggestion pass' (SUGGEST=on) that flags anti-patterns and
+missing-but-typically-valuable patterns, cited from evidence.
+
+#### [ss-bs-discovering-glossary](skills/project-bootstrap/ss-bs-discovering-glossary/)
+
+Per-artifact inline conversational skill for domain vocabulary. Does a silent
+code scan (source identifiers and inline comments), announces findings, then
+asks targeted questions about aliases and canonical term choices. Drafts,
+refines via a tweak loop (cap 3), and atomically writes its file. Supports an
+opt-in prescriptive 'suggestion pass' (SUGGEST=on) that flags anti-patterns and
+missing-but-typically-valuable patterns, cited from evidence.
+
+#### [ss-bs-discovering-memory-file](skills/project-bootstrap/ss-bs-discovering-memory-file/)
+
+Discovers, drafts, and writes the project's agent memory file (CLAUDE.md /
+AGENTS.md / GEMINI.md / .agents.md). Runs last in the bootstrap sequence so
+it can synthesize pointers to the other six artifacts rather than duplicate them.
+
+#### [ss-bs-discovering-testing](skills/project-bootstrap/ss-bs-discovering-testing/)
+
+Discovers, drafts, and writes the project's testing convention file at
+docs/TESTING.md. Scans test directories, runner configs, CI commands, coverage
+tooling, and mocking patterns; optionally proposes improvements when SUGGEST=on.
 
 ## Slash commands
 
