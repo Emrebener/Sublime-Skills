@@ -32,6 +32,9 @@ You synthesize pointers to the other six artifacts (constitution, architecture, 
 - Do NOT pad the Q1.5 list to fill a quota. Zero strong candidates → Q1.5 is skipped silently — this is the correct outcome, not a bug.
 - Do NOT run Step 1.5 when `SUGGEST=off`; skip it entirely — do not run-but-suppress.
 - Do NOT use severity MUST for a diagnose candidate unless there is observable harm. Weaker evidence defaults to SHOULD or INFO.
+- In audit mode, do NOT skip Step 1.6 (drift check). It's the third operation alongside observe and diagnose; without it, audit is just "extend mode with SUGGEST=on".
+- In audit mode, ask Q0 questions ONE drift item per question — do NOT bundle. Drift resolutions are nuanced individually.
+- In audit mode, SUGGEST is always treated as `on` (regardless of input). This is documented in the Inputs section.
 - ALWAYS use the harness's interactive question tool for every multi-choice or multi-select question. Do not fall back to plain-text prompts.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask.
 - ALWAYS write atomically: `<path>.tmp` then `mv`.
@@ -40,7 +43,7 @@ You synthesize pointers to the other six artifacts (constitution, architecture, 
 ## Inputs (from coordinator)
 
 - `REPO_ROOT` — absolute path to repo root
-- `MODE` — `create | extend | replace | audit`
+- `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3.
 - `EXISTING_CONTENT` — verbatim current memory-file content (only for `extend` / `replace` / `audit`; empty for `create`)
 - `FILE_PATH` — target path if `memory_file.path` is already set in config; `null` otherwise (Step 0 detects)
 - **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both. Defaulted by the coordinator from `suggest.default` in config. Always `on` in audit mode.
@@ -72,6 +75,16 @@ You synthesize pointers to the other six artifacts (constitution, architecture, 
 │   → Step 5: refine via tweak loop (cap 3)          │
 │   → Step 6: atomic write of merged content         │
 │             + config writeback                     │
+├─────────────────────────────────────────────────────┤
+│ MODE = audit                                        │
+│   → Step 0: detect target file (same as always)    │
+│   → Step 1: silent scan (6 artifacts + run cmds +  │
+│             README first paragraph)                 │
+│   → Step 1.5: silent diagnose (always on for audit) │
+│   → Step 1.6: drift check vs EXISTING_CONTENT       │
+│   → Step 2: announce findings + drift + diagnoses   │
+│   → Step 3: Q0 (drift resolution) → Q1 → Q1.5 → ...│
+│   → Step 4-6: as usual                              │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -209,6 +222,27 @@ If more than 5 candidates remain after dropping unsupported ones, rank by:
 
 Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
 
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each entry in `EXISTING_CONTENT` against the current artifacts and code state. The goal is to detect entries that have gone stale.
+
+### 1.6a. Drift categories for memory-file
+
+- **Pointer to deleted file.** A pointer like `[Architecture](docs/ARCHITECTURE.md)` resolves to a missing file. (Overlaps with coherence-check Tier 1; surface here too so the user can fix in audit context.) Evidence: file-system check of the linked path.
+- **Convention line contradicted by code.** A convention says "use Pytest" but the code uses Vitest. Evidence: code path.
+- **Stale command.** A `## Commands` entry uses a command name no longer present in package.json / Makefile. Evidence: task-runner file path.
+- **Glossary section terms out of sync.** The 3–5 highlighted terms in the memory file no longer match the most-frequent glossary terms. Evidence: glossary current state.
+- **NEVER/MUST drift.** A NEVER/MUST line that no longer maps to any constitution principle (constitution may have dropped or weakened it). Evidence: constitution diff.
+- **Provenance re-evaluation.** Suggestion-added lines carry HTML-comment provenance markers (`<!-- provenance: bootstrap suggestion <date>; evidence: <summary> -->`). For each such marker, re-evaluate whether the suggestion is still warranted:
+  - If the original evidence pattern is STILL present (the code has not changed), the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (code now matches the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (pointer-broken / convention-contradicted / stale-command / glossary-out-of-sync / never-must-drift / aspiration-met / aspiration-still-pending), `entry` (the memory-file text being challenged), `evidence` (artifact or file paths showing the current state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
+
 ## Step 2: Announce Findings
 
 One short message (3–6 sentences; 3–7 when `SUGGEST=on` extends with the diagnose-mention sentence). State what you read and the headline finding.
@@ -225,9 +259,39 @@ One short message (3–6 sentences; 3–7 when `SUGGEST=on` extends with the dia
 
 > "Your existing memory file covers [sections]. I scanned the current artifacts and found [gaps / stale entries]. I'll ask about those, then propose additions."
 
+**Audit mode:**
+
+> "Audit mode. Scan + diagnose + drift check complete. Found N drift items (X pointer/convention/command issues, Y provenance re-evaluations) — I'll surface those first in the questions, then walk through observed candidates and suggestions as usual."
+
 ## Step 3: Targeted Questions
 
 Ask in this order, one question per turn. Skip a question if the scan already answered it definitively.
+
+### Q0 — Drift Resolution (only if `MODE=audit` AND Step 1.6 produced ≥1 drift finding)
+
+Ask one question per drift finding (do NOT bundle — drift items often have nuanced individual resolutions):
+
+```
+Question: "Drift detected: <entry summary>. Current state: <evidence>. What's the right resolution?"
+
+Options:
+  - "Update the memory file to match current state"
+  - "Keep the entry — current state is wrong / will be fixed"
+  - "Remove the entry — no longer applies"
+```
+
+For **provenance re-evaluation** findings, the question is different:
+
+```
+Question: "Aspirational entry '<entry>' was added on <date>. Evidence at that time: <original evidence>. Current code state: <current evidence>. Has this aspiration been realized?"
+
+Options:
+  - "Yes — code has caught up. Remove the provenance marker (promote to normal)."
+  - "No — code still has the original problem. Keep as aspirational; refresh the marker date."
+  - "Drop the entry — we've decided not to pursue this aspiration."
+```
+
+Record each resolution. Apply during Step 4 (Draft Synthesis).
 
 ### Q1 — Which canonical sections to include (multi-select)
 
@@ -316,6 +380,8 @@ Synthesize the draft using:
 - Q3 free-form additions
 - Q4 confirmed NEVER/MUST list
 - Commands (auto-included if "Commands" section was chosen in Q1; from Step 1b)
+- Q0 drift resolutions (per drift item: update / keep / remove)
+- Q0 provenance re-evaluations (per aspirational entry: promote / refresh / drop)
 
 Use the Output Template (below). Show the full draft.
 
@@ -464,6 +530,10 @@ Key terms:
 | Bundling multiple questions in one ask | One question per turn. |
 | Looping past 3 tweak iterations | Surface to user with bail options. |
 | Overwriting in extend mode | Extend merges; only replace overwrites. |
+| Skipping Step 1.6 in audit mode | Drift detection is the audit's reason for existing |
+| Bundling Q0 drift resolutions into one multi-select | Each item gets its own question — resolutions are not collectively decidable |
+| Forgetting to refresh the provenance marker date when "Keep aspirational" is chosen | Audit needs the refresh to track time-since-last-evaluation |
+| Forgetting to strip the provenance marker when "Promote to normal" is chosen | The marker is the audit's hook; promoting means removing it |
 
 ## Red Flags
 
