@@ -1,10 +1,18 @@
 # Project Bootstrap
 
-A one-time, opinionated setup for spec-driven development on a fresh project. The bootstrap walks you through the five convention files (constitution, architecture, glossary, domain model, design system), scaffolds the `.sublime-skills/` config, creates the supporting directories, validates everything, and commits the result. After it runs, the project is ready for the SDD pipeline.
+A one-time, opinionated setup for spec-driven development on a fresh project. The bootstrap walks you through the seven convention files (constitution, architecture, testing, glossary, domain model, design system, memory file), scaffolds the `.sublime-skills/` config, creates the supporting directories, validates everything, and commits the result. After it runs, the project is ready for the SDD pipeline.
 
 The bootstrap is a **separate skill family** from SDD — it lives at `skills/project-bootstrap/`, not `skills/spec-driven-development/`. You invoke it manually; the SDD coordinator never invokes it. Its job is preparing the ground; SDD's job is building on it.
 
 > This doc is the human-readable narrative. The operational specs live in `skills/project-bootstrap/<skill>/SKILL.md`. If this doc and a SKILL.md disagree, the SKILL.md wins.
+
+---
+
+## Descriptive vs prescriptive — the suggestion pass
+
+Bootstrap is **descriptive by default**: it captures what the codebase already does and codifies it. With the suggestion-pass opt-in (asked once at the top of the run), it also runs an evidence-grounded prescriptive pass per discovery skill — flagging anti-patterns and missing-but-typically-valuable patterns, each cited from specific file paths or counts in the codebase. The user picks which suggestions to accept; accepted ones land in the artifact with a provenance marker so audit can re-evaluate later.
+
+See `docs/bootstrap-improvements-2026-05-25.md` for the full design.
 
 ---
 
@@ -13,15 +21,24 @@ The bootstrap is a **separate skill family** from SDD — it lives at `skills/pr
 You invoke `ss-bs-bootstrapping-project`. It:
 
 1. Runs `discover-context.sh` to see what's already there
-2. Walks you through the five convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `ss-bs-discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
+2. Walks you through the seven convention files one at a time. For each: detect → ask Skip / Create / Extend / Replace → load the matching `ss-bs-discovering-<topic>` skill inline → the skill scans the code, asks you targeted questions, drafts the file, refines via tweak loop, and writes atomically
 3. Creates `docs/adr/`, `docs/specs/` with stub READMEs
 4. Copies `skills/project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`, creates `.sublime-skills/config-local.yml` as an empty file, and creates `.sublime-skills/.gitignore` with `state.json` + `config-local.yml` entries (all idempotent — existing content is preserved on re-run)
 5. Edits the config to null out paths for skipped files
 6. Validates via `validate-config.sh` (fix-and-retry; cap 3)
-7. Ensures `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` (Step 4 creates the file; this step is a re-run safety net)
-8. Commits everything in one commit
+7. Runs a cross-artifact coherence check and surfaces any structural issues
+8. Ensures `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` (Step 4 creates the file; this step is a re-run safety net)
+9. Commits everything in one commit
 
 The whole thing is **safe to re-run**. Subsequent runs let you extend convention files you previously skipped, refine ones you created, or replace stale ones — without overwriting anything you didn't approve.
+
+---
+
+## Cross-artifact coherence check
+
+After all 7 stages complete and config is validated, bootstrap runs a structural coherence check across the artifacts. Findings are surfaced verbatim with severity (CRITICAL / WARNING / INFO) and a one-line fix hint. The user decides how to act: address now (loops back into the relevant discovery skills), acknowledge and commit, or expand a finding for details.
+
+Coherence is also the first step of `ss-bs-auditing-project` (the sibling skill for re-evaluating existing projects).
 
 ---
 
@@ -31,16 +48,17 @@ The whole thing is **safe to re-run**. Subsequent runs let you extend convention
 |---|---|---|---|
 | 1 | Detect existing setup | Coordinator runs `discover-context.sh` | No |
 | 1.5 | Build progress todo list | Coordinator uses harness todo tool | No |
-| 2 | Per-file loop (×5) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
+| 2 | Per-file loop (×7) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
 | 3 | Create `docs/adr/`, `docs/specs/` | Coordinator (`mkdir` + stub READMEs) | Yes |
 | 4 | Copy config scaffold + create local overlay + create gitignore | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml` + heredoc-write of `.gitignore` if missing) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`, `.sublime-skills/.gitignore`) |
 | 5 | Edit config to reflect skipped files | Coordinator (targeted in-place edits) | Yes (modifies `.sublime-skills/config.yml`) |
 | 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
-| 7 | `.gitignore` housekeeping | Coordinator (re-run safety net — ensures `.sublime-skills/.gitignore` has both `state.json` and `config-local.yml`) | Possibly (`.sublime-skills/.gitignore`) |
-| 8 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
-| 9 | Report | Coordinator (final summary message) | No |
+| 7 | Cross-artifact coherence check | Coordinator runs `coherence-check.sh`; surfaces findings | No (advisory; user decides action) |
+| 8 | `.gitignore` housekeeping | Coordinator (re-run safety net — ensures `.sublime-skills/.gitignore` has both `state.json` and `config-local.yml`) | Possibly (`.sublime-skills/.gitignore`) |
+| 9 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
+| 10 | Report | Coordinator (final summary message) | No |
 
-**No subagent dispatches anywhere in the bootstrap.** All five discovering-X skills load inline.
+**No subagent dispatches anywhere in the bootstrap.** All seven discovering-X skills load inline.
 
 ---
 
@@ -58,7 +76,7 @@ When invoked, the coordinator announces itself ("I'm using the ss-bs-bootstrappi
 "${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/discover-context.sh
 ```
 
-The script emits JSON. The coordinator caches it. For each convention file, the corresponding key (`constitution`, `architecture`, `glossary`, `domain`, `design`) is either:
+The script emits JSON. The coordinator caches it. For each convention file, the corresponding key (`constitution`, `architecture`, `testing`, `glossary`, `domain`, `design`, `memory_file`) is either:
 
 - A string (file exists at the configured or default path), or
 - `null` (no file, or no config exists yet)
@@ -71,15 +89,18 @@ Before the per-file loop, the coordinator builds a visible todo list via the har
 
 1. Constitution (`docs/constitution.md`)
 2. Architecture (`docs/ARCHITECTURE.md`)
-3. Glossary (`docs/GLOSSARY.md`)
-4. Domain model (`docs/DOMAIN.md`)
-5. Design (`docs/DESIGN.md`)
-6. Create `docs/adr/`, `docs/specs/` with READMEs
-7. Copy config scaffold to `.sublime-skills/config.yml`, create empty `.sublime-skills/config-local.yml`, and create `.sublime-skills/.gitignore` with `state.json` + `config-local.yml` entries
-8. Edit config to reflect skipped files
-9. Run `validate-config.sh` (fix-and-retry loop)
-10. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
-11. Commit
+3. Testing (`docs/TESTING.md`)
+4. Glossary (`docs/GLOSSARY.md`)
+5. Domain model (`docs/DOMAIN.md`)
+6. Design (`docs/DESIGN.md`)
+7. Memory file (agent memory file)
+8. Create `docs/adr/`, `docs/specs/` with READMEs
+9. Copy config scaffold to `.sublime-skills/config.yml`, create empty `.sublime-skills/config-local.yml`, and create `.sublime-skills/.gitignore` with `state.json` + `config-local.yml` entries
+10. Edit config to reflect skipped files
+11. Run `validate-config.sh` (fix-and-retry loop)
+12. Cross-artifact coherence check
+13. Ensure `.sublime-skills/.gitignore` contains state.json + config-local.yml entries
+14. Commit
 
 Each item moves to `in_progress` when started and `completed` the instant it's done. Never batched — the user reads this list to follow along.
 
@@ -87,7 +108,7 @@ Each item moves to `in_progress` when started and `completed` the instant it's d
 
 ## Step 2: Per-file loop
 
-Iteration order is fixed: **constitution → architecture → glossary → domain model → design**. The order matters because later files reference earlier ones (e.g., architecture references domain terms; design references the component vocabulary).
+Iteration order is fixed: **constitution → architecture → testing → glossary → domain model → design → memory file**. The order matters because later files reference earlier ones (e.g., architecture references domain terms; testing references frameworks from architecture; memory file synthesizes pointers to all prior artifacts).
 
 ### 2a. Detect
 
@@ -95,9 +116,11 @@ For each file: check the cached discovery output. Default paths:
 
 - Constitution: `docs/constitution.md`
 - Architecture: `docs/ARCHITECTURE.md`
+- Testing: `docs/TESTING.md`
 - Glossary: `docs/GLOSSARY.md`
 - Domain: `docs/DOMAIN.md`
 - Design: `docs/DESIGN.md`
+- Memory file: (language-dependent; see agent harness config)
 
 If the user's config (when re-running) overrides any path, the override wins.
 
@@ -124,15 +147,17 @@ The four modes — Create, Skip, Extend, Replace — are the entire decision sur
 
 ### 2c. Load the matching `discovering-X` skill inline
 
-For modes Create, Extend, or Replace, route to the per-file skill, loading it inline. All five files use the same uniform mechanism — no subagent dispatch, ever.
+For modes Create, Extend, or Replace, route to the per-file skill, loading it inline. All seven files use the same uniform mechanism — no subagent dispatch, ever.
 
 | Convention file | Skill loaded (inline) |
 |---|---|
 | Constitution | `ss-bs-discovering-constitution` |
 | Architecture | `ss-bs-discovering-architecture` |
+| Testing | `ss-bs-discovering-testing` |
 | Glossary | `ss-bs-discovering-glossary` |
 | Domain model | `ss-bs-discovering-domain-model` |
 | Design | `ss-bs-discovering-design` |
+| Memory file | `ss-bs-discovering-memory-file` |
 
 The coordinator passes the skill four inputs:
 
@@ -154,13 +179,13 @@ The coordinator records the outcome and proceeds to the next file.
 
 ### 2d. Next file
 
-Continue to the next convention file in the order. Repeat until all five are settled. The coordinator never runs discovering-X skills in parallel — sequential only, so the user can reason about each.
+Continue to the next convention file in the order. Repeat until all seven are settled. The coordinator never runs discovering-X skills in parallel — sequential only, so the user can reason about each.
 
 ---
 
 ## The discovering-X conversation pattern
 
-All five `ss-bs-discovering-<topic>` skills share the same six-step inline pattern. Differences live only in **what code each scans** and **what questions each asks** (see [Per-skill summaries](#per-skill-summaries) for the per-skill specifics).
+All seven `ss-bs-discovering-<topic>` skills share the same six-step inline pattern. Differences live only in **what code each scans** and **what questions each asks** (see [Per-skill summaries](#per-skill-summaries) for the per-skill specifics).
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -206,11 +231,13 @@ The full per-skill detail — what each scans, what questions it asks, what it p
 |---|---|---|---|
 | `ss-bs-discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security files | Confirm scanned principles → MUST/SHALL/SHOULD severity → intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales |
 | `ss-bs-discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker / k8s / terraform), `.env.example` | Component grouping → out-of-scope → env-var-only integrations → non-code facts → cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries |
+| `ss-bs-discovering-testing` | Test dirs, runner configs, CI commands, coverage tooling, mocking patterns, fixtures | Test categories → frameworks → coverage gates → mocking discipline → naming conventions | Test categories, Runner & framework, Coverage, Mocking philosophy, Fixtures & factories, Conventions |
 | `ss-bs-discovering-glossary` | Source identifiers (class / table / route names), inline comments, README | Term selection (≤30) → aliases / multi-naming → definition refinements during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
 | `ss-bs-discovering-domain-model` | DB schemas, migrations, ORM models, type defs, test fixtures, state-machine code | Entity selection (≤15) → lifecycle completeness → cardinality → workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles |
 | `ss-bs-discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps | (Build) Vibe / theme intent → color role rules → component vocabulary → do's-and-don'ts. (Import) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
+| `ss-bs-discovering-memory-file` | All prior artifacts + codebase patterns | Memory-file structure → scope (agents / features / time range) | Pointers to artifacts, Team members, Key decisions, Recent changes, Agent tools |
 
-Each enforces per-skill caps (≤7 principles, ≤30 terms, ≤15 entities) and writes its file atomically itself.
+Each enforces per-skill caps (≤7 principles, ≤30 terms, ≤15 entities, ≤20 terms for testing) and writes its file atomically itself.
 
 ---
 
@@ -532,6 +559,19 @@ The bootstrap is **fast** — most users finish all five files in 15-30 minutes 
 **Cause:** the family currently has exactly five slots, hardcoded in the scaffold and the coordinator.
 
 **Fix:** adding a slot requires changes to four places: (1) `skills/project-bootstrap/scaffolds/config.yml` adds `<new>_path`, (2) `skills/spec-driven-development/framework/validate-config.sh` adds the key to its allowed list, (3) `skills/spec-driven-development/framework/discover-context.sh` emits a `<new>` field in the JSON, (4) `ss-bs-bootstrapping-project/SKILL.md` adds the file to the per-file loop and routing table, and you need a new `ss-bs-discovering-<new>` skill. Not a small change, but mechanical. See the existing `design_path` addition in `git log` for a worked example.
+
+---
+
+## Audit — re-evaluating an established project
+
+`ss-bs-auditing-project` is bootstrap's sibling for projects that have been live for a while. Differences from bootstrap re-run:
+
+- Coherence runs FIRST, not last (drives the per-stage loop).
+- Suggestion pass is always on (no opt-out — that's why you ran audit).
+- Drift detection compares artifact content vs current code state.
+- Per-stage commits enable selective acceptance.
+
+Audit shares the same per-file discovery skills via a new `MODE=audit` value.
 
 ---
 
