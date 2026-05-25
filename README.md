@@ -50,6 +50,23 @@ Code `PreToolUse` hook script is bundled at
 optional drop-in for users who want deterministic harness-level
 enforcement on top of the instruction layer.
 
+### [ss-workflow-audit](skills/workflow/ss-workflow-audit/)
+
+Read-only readiness check for the Sublime-Skills framework. Verifies
+the install (`$SUBLIME_SKILLS_HOME` set + on-disk integrity, `git`,
+`python3` + `pyyaml`), git repo state, project bootstrap state
+(`.sublime-skills/config.yml` present + validates via
+`validate-config.sh`, `.sublime-skills/.gitignore` covering
+`state.json` and `config-local.yml`, orphan `state.json` detection),
+SDD artifact directories (`docs/specs/`, `docs/adr/`), each declared
+convention/context file (constitution, architecture, glossary,
+domain, design), the memory file (config-pinned or auto-detected),
+and optional tooling (`gh` for the agile family). Emits one status
+table per section with `PASS` / `FAIL` / `WARN` / `INFO` / `N/A`
+rows and an overall **READY / READY-WITH-WARNINGS / NOT READY**
+verdict plus concrete next-step suggestions when anything is wrong.
+Never modifies any file — purely a report.
+
 ### [ss-workflow-generating-handoff](skills/workflow/ss-workflow-generating-handoff/)
 
 Generic session-handoff writer. Reads the current conversation plus
