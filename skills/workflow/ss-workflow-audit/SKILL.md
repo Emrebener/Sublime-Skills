@@ -121,9 +121,11 @@ Also read `memory_file.character_limit` and surface it as `INFO` (e.g., `charact
 
 | Check | Reason | Status logic |
 |---|---|---|
-| `gh` (GitHub CLI) | Required by the `ss-agile-*` skill family | INFO — present or absent. Not a failure either way unless the user is asking about agile readiness specifically. |
+| `gh` (GitHub CLI) installed | Required by the `ss-agile-*` skill family | INFO — present or absent. Not a failure either way unless the user is asking about agile readiness specifically. |
+| `gh` authenticated | `gh auth status` must succeed for any agile-skill API call | Skip if `gh` is absent. Otherwise run `gh auth status` and report INFO `authenticated as <user>` on exit 0, or INFO `not authenticated — run gh auth login` on non-zero exit. |
+| `gh` token scopes | `ss-agile-*` skills need `repo` for issues/milestones; `project` is only needed to attach issues to GitHub Projects boards | Skip if `gh` is absent or unauthenticated. Otherwise parse the `Token scopes:` line from `gh auth status` (stderr) and report: INFO `repo: present` or INFO `repo: missing — run gh auth refresh -s repo` (the essential scope); plus a second line INFO `project: present` or INFO `project: absent — only needed for Projects board operations`. A fine-grained PAT may not list classic scopes — in that case report INFO `fine-grained token — scopes not introspectable; assume the user granted what they need`. |
 
-If the user's invocation mentioned a specific skill family (e.g., "audit for agile"), promote the relevant rows from INFO to FAIL when missing. By default, treat all of Section 7 as informational.
+If the user's invocation mentioned a specific skill family (e.g., "audit for agile"), promote the relevant rows from INFO to FAIL when missing — for agile: `gh` absent, unauthenticated, or `repo` scope missing all become FAIL; `project` scope stays INFO unless the user specifically asked about project-board readiness. By default, treat all of Section 7 as informational.
 
 ## Composing the Report
 
