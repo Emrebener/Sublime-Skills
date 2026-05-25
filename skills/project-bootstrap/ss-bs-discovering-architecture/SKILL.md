@@ -21,6 +21,7 @@ You're invoked when the user picked **Create / Extend / Replace** for architectu
 - `MODE` — `create`, `extend`, or `replace`
 - `EXISTING_CONTENT` — verbatim current architecture-file content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/ARCHITECTURE.md`; honors `context.architecture_path` config override if non-default)
+- **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates
 
@@ -34,24 +35,30 @@ You're invoked when the user picked **Create / Extend / Replace** for architectu
 - Do NOT claim a service exists when only its env var is set. Require SDK import OR docker-compose entry OR k8s manifest, OR the user explicitly confirming it.
 - Do NOT overwrite an existing architecture doc in `extend` mode. Extend merges; only `replace` overwrites.
 - Do NOT loop past 3 tweak iterations without surfacing bail options to the user.
+- Do NOT exceed the diagnose budget: Step 1.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 1 read. If you need more reads, surface fewer suggestions instead of widening the budget.
+- Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
+- Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
+- Do NOT use severity MUST/SHALL for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
 
 ## Top-Level Flow
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │ MODE = create or replace                            │
-│   → Step 1: silent code scan (layout, build,        │
-│             topology, stores, integrations)         │
-│   → Step 2: announce findings                       │
-│   → Step 3: targeted questions                      │
+│   → Step 1: silent code scan (layout, build, …)     │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings (+ diagnoses)         │
+│   → Step 3: targeted questions (Q1, Q1.5 if SUGGEST,│
+│             then Q2-Q5)                             │
 │   → Step 4: synthesize draft → show to user         │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write                            │
 ├─────────────────────────────────────────────────────┤
 │ MODE = extend                                       │
 │   → Step 1: silent code scan + read EXISTING_CONTENT│
-│   → Step 2: announce findings + gaps                │
-│   → Step 3: targeted questions on gaps only         │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings + gaps + diagnoses    │
+│   → Step 3: targeted questions on gaps + Q1.5       │
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
@@ -163,6 +170,39 @@ Hold internally:
 - Boundary signals (in/out)
 - Open questions: ambiguous component groupings, env-var-only integrations, unclear topology, anything not visible from code
 
+## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
+
+If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
+
+Diagnose looks for anti-patterns and missing-but-typically-valuable structural decisions in the architecture. Every diagnose finding must be **evidence-cited** with specific file paths or concrete counts. Abstract "you should do X" findings are not allowed.
+
+### 1.5a. Architecture diagnose categories
+
+For each category below, scan additional files if needed (within the budget — see Hard Gates). Generate at most 5 candidate suggestions total across all categories, ranked by severity → evidence strength → impact.
+
+- **Cross-service direct DB access.** If multiple services share a single DB and at least one service reads another's tables directly. Evidence: list at least 2-3 file paths showing the cross-table reads.
+- **Synchronous service chains where async would add resilience.** Service A makes HTTP calls to service B inside a request handler with no queueing or fallback. Evidence: file paths showing the synchronous calls.
+- **Shared mutable state across modules.** Module-level mutable maps, singletons, or DI containers being mutated post-init from multiple call sites. Evidence: file paths to definitions + call sites.
+- **Missing boundaries / ownership for shared code.** A `common/`, `shared/`, or `lib/` directory imported by all services with no documented ownership rules. Evidence: directory path + import counts.
+- **Missing API gateway for public surfaces.** Multiple services exposing public HTTP endpoints with no routing/auth layer in front. Evidence: list the services + their `app.listen`/equivalent.
+
+### 1.5b. Compile candidate suggestions in memory
+
+Each candidate must include:
+- `severity`: one of `MUST`, `SHOULD`, `INFO` — see Hard Gates for the matching evidence bar
+- `title`: one-line headline (e.g., "Declare cross-service DB access policy")
+- `evidence`: specific file paths or counts (e.g., `services/billing/src/invoice.ts:34, .../report.ts:88, .../sync.ts:12`)
+- `proposed_addition`: exact markdown text to add to the artifact (a new section, a new component entry, etc.)
+
+Drop any candidate that cannot be cited with specific evidence. Drop any candidate where the severity guess cannot be justified from the evidence (no MUST without observable harm).
+
+If more than 5 candidates remain after dropping unsupported ones, rank by:
+1. Severity (MUST > SHOULD > INFO)
+2. Evidence count (more file paths / higher counts = stronger)
+3. Impact (changes that prevent bugs > changes that improve consistency)
+
+Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
+
 ## Step 2: Announce Findings
 
 One short message (3-6 sentences). State what you scanned and the headline finding. Example:
@@ -174,6 +214,8 @@ If `create` mode and the scan found very little structure:
 
 If `extend` mode:
 > "Your existing architecture doc covers [sections]. I scanned the codebase and found gaps in [areas]. I'll ask about those, then propose additions."
+
+If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few things worth considering that aren't currently codified — I'll show those after we confirm the observed candidates."
 
 ## Step 3: Targeted Questions
 
@@ -194,6 +236,23 @@ Options (adapt to scan):
 
 Recommend the option matching the scan signal.
 ```
+
+### Q1.5 — Confirm suggested additions (only if `SUGGEST=on` AND Step 1.5 produced ≥1 candidate)
+
+```
+Question: "Here are some things I'd suggest adding even though they're
+not currently codified. These are opinionated — pick any you want to
+include:"
+
+Multi-select. For each Step 1.5 candidate, list as:
+  - [suggestion · <severity> · <evidence-summary>] <title>
+    Evidence: <evidence>
+    Proposed addition: <one-line summary of proposed_addition>
+
+Always include "None of these — keep the doc descriptive only" as the last option.
+```
+
+If the user picks none, treat as "no suggestions accepted" and proceed to Q2. Accepted suggestions are carried into Step 4 (Draft & Show) and rendered with provenance markers.
 
 ### Q2 — Boundaries / scope (free-form)
 
@@ -254,6 +313,7 @@ Options:
 Synthesize the draft using:
 - Scan findings (layout, build, entry points, topology, stores, integrations)
 - Confirmed grouping from Q1
+- Accepted Q1.5 suggestions (rendered as new sections / new component entries with provenance markers — see Step 6)
 - Out-of-scope from Q2
 - Confirmed/dropped integrations from Q3
 - Non-code facts from Q4
@@ -301,6 +361,18 @@ Report to the coordinator one of:
 - `extended` (mode = extend, merged content written)
 - `replaced` (mode = replace, full draft written)
 - `skipped (declined mid-skill)` (user aborted partway)
+
+### Provenance markers for accepted Q1.5 suggestions
+
+Each accepted Q1.5 suggestion becomes a regular section in the artifact (e.g., a new "Boundaries" subsection, a new "Components" entry, or a new top-level recommendation block). Append a provenance line at the end of the section using this exact format:
+
+```markdown
+> _Added via bootstrap suggestion pass (YYYY-MM-DD)._ _Evidence: <evidence
+> summary from the Q1.5 candidate>. Not currently enforced — declared here as
+> an aspirational architectural rule._
+```
+
+Replace `YYYY-MM-DD` with today's date. The audit skill reads this marker on re-runs to ask whether the aspiration has been realized in code.
 
 ## Output Template
 
@@ -377,6 +449,10 @@ generated code.>
 | Bundling multiple questions in one ask | One question per turn |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
+| Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
+| Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries; without it, drift detection breaks |
+| Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
 
 ## Red Flags
 
