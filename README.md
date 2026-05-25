@@ -345,29 +345,33 @@ never Critical. Does NOT re-check spec compliance or re-run tests.
 
 #### [ss-sdd-testing-implementation](skills/spec-driven-development/ss-sdd-testing-implementation/)
 
-Optional feature-level testing stage (user-gated, default yes).
-Dispatches a tester subagent that chooses strategy based on the feature
-type (UI / backend / library / mixed) and available MCPs (browser
-automation for UI, DB MCP for data verification, project test runners
-always). Three possible results: **PASS**, **FAIL** (triggers fix-loop
-with hard cap of 3 iterations before escalating), **MCP_UNAVAILABLE**
-(coordinator surfaces a manual test plan + code-review findings to user;
-explicitly forbidden from testing itself). The tester and fixer
-subagents load full protocol skills (`ss-sdd-testing-feature` and
-`ss-sdd-fixing-test-failures` respectively); the prompts in this directory are
-dispatch envelopes only.
+Optional feature-level testing stage (user-gated, default yes). Asks
+the user how deep the testing should go — `quick` (P1 golden paths only,
+no edge cases) or `standard` (P1 + listed edge cases, P2/P3 if cheap;
+default) — then dispatches a tester subagent that chooses strategy
+based on the feature type (UI / backend / library / mixed) and available
+MCPs (browser automation for UI, DB MCP for data verification, project
+test runners always). Three possible results: **PASS**, **FAIL**
+(triggers fix-loop with hard cap of 3 iterations before escalating),
+**MCP_UNAVAILABLE** (coordinator surfaces a manual test plan +
+code-review findings to user; explicitly forbidden from testing itself).
+The tester and fixer subagents load full protocol skills
+(`ss-sdd-testing-feature` and `ss-sdd-fixing-test-failures`
+respectively); the prompts in this directory are dispatch envelopes
+only.
 
 #### [ss-sdd-testing-feature](skills/spec-driven-development/ss-sdd-testing-feature/)
 
 Protocol skill loaded by the tester subagent. Strategy selection by
-feature type (UI / backend / library / mixed), explicit tool inventory
-(browser MCPs / DB MCPs / project test runners / HTTP), per-story
-execution against acceptance scenarios, three-status output (PASS / FAIL
-with per-failure structure / MCP_UNAVAILABLE with manual test plan +
-code-review fallback). P1 stories are mandatory floor; P2/P3 covered
-when straightforward, marked "not exercised" otherwise. Hard rule
-against fabricating results — if you can't run real tools, return
-MCP_UNAVAILABLE.
+feature type (UI / backend / library / mixed), coverage scoped by the
+dispatcher-provided `DEPTH` (`quick` = P1 golden paths only; `standard`
+= P1 + listed edge cases, P2/P3 when straightforward), explicit tool
+inventory (browser MCPs / DB MCPs / project test runners / HTTP),
+per-story execution against acceptance scenarios, three-status output
+(PASS / FAIL with per-failure structure / MCP_UNAVAILABLE with manual
+test plan + code-review fallback). P1 golden paths are the mandatory
+floor at both depths. Hard rule against fabricating results — if you
+can't run real tools, return MCP_UNAVAILABLE.
 
 #### [ss-sdd-fixing-test-failures](skills/spec-driven-development/ss-sdd-fixing-test-failures/)
 

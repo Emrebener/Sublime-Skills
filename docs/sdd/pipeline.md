@@ -496,16 +496,18 @@ On `no`: `testing` added to `stages_skipped`. Advance to Stage 15.
 
 On `yes`:
 
-1. **Determine feature type** from the plan's file structure: UI-only / Backend-only / Library-or-CLI / Mixed. (If uncertain, classify as Mixed.)
+1. **Ask testing depth.** `ss-sdd-testing-implementation` asks the user to pick `quick` (P1 golden paths only, no edge cases) or `standard` (P1 + listed edge cases, P2/P3 if cheap — the default). Anything other than `quick` is treated as `standard`. The choice is per-invocation only — not persisted to `state.json`.
 
-2. **Dispatch tester subagent** with `tester-prompt.md`. The subagent inventories what tools are actually available (browser MCP for UI, DB MCP for backend, project test runners always), picks a strategy:
+2. **Determine feature type** from the plan's file structure: UI-only / Backend-only / Library-or-CLI / Mixed. (If uncertain, classify as Mixed.)
+
+3. **Dispatch tester subagent** with `tester-prompt.md`, passing the chosen depth. The subagent inventories what tools are actually available (browser MCP for UI, DB MCP for backend, project test runners always), picks a strategy:
    - **UI**: walk acceptance scenarios via browser MCP
    - **Backend**: run test runner + HTTP requests + DB state checks
    - **Library/CLI**: drive directly via Bash
    - **Mixed**: run both UI and backend strategies
    - **Fallback**: if no relevant MCP is available, report `MCP_UNAVAILABLE` with a manual test plan and code-review findings
 
-3. **Handle the result:**
+4. **Handle the result:**
 
    | Status | Coordinator action |
    |---|---|

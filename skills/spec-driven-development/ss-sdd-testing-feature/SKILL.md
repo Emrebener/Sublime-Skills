@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-testing-feature
-description: Use when dispatched as a subagent during the optional feature-testing stage of an SDD pipeline run, to verify that the implemented feature delivers what the spec promised end-to-end. Picks a testing strategy based on feature type (UI / backend / library / mixed) and the MCPs/runners actually available. Returns one of PASS / FAIL / MCP_UNAVAILABLE.
+description: Use when dispatched as a subagent during the optional feature-testing stage of an SDD pipeline run, to verify that the implemented feature delivers what the spec promised end-to-end. Picks a testing strategy based on feature type (UI / backend / library / mixed), scopes coverage by the dispatcher-provided depth (quick = P1 golden paths only; standard = P1 + listed edge cases, P2/P3 if cheap), and uses the MCPs/runners actually available. Returns one of PASS / FAIL / MCP_UNAVAILABLE.
 ---
 
 # Testing Feature
@@ -18,11 +18,23 @@ You are the tester subagent. The per-task unit tests already passed during imple
 ## What the Dispatcher Gives You
 
 - `FEATURE_TYPE` — `UI`, `backend`, `library`, or `mixed`
+- `DEPTH` — `quick` or `standard` (see "Depth" below)
 - `SPEC_PATH` — path to spec.md (read for acceptance scenarios per user story)
 - `PLAN_PATH` — path to plan.md (read for what was actually built)
 - `BRANCH` — feature branch name
 - `BASE_SHA` — first commit on this branch
 - `HEAD_SHA` — current HEAD
+
+## Depth
+
+`DEPTH` scopes what you cover. P1 stories are always exercised — the difference is how much of each one.
+
+| Depth | What to run | What to skip |
+|---|---|---|
+| `quick` | The Given/When/Then golden path of every P1 user story | The spec's listed edge cases; P2/P3 stories |
+| `standard` | Every P1 story's full acceptance scenarios + the spec's listed edge cases for those stories; P2/P3 if straightforward with tools already set up | Anything beyond what the spec listed |
+
+Both depths use the same execution mechanics (real tools, no fabrication, etc.) — depth only changes the breadth. In every report status, include the depth you ran (`Depth: quick` or `Depth: standard`) so the coordinator and user know what coverage actually happened.
 
 ## Hard Rules
 
@@ -42,9 +54,9 @@ You are the tester subagent. The per-task unit tests already passed during imple
 3. Skim the diff (`git diff BASE_SHA..HEAD_SHA --stat`) to know what files changed
 4. Inventory the testing tools you actually have access to
 5. Pick a strategy by feature type (see Strategy section below)
-6. Execute against each P1 user story's acceptance scenarios (P1 is the floor)
-7. Cover P2/P3 if straightforward; skip if requires significantly more setup
-8. Report with PASS / FAIL / MCP_UNAVAILABLE
+6. Execute against each P1 user story per the `DEPTH` table above (P1 golden paths are always the floor; `standard` adds the spec's listed edge cases for each story)
+7. If `DEPTH = standard`, cover P2/P3 if straightforward; skip if requires significantly more setup. If `DEPTH = quick`, skip P2/P3 unconditionally.
+8. Report with PASS / FAIL / MCP_UNAVAILABLE (include the `Depth` you ran)
 
 ## Step 1-3: Read
 
@@ -103,11 +115,11 @@ Combine these where possible:
 For each P1 user story:
 
 1. Read the story's acceptance scenarios (Given/When/Then)
-2. Read the edge cases the spec listed for this story
-3. For each scenario: set up the precondition, perform the action, check the outcome — record what you ran, what you saw, what you expected
+2. If `DEPTH = standard`, also read the edge cases the spec listed for this story; if `DEPTH = quick`, skip the edge-case list
+3. For each scenario in scope: set up the precondition, perform the action, check the outcome — record what you ran, what you saw, what you expected
 4. Note any deviation between expected and actual as a candidate failure
 
-P1 stories are the floor — you must cover all of them. P2/P3 stories: cover them if you can exercise them straightforwardly with tools already set up. If they need different tooling or significant additional setup, skip and note them as "not exercised" in the report. **Do not fabricate coverage to look thorough.**
+P1 stories are the floor at both depths — you must cover the golden path of all of them. At `standard`, the spec's listed edge cases for each P1 story are also required, and P2/P3 stories should be covered if you can exercise them straightforwardly with tools already set up. At `quick`, skip the edge cases and skip P2/P3 entirely. If a P2/P3 story needs different tooling or significant additional setup, skip it and note it as "not exercised" in the report. **Do not fabricate coverage to look thorough.**
 
 ## Step 7: Report
 
@@ -118,6 +130,7 @@ Pick exactly one status. Use the corresponding template.
 ```markdown
 ## Feature Testing — PASS
 
+**Depth:** <quick | standard>
 **Tools used:** <list, e.g., "Playwright MCP + pytest">
 **Stories covered:** US1 (P1), US2 (P2)
 **Acceptance scenarios run:** <count>
@@ -142,6 +155,7 @@ Pick exactly one status. Use the corresponding template.
 ```markdown
 ## Feature Testing — FAIL
 
+**Depth:** <quick | standard>
 **Tools used:** <list>
 
 ### Failures
@@ -172,6 +186,7 @@ Pick exactly one status. Use the corresponding template.
 ```markdown
 ## Feature Testing — MCP_UNAVAILABLE
 
+**Depth requested:** <quick | standard>
 **Reason:** <Concrete: "No browser MCP available; this feature is UI-only and can't be verified without rendering">
 **Available tools:** <list of what you DO have>
 

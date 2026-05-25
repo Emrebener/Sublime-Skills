@@ -16,6 +16,7 @@ You are a leaf agent — do NOT dispatch sub-subagents. You test directly; if yo
 ## Inputs
 
 - Feature type: {FEATURE_TYPE}  (UI / backend / library / mixed)
+- Depth: {DEPTH}  (`quick` = P1 golden paths only, no edge cases; `standard` = P1 + edge cases, P2/P3 if cheap)
 - Spec: {SPEC_PATH}
 - Plan: {PLAN_PATH}
 - Branch: {BRANCH}

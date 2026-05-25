@@ -559,7 +559,14 @@ Preflight aborted.
 **Loaded:** by the coordinator at Stage 14 (only if user opted in)
 **Stage:** 14 (optional)
 
-**Purpose:** Feature-level testing distinct from per-task unit tests. Dispatches a tester subagent that picks a strategy based on available MCPs and feature type.
+**Purpose:** Feature-level testing distinct from per-task unit tests. Asks the user for a depth (`quick` or `standard`, default `standard`), then dispatches a tester subagent that picks a strategy based on available MCPs and feature type.
+
+**Depth selection (asked once per invocation, not persisted to state):**
+
+| Depth | Coverage |
+|---|---|
+| `quick` | Golden paths of every P1 user story only — no edge cases, no P2/P3 |
+| `standard` | P1 stories + their listed edge cases; P2/P3 if straightforward (default) |
 
 **Result statuses from the tester subagent:**
 
@@ -591,7 +598,7 @@ Preflight aborted.
 
 **Purpose:** Feature-level verification — does the implementation deliver what the spec promised end-to-end? Picks strategy by feature type and available tools.
 
-**Inputs the dispatcher provides:** `FEATURE_TYPE`, `SPEC_PATH`, `PLAN_PATH`, `BRANCH`, `BASE_SHA`, `HEAD_SHA`.
+**Inputs the dispatcher provides:** `FEATURE_TYPE`, `DEPTH` (`quick` or `standard`), `SPEC_PATH`, `PLAN_PATH`, `BRANCH`, `BASE_SHA`, `HEAD_SHA`.
 
 **Strategy selection:**
 - **UI-only:** browser MCP for golden path + edge cases; return `MCP_UNAVAILABLE` if no browser MCP
@@ -601,9 +608,11 @@ Preflight aborted.
 
 **Tool inventory step:** explicitly lists what's actually available before picking strategy — prevents the "pretend tests passed" failure mode.
 
-**Coverage rules:**
-- P1 user stories are the floor (must cover all)
-- P2/P3 covered when straightforward; marked "not exercised" otherwise (no fabricated coverage)
+**Coverage rules (modulated by `DEPTH`):**
+- P1 golden paths are the floor at both depths (must cover all)
+- At `standard`, also cover the spec's listed edge cases per P1 story, plus P2/P3 when straightforward; mark "not exercised" otherwise
+- At `quick`, skip edge cases and skip P2/P3 entirely
+- Never fabricate coverage to look thorough
 
 **Output:** one of three statuses with structured formats:
 - `PASS` — tools used, stories covered, scenarios run, notes

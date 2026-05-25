@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-testing-implementation
-description: Use during the optional feature-testing stage of an SDD pipeline run, after implementation completes and before finishing. Dispatches a tester subagent that uses browser/DB MCPs when available, falls back to code review otherwise, and orchestrates a fix-loop with hard caps if issues are found.
+description: Use during the optional feature-testing stage of an SDD pipeline run, after implementation completes and before finishing. Asks the user for a testing depth (quick or standard, default standard), then dispatches a tester subagent that uses browser/DB MCPs when available, falls back to code review otherwise, and orchestrates a fix-loop with hard caps if issues are found.
 ---
 
 # Testing Implementation
@@ -29,16 +29,31 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 
 ## Checklist
 
-1. Determine feature type (UI / backend / library / mixed) from the plan
-2. Dispatch tester subagent with `./tester-prompt.md`
-3. Handle the result:
+1. Ask the user how deep the testing should go (`quick` or `standard`)
+2. Determine feature type (UI / backend / library / mixed) from the plan
+3. Dispatch tester subagent with `./tester-prompt.md`
+4. Handle the result:
    - `PASS` → mark stage complete, hand off to finishing
    - `FAIL` → dispatch fixer subagent with the failures; re-test; loop ≤3 times
    - `MCP_UNAVAILABLE` → surface tester's manual test plan + code-review findings to user, ask whether to proceed
-4. Update state file
-5. Report
+5. Update state file
+6. Report
 
-## Step 1: Determine Feature Type
+## Step 1: Ask Testing Depth
+
+Ask the user, verbatim:
+
+> "How deep should the feature tests go?
+> 1. `quick` — golden paths of each P1 user story only; no edge cases
+> 2. `standard` — P1 stories + their listed edge cases, P2/P3 if cheap (default)
+>
+> (Enter / no answer = standard)"
+
+Accept exactly `quick` or `standard`. Anything else (Enter, "default", "ok") → treat as `standard`. Record the chosen value as `DEPTH` and pass it to the tester subagent in Step 3.
+
+Do NOT persist the depth to `state.json` — it's a per-Stage-14-entry choice, not durable state. If the fix loop re-dispatches the tester later in the same skill invocation, reuse the same `DEPTH` (don't re-ask between iterations).
+
+## Step 2: Determine Feature Type
 
 Read the plan's tech stack and file structure. Classify:
 
@@ -51,11 +66,12 @@ Read the plan's tech stack and file structure. Classify:
 
 Pass this classification to the tester subagent.
 
-## Step 2: Dispatch Tester
+## Step 3: Dispatch Tester
 
 Dispatch a fresh subagent with the prompt at `./tester-prompt.md`. Fill placeholders:
 
 - `{FEATURE_TYPE}` — UI / backend / library / mixed
+- `{DEPTH}` — `quick` or `standard` (from Step 1)
 - `{SPEC_PATH}` — for acceptance scenarios
 - `{PLAN_PATH}` — for what was implemented
 - `{BRANCH}` — current branch
@@ -70,9 +86,9 @@ The tester returns one of three statuses:
 | `FAIL` | Ran real tests; issues found — list of failing scenarios with context |
 | `MCP_UNAVAILABLE` | Couldn't run real tests; here's a manual test plan + code review findings |
 
-## Step 3: Handle Result
+## Step 4: Handle Result
 
-### 3a. PASS
+### 4a. PASS
 
 Update state file:
 
@@ -86,7 +102,7 @@ Update state file:
 
 Hand off to ss-sdd-finishing.
 
-### 3b. FAIL
+### 4b. FAIL
 
 The tester returns a list of failing scenarios with:
 - Scenario description (from the spec)
@@ -124,7 +140,7 @@ After 3 failed iterations, **stop and escalate**:
 
 Wait for user direction.
 
-### 3c. MCP_UNAVAILABLE
+### 4c. MCP_UNAVAILABLE
 
 The tester couldn't run real tests due to missing tools (no browser MCP, no DB MCP, etc.). It returns:
 - What tests it would have run (manual test plan)
@@ -147,7 +163,7 @@ Wait for user direction.
 
 If the user runs the manual tests and reports results, record them in state file and proceed accordingly.
 
-## Step 4: Update State
+## Step 5: Update State
 
 After resolution, update state file:
 
@@ -160,11 +176,12 @@ After resolution, update state file:
 }
 ```
 
-## Step 5: Report
+## Step 6: Report
 
 ```
 Testing complete.
 - Status: <pass/fail/skipped>
+- Depth: <quick/standard>
 - Feature type: <UI/backend/library/mixed>
 - Tools used: <ss-web-browser-tools | playwright | postgres-mcp | code-review-fallback>
 - Fix iterations: <N>
