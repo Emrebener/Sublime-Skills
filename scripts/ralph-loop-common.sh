@@ -11,7 +11,7 @@ RALPH_PROMPT="${RALPH_PROMPT:-/ss-agile-advance-milestones}"
 MAX_ITER="${MAX_ITER:-20}"
 HEARTBEAT_INTERVAL="${HEARTBEAT_INTERVAL:-30}"
 RALPH_TUI="${RALPH_TUI:-0}"
-RALPH_TUI_CMD="${RALPH_TUI_CMD:-/home/emre/Projeler/Ralph-Loop-TUI/ralph-loop-tui}"
+RALPH_TUI_CMD="${RALPH_TUI_CMD:-${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}/scripts/ralph-loop-tui}"
 
 i=0
 final_state=""

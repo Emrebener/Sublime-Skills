@@ -34,7 +34,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 MAX_ITER=20
 RALPH_PROMPT='$ss-agile-advancing-milestones'
 RALPH_TUI=0
-RALPH_TUI_CMD="${RALPH_TUI_CMD:-/home/emre/Projeler/Ralph-Loop-TUI/ralph-loop-tui}"
+RALPH_TUI_CMD="${RALPH_TUI_CMD:-${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}/scripts/ralph-loop-tui}"
 CODEX_COMMAND=""
 
 usage() {

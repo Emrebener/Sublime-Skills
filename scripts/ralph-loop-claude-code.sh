@@ -32,7 +32,7 @@ MODEL=""
 EFFORT=""
 RALPH_PROMPT="/ss-agile-advance-milestones"
 RALPH_TUI=0
-RALPH_TUI_CMD="${RALPH_TUI_CMD:-/home/emre/Projeler/Ralph-Loop-TUI/ralph-loop-tui}"
+RALPH_TUI_CMD="${RALPH_TUI_CMD:-${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}/scripts/ralph-loop-tui}"
 
 usage() {
   sed -n '2,/^$/ p' "$0" | sed 's/^#\s\?//'

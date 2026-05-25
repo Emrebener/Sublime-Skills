@@ -97,7 +97,8 @@ Loop wrappers live under [`scripts/`](scripts/): use
 Codex CLI. The Codex wrapper takes the complete `codex exec ...` command as
 a quoted argument so the caller controls model, reasoning effort, and other
 CLI flags per run. Add `--tui` to either wrapper to show a minimal terminal
-dashboard via the companion `Ralph-Loop-TUI` renderer.
+dashboard via the bundled [`scripts/ralph-loop-tui`](scripts/ralph-loop-tui)
+renderer (see [`docs/RALPH-TUI.md`](docs/RALPH-TUI.md)).
 
 All `gh` CLI interaction goes through the `ss-agile-managing-issues`
 reference skill, which covers the full `gh issue` surface plus milestone

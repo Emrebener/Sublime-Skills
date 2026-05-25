@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Minimal curses UI for Ralph loop event streams."""
+
+from __future__ import annotations
+
+import base64
+import curses
+import os
+import sys
+import time
+from dataclasses import dataclass, field
+from typing import TextIO
+
+
+FINISH_HOLD_SECONDS = 4.0
+MAX_LOG_LINES = 1000
+
+
+@dataclass
+class State:
+    started_at: float | None = None
+    iteration_started_at: float | None = None
+    max_iter: int = 0
+    iteration: int = 0
+    runner: str = ""
+    command: str = ""
+    prompt: str = ""
+    current_step: str = ""
+    last_marker: str = ""
+    final_state: str = ""
+    finished_at: float | None = None
+    heartbeat_elapsed: int = 0
+    stop_after_current: bool = False
+    log: list[str] = field(default_factory=list)
+
+
+def decode_field(value: str) -> str:
+    if not value:
+        return ""
+    return base64.b64decode(value.encode("ascii")).decode("utf-8", errors="replace")
+
+
+def short(text: str, width: int) -> str:
+    if width <= 0:
+        return ""
+    if len(text) <= width:
+        return text
+    if width <= 3:
+        return text[:width]
+    return text[: width - 3] + "..."
+
+
+def addstr_safe(stdscr: curses.window, y: int, x: int, text: str, attr: int = 0) -> None:
+    height, width = stdscr.getmaxyx()
+    if y < 0 or y >= height or x < 0 or x >= width:
+        return
+    clipped = text[: max(0, width - x - 1)]
+    if not clipped:
+        return
+    try:
+        stdscr.addstr(y, x, clipped, attr)
+    except curses.error:
+        pass
+
+
+def setup_colors(stdscr: curses.window) -> dict[str, int]:
+    curses.start_color()
+    curses.use_default_colors()
+    if curses.has_colors():
+        bg = 8 if curses.COLORS >= 16 else curses.COLOR_BLACK
+        curses.init_pair(1, curses.COLOR_WHITE, bg)
+        curses.init_pair(2, curses.COLOR_WHITE, bg)
+        curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_YELLOW)
+        curses.init_pair(4, curses.COLOR_BLACK, curses.COLOR_CYAN)
+        stdscr.bkgd(" ", curses.color_pair(1))
+        return {
+            "normal": curses.color_pair(1),
+            "header": curses.color_pair(4),
+            "stop_header": curses.color_pair(3) | curses.A_BOLD,
+            "footer": curses.color_pair(2) | curses.A_REVERSE,
+        }
+    return {
+        "normal": 0,
+        "header": curses.A_REVERSE,
+        "stop_header": curses.A_REVERSE | curses.A_BOLD,
+        "footer": curses.A_REVERSE,
+    }
+
+
+def fmt_duration(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    hours, rem = divmod(seconds, 3600)
+    mins, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h{mins:02d}m{secs:02d}s"
+    return f"{mins}m{secs:02d}s"
+
+
+def add_log(state: State, line: str) -> None:
+    state.log.append(line)
+    if len(state.log) > MAX_LOG_LINES:
+        del state.log[: len(state.log) - MAX_LOG_LINES]
+
+
+def apply_event(state: State, raw: str) -> None:
+    parts = raw.rstrip("\n").split("\t")
+    if len(parts) < 2:
+        return
+
+    kind = parts[0]
+    try:
+        ts = float(parts[1])
+    except ValueError:
+        ts = time.time()
+
+    if kind == "start" and len(parts) >= 6:
+        state.started_at = ts
+        state.max_iter = int(parts[2])
+        state.runner = decode_field(parts[3])
+        state.command = decode_field(parts[4])
+        state.prompt = decode_field(parts[5])
+    elif kind == "iteration_start" and len(parts) >= 4:
+        state.iteration = int(parts[2])
+        state.max_iter = int(parts[3])
+        state.iteration_started_at = ts
+    elif kind in {"log", "message"} and len(parts) >= 3:
+        add_log(state, decode_field(parts[2]))
+    elif kind == "step" and len(parts) >= 3:
+        state.current_step = decode_field(parts[2])
+    elif kind == "marker" and len(parts) >= 3:
+        state.last_marker = parts[2]
+    elif kind == "heartbeat" and len(parts) >= 3:
+        state.heartbeat_elapsed = int(parts[2])
+    elif kind == "finish" and len(parts) >= 4:
+        state.final_state = parts[2]
+        state.iteration = int(parts[3])
+        state.finished_at = time.time()
+
+
+def read_new_events(handle: TextIO, state: State) -> None:
+    while True:
+        line = handle.readline()
+        if not line:
+            return
+        apply_event(state, line)
+
+
+def write_control(control_path: str | None, state: State) -> None:
+    if not control_path:
+        return
+    value = "1" if state.stop_after_current else "0"
+    with open(control_path, "w", encoding="utf-8") as handle:
+        handle.write(f"stop_after_current={value}\n")
+
+
+def draw(stdscr: curses.window, state: State, colors: dict[str, int]) -> None:
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    now = time.time()
+    started = state.started_at or now
+    elapsed = fmt_duration(now - started)
+    iteration_started = state.iteration_started_at or now
+    iteration_elapsed = fmt_duration(now - iteration_started) if state.iteration else "-"
+    status = state.final_state or "running"
+    if state.stop_after_current and not state.final_state:
+        status = "stopping after current"
+    iter_text = f"{state.iteration}/{state.max_iter}" if state.max_iter else "-"
+
+    title = f" Ralph Loop | {status} "
+    header_attr = colors["stop_header"] if state.stop_after_current and not state.final_state else colors["header"]
+    addstr_safe(stdscr, 0, 0, short(title, width), header_attr)
+    if len(title) < width:
+        addstr_safe(stdscr, 0, len(title), " " * (width - len(title)), header_attr)
+
+    lines = [
+        f"Elapsed: {elapsed}    Current iteration: {iteration_elapsed}    Iteration: {iter_text}    Runner: {state.runner or '-'}",
+        f"Last marker: {state.last_marker or '-'}    Heartbeat: {fmt_duration(state.heartbeat_elapsed)}",
+        f"Stop after current: {'ON' if state.stop_after_current else 'off'}",
+        f"Step: {state.current_step or '-'}",
+        f"Prompt: {state.prompt or '-'}",
+        f"Command: {state.command or '-'}",
+    ]
+
+    y = 2
+    for line in lines:
+        if y >= height:
+            break
+        addstr_safe(stdscr, y, 0, short(line, width), colors["normal"])
+        y += 1
+
+    sep_y = min(y + 1, height - 1)
+    if sep_y < height:
+        addstr_safe(stdscr, sep_y, 0, "-" * max(0, width), colors["normal"])
+
+    log_top = sep_y + 1
+    log_height = max(0, height - log_top - 1)
+    tail = state.log[-log_height:] if log_height else []
+    for idx, line in enumerate(tail):
+        row = log_top + idx
+        if row >= height - 1:
+            break
+        addstr_safe(stdscr, row, 0, short(line, width), colors["normal"])
+
+    footer = "s: stop after current | q: quit view"
+    if state.final_state:
+        footer = f"Finished: {state.final_state} | closing shortly | q: quit now"
+    if height > 0:
+        addstr_safe(stdscr, height - 1, 0, short(footer, width), colors["footer"])
+        if len(footer) < width:
+            addstr_safe(stdscr, height - 1, len(footer), " " * (width - len(footer)), colors["footer"])
+    stdscr.refresh()
+
+
+def run(stdscr: curses.window, event_path: str, control_path: str | None) -> int:
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    colors = setup_colors(stdscr)
+    state = State()
+    write_control(control_path, state)
+
+    with open(event_path, "r", encoding="utf-8") as handle:
+        while True:
+            read_new_events(handle, state)
+            draw(stdscr, state, colors)
+
+            key = stdscr.getch()
+            if key in {ord("q"), ord("Q")}:
+                return 0
+            if key in {ord("s"), ord("S")} and not state.final_state:
+                state.stop_after_current = not state.stop_after_current
+                write_control(control_path, state)
+
+            if state.finished_at and time.time() - state.finished_at >= FINISH_HOLD_SECONDS:
+                return 0
+
+            time.sleep(0.2)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) not in {2, 3} or argv[1] in {"-h", "--help"}:
+        print("Usage: ralph-loop-tui EVENT_FILE [CONTROL_FILE]", file=sys.stderr)
+        return 2
+
+    event_path = argv[1]
+    control_path = argv[2] if len(argv) == 3 else None
+    while not os.path.exists(event_path):
+        time.sleep(0.05)
+
+    return curses.wrapper(run, event_path, control_path)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))
