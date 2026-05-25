@@ -110,12 +110,13 @@ if not isinstance(data, dict):
     sys.exit(1 if fail_count else 0)
 
 # Known schema — used both for overlay key-recognition and validation.
-context_keys = ["constitution_path", "architecture_path", "glossary_path", "domain_path", "design_path"]
+context_keys = ["constitution_path", "architecture_path", "testing_path", "glossary_path", "domain_path", "design_path"]
 known_blocks = {
     "context": set(context_keys),
     "branching": {"branch_pattern"},
     "grill": {"question_cap"},
     "memory_file": {"path", "character_limit"},
+    "suggest": {"default"},
 }
 
 # Overlay: parse config-local.yml if present, sanity-check its shape and key
@@ -239,6 +240,18 @@ elif not isinstance(v, int) or isinstance(v, bool):
 elif v < 1000:
     fail(f"memory_file.character_limit: must be at least 1000, got {v}")
 
+# ── suggest block ───────────────────────────────────────────────────
+if "suggest" in data:
+    sb = data["suggest"]
+    if not isinstance(sb, dict):
+        fail("suggest must be a mapping")
+    else:
+        unknown = set(sb.keys()) - {"default"}
+        for k in unknown:
+            fail(f"suggest.{k} is not a recognized key")
+        if "default" in sb and sb["default"] not in ("ask", "on", "off"):
+            fail(f"suggest.default must be one of ask|on|off (got: {sb['default']!r})")
+
 sys.exit(1 if fail_count else 0)
 PY
   PY_EXIT=$?
@@ -315,7 +328,7 @@ done
 unknown_blocks=$(awk '
   /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ {
     match($0, /^([A-Za-z_][A-Za-z0-9_]*):/, m)
-    if (m[1] != "context" && m[1] != "branching" && m[1] != "grill" && m[1] != "memory_file") {
+    if (m[1] != "context" && m[1] != "branching" && m[1] != "grill" && m[1] != "memory_file" && m[1] != "suggest") {
       print m[1]
     }
   }
@@ -342,13 +355,13 @@ declare_required() {
   done
 }
 
-declare_required context constitution_path architecture_path glossary_path domain_path design_path
+declare_required context constitution_path architecture_path testing_path glossary_path domain_path design_path
 declare_required branching branch_pattern
 declare_required grill question_cap
 declare_required memory_file path character_limit
 
 # context.*_path values: must be null or point to an existing file
-for key in constitution_path architecture_path glossary_path domain_path design_path; do
+for key in constitution_path architecture_path testing_path glossary_path domain_path design_path; do
   v="$(read_scalar context "$key")"
   if [ -z "$v" ]; then
     continue  # already reported as missing above (or value is empty — treated as null)
@@ -378,6 +391,7 @@ unknown_keys=$(awk '
   in_block && /^[[:space:]]+[A-Za-z_][A-Za-z0-9_]*:/ {
     match($0, /^[[:space:]]+([A-Za-z_][A-Za-z0-9_]*):/, m)
     if (m[1] != "constitution_path" && m[1] != "architecture_path" \
+        && m[1] != "testing_path" \
         && m[1] != "glossary_path" && m[1] != "domain_path" \
         && m[1] != "design_path") {
       print m[1]
@@ -387,7 +401,7 @@ unknown_keys=$(awk '
 if [ -n "$unknown_keys" ]; then
   while IFS= read -r k; do
     [ -z "$k" ] && continue
-    record_fail "context.$k: unknown key (allowed: constitution_path, architecture_path, glossary_path, domain_path, design_path)"
+    record_fail "context.$k: unknown key (allowed: constitution_path, architecture_path, testing_path, glossary_path, domain_path, design_path)"
   done <<< "$unknown_keys"
 fi
 
