@@ -50,6 +50,21 @@ Code `PreToolUse` hook script is bundled at
 optional drop-in for users who want deterministic harness-level
 enforcement on top of the instruction layer.
 
+### [ss-workflow-generating-handoff](skills/workflow/ss-workflow-generating-handoff/)
+
+Generic session-handoff writer. Reads the current conversation plus
+light project state (current branch, recent commits, working-tree
+status) and writes a single self-contained markdown file at
+`~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`
+so a fresh agent (or human) can pick up the work in a new session.
+Same output location and shape as `ss-sdd-generating-handoff`, with no
+SDD pipeline assumptions — works for any kind of in-flight work
+(features, bug fixes, refactors, research). Includes the same
+redaction sweep (OpenAI/AWS/GitHub tokens, JWTs, private keys, URLs
+with embedded credentials, sensitive env-var assignments) before
+writing. The handoff lives outside the repo by design — never
+committed.
+
 ### Agile (GitHub-issue workflow)
 
 A family of skills + slash commands for driving development off GitHub
