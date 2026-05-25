@@ -21,6 +21,7 @@ You're invoked when the user picked **Create / Extend / Replace** for domain mod
 - `MODE` — `create`, `extend`, or `replace`
 - `EXISTING_CONTENT` — verbatim current `docs/DOMAIN.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/DOMAIN.md`; honors `context.domain_path` config override if non-default)
+- **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates
 
@@ -35,6 +36,10 @@ You're invoked when the user picked **Create / Extend / Replace** for domain mod
 - Do NOT overwrite an existing domain model in `extend` mode. Extend merges; only `replace` overwrites.
 - Do NOT invent lifecycles, attributes, or relationships not visible in the code OR explicitly stated by the user.
 - Do NOT loop past 3 tweak iterations without surfacing bail options to the user.
+- Do NOT exceed the diagnose budget: Step 1.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 1 read. If you need more reads, surface fewer suggestions instead of widening the budget.
+- Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
+- Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
+- Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
 
 ## Top-Level Flow
 
@@ -43,17 +48,19 @@ You're invoked when the user picked **Create / Extend / Replace** for domain mod
 │ MODE = create or replace                            │
 │   → Step 1: silent code scan (schemas, models,      │
 │             fixtures, state machines, relationships)│
-│   → Step 2: announce findings                       │
-│   → Step 3: targeted questions (entities,           │
-│             lifecycles, cardinality, exceptions)    │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings (+ diagnoses)         │
+│   → Step 3: targeted questions (Q1, Q1.5 if SUGGEST,│
+│             then Q2-Q5)                             │
 │   → Step 4: synthesize draft → show to user         │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write                            │
 ├─────────────────────────────────────────────────────┤
 │ MODE = extend                                       │
 │   → Step 1: silent code scan + read EXISTING_CONTENT│
-│   → Step 2: announce findings + gaps                │
-│   → Step 3: targeted questions on gaps only         │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings + gaps + diagnoses    │
+│   → Step 3: targeted questions on gaps + Q1.5       │
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
@@ -158,11 +165,45 @@ For each candidate entity, hold:
 - Detected relationships with cardinality
 - Open questions: ambiguous lifecycle transitions, ambiguous cardinality, missing context from code
 
+## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
+
+If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
+
+Diagnose looks for domain-modeling anti-patterns and missing-but-typically-valuable structural decisions. Every diagnose finding must be **evidence-cited** with specific file paths or concrete counts. Abstract "you should do X" findings are not allowed.
+
+### 1.5a. Domain model diagnose categories
+
+For each category below, scan additional files if needed (within the budget — see Hard Gates). Scan each category for candidates. One strong candidate per category is the target; the aggregate cap of 5 is enforced in 1.5b after dropping unsupported candidates.
+
+- **God entities (too many attributes / relationships).** An entity (DB table or class) with >15 attributes or >5 outgoing relationships. Evidence: schema file + attribute count.
+- **Anemic models (entities with no behaviour).** An entity used only as a data bag — all logic lives in services that operate on it. Evidence: entity definition + count of service files that mutate it externally.
+- **Missing aggregate roots.** Three or more entities with a clear ownership hierarchy (e.g., `Order`, `OrderItem`, `OrderEvent`) all defined as top-level entities with no aggregate-root documentation. Evidence: list the entities + the ownership signal (foreign keys, embedded relationships).
+- **Undocumented state machines.** An entity has 4+ distinct status values used in code (case statements, enum values, status string comparisons) with no documented transitions. Evidence: file paths showing the status values.
+
+### 1.5b. Compile candidate suggestions in memory
+
+Each candidate must include:
+- `severity`: one of `MUST`, `SHOULD`, `INFO` — see Hard Gates for the matching evidence bar
+- `title`: one-line headline (e.g., "Document Order aggregate root boundary")
+- `evidence`: specific file paths or counts (e.g., `prisma/schema.prisma:45, src/models/order.ts:12, src/services/order-service.ts:88`)
+- `proposed_addition`: exact markdown text to add to the artifact (a new entity section, a lifecycle note, or a relationships clarification)
+
+Drop any candidate that cannot be cited with specific evidence. Drop any candidate where the severity guess cannot be justified from the evidence (no MUST without observable harm).
+
+If more than 5 candidates remain after dropping unsupported ones, rank by:
+1. Severity (MUST > SHOULD > INFO)
+2. Evidence count (more file paths / higher counts = stronger)
+3. Impact (changes that prevent bugs > changes that improve consistency)
+
+Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
+
 ## Step 2: Announce Findings
 
-One short message (3-6 sentences). Example:
+One short message (3-6 sentences; 3-7 when SUGGEST=on extends with the diagnose-mention sentence). Example:
 
 > "Here's what I picked up: 27 tables in `prisma/schema.prisma`. After dropping audit logs and join tables, I have 14 candidate entities. Strongest signals: Customer, Quote, RFQ, Order, Settlement (all with lifecycle state machines and consistent test fixtures). A few I want your call on — DiscountCode (only used in 2 places, might be too edge-case), and the cardinality between Order and PaymentMethod (could be 1:1 or 1:N from the schema alone). I'll ask, then show you a draft."
+
+If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few domain-modeling clarifications worth documenting — I'll surface those after we confirm the observed entities."
 
 If `create` mode and the candidate list is <3:
 > "I didn't find much domain shape — fewer than 3 candidate entities after filtering. The project may be too early or too thin for a separate domain model. Want to continue with what I found, or skip?"
@@ -198,6 +239,25 @@ If the user selects >15, immediately follow up:
 Question: "That's more than 15. Which should I drop?"
 Multi-select from the over-cap list.
 ```
+
+### Q1.5 — Confirm suggested additions (only if `SUGGEST=on` AND Step 1.5 produced ≥1 candidate)
+
+```
+Question: "Here are some things I'd suggest adding even though they're
+not currently codified. These are opinionated — pick any you want to
+include:"
+
+Options (multi-select, one option per Step 1.5 candidate, plus a "None" escape):
+  - [suggestion · <severity> · <evidence-summary>] <title>
+    Evidence: <evidence>
+    Proposed addition: <one-line summary of proposed_addition>
+  - ... (one option per remaining candidate, up to 5)
+  - "None of these — keep the domain model descriptive only"
+
+Use the harness's multi-select question tool. Do not present as plain text.
+```
+
+If the user picks none, treat as "no suggestions accepted" and proceed to Q2. Accepted suggestions are carried into Step 4 (Draft & Show) and rendered with provenance markers.
 
 ### Q2 — Lifecycle confirmation (per entity with detected states, multi-choice)
 
@@ -263,6 +323,7 @@ These get woven into the relevant entity's "what it represents" paragraph or lif
 
 Synthesize the draft using:
 - Selected entities from Q1
+- Accepted Q1.5 suggestions, rendered as new entity sections with provenance markers (format defined in Step 6's provenance subsection). **The provenance markers must appear in the draft shown to the user at this Step 4**, not added silently at Step 6 write time — the user reviews and approves the full content including provenance.
 - Confirmed/refined lifecycles from Q2
 - Confirmed cardinalities from Q3
 - Conflict resolutions from Q4 (extend mode)
@@ -310,6 +371,26 @@ Report to the coordinator one of:
 - `extended` (mode = extend, merged content written)
 - `replaced` (mode = replace, full draft written)
 - `skipped (declined mid-skill)` (user aborted partway)
+
+### Provenance markers for accepted Q1.5 suggestions
+
+Each accepted Q1.5 suggestion becomes a new entity section in the artifact. Append a provenance block at the end of the Entity section using this exact format:
+
+```markdown
+## <Entity Name>
+
+**Attributes:** <list>
+
+**Lifecycle:** <states>
+
+**Relationships:** <list>
+
+> _Added via bootstrap suggestion pass (YYYY-MM-DD)._
+> _Evidence: <evidence summary from the Q1.5 candidate>._
+> _This entity / lifecycle is observable in code but was previously undocumented._
+```
+
+Replace `YYYY-MM-DD` with today's date. The three blockquote lines each carry a self-contained italic span (italic spans never cross blockquote line boundaries). The audit skill reads this marker on re-runs to ask whether the finding has been addressed.
 
 ## Output Template
 
@@ -396,6 +477,10 @@ Pending → Expired (terminal, automatic after Expiry timestamp).
 | Bundling multiple questions in one ask | One question per turn |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
+| Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
+| Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries; without it, drift detection breaks |
+| Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
 
 ## Red Flags
 
@@ -409,6 +494,8 @@ Pending → Expired (terminal, automatic after Expiry timestamp).
 - About to invent a lifecycle the code doesn't have → STOP; observe (or ask the user) — don't speculate
 - About to loop into a 4th tweak round → STOP; surface bail options
 - About to overwrite an existing domain model in extend mode → STOP; merge
+- About to surface a diagnose candidate without specific file-path evidence → STOP; drop it
+- About to run Step 1.5 when SUGGEST=off → STOP; skip entirely
 
 ## Why This Skill Is Inline (Not a Subagent)
 
