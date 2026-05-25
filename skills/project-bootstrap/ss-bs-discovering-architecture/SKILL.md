@@ -38,7 +38,7 @@ You're invoked when the user picked **Create / Extend / Replace** for architectu
 - Do NOT exceed the diagnose budget: Step 1.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 1 read. If you need more reads, surface fewer suggestions instead of widening the budget.
 - Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
 - Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
-- Do NOT use severity MUST/SHALL for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
+- Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
 
 ## Top-Level Flow
 
@@ -178,7 +178,7 @@ Diagnose looks for anti-patterns and missing-but-typically-valuable structural d
 
 ### 1.5a. Architecture diagnose categories
 
-For each category below, scan additional files if needed (within the budget — see Hard Gates). Generate at most 5 candidate suggestions total across all categories, ranked by severity → evidence strength → impact.
+For each category below, scan additional files if needed (within the budget — see Hard Gates). Scan each category for candidates. One strong candidate per category is the target; the aggregate cap of 5 is enforced in 1.5b after dropping unsupported candidates.
 
 - **Cross-service direct DB access.** If multiple services share a single DB and at least one service reads another's tables directly. Evidence: list at least 2-3 file paths showing the cross-table reads.
 - **Synchronous service chains where async would add resilience.** Service A makes HTTP calls to service B inside a request handler with no queueing or fallback. Evidence: file paths showing the synchronous calls.
@@ -205,7 +205,7 @@ Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 
 
 ## Step 2: Announce Findings
 
-One short message (3-6 sentences). State what you scanned and the headline finding. Example:
+One short message (3-6 sentences; 3-7 when SUGGEST=on extends with the diagnose-mention sentence). State what you scanned and the headline finding. Example:
 
 > "Here's what I picked up from the codebase: a pnpm monorepo with three services (`services/billing`, `services/checkout`, `services/catalog`), all TypeScript on Express + Prisma, sharing `packages/common`. Runtime: docker-compose locally, k8s in prod with nginx ingress. Data stores: Postgres (per-service schemas) + Redis (queues + sessions). Confirmed integrations: Stripe, SendGrid, Sentry. A few things I want to confirm with you — component grouping, what's out of scope, and a couple of env-var-only signals. I'll show you a draft after."
 
@@ -244,12 +244,14 @@ Question: "Here are some things I'd suggest adding even though they're
 not currently codified. These are opinionated — pick any you want to
 include:"
 
-Multi-select. For each Step 1.5 candidate, list as:
+Options (multi-select, one option per Step 1.5 candidate, plus a "None" escape):
   - [suggestion · <severity> · <evidence-summary>] <title>
     Evidence: <evidence>
     Proposed addition: <one-line summary of proposed_addition>
+  - ... (one option per remaining candidate, up to 5)
+  - "None of these — keep the doc descriptive only"
 
-Always include "None of these — keep the doc descriptive only" as the last option.
+Use the harness's multi-select question tool. Do not present as plain text.
 ```
 
 If the user picks none, treat as "no suggestions accepted" and proceed to Q2. Accepted suggestions are carried into Step 4 (Draft & Show) and rendered with provenance markers.
@@ -313,7 +315,7 @@ Options:
 Synthesize the draft using:
 - Scan findings (layout, build, entry points, topology, stores, integrations)
 - Confirmed grouping from Q1
-- Accepted Q1.5 suggestions (rendered as new sections / new component entries with provenance markers — see Step 6)
+- Accepted Q1.5 suggestions, rendered as new sections / new component entries with provenance markers (format defined in Step 6's provenance subsection). **The provenance markers must appear in the draft shown to the user at this Step 4**, not added silently at Step 6 write time — the user reviews and approves the full content including provenance.
 - Out-of-scope from Q2
 - Confirmed/dropped integrations from Q3
 - Non-code facts from Q4
@@ -367,9 +369,9 @@ Report to the coordinator one of:
 Each accepted Q1.5 suggestion becomes a regular section in the artifact (e.g., a new "Boundaries" subsection, a new "Components" entry, or a new top-level recommendation block). Append a provenance line at the end of the section using this exact format:
 
 ```markdown
-> _Added via bootstrap suggestion pass (YYYY-MM-DD)._ _Evidence: <evidence
-> summary from the Q1.5 candidate>. Not currently enforced — declared here as
-> an aspirational architectural rule._
+> _Added via bootstrap suggestion pass (YYYY-MM-DD)._
+> _Evidence: <evidence summary from the Q1.5 candidate>._
+> _Not currently enforced — declared here as an aspirational architectural rule._
 ```
 
 Replace `YYYY-MM-DD` with today's date. The audit skill reads this marker on re-runs to ask whether the aspiration has been realized in code.
