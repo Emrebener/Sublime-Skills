@@ -25,7 +25,7 @@ Render the agreed understanding from the discovery stage into a structured spec 
 1. Resolve the feature directory and short name
 2. Load project context (skip in writers if the coordinator already loaded it — coordinate)
 3. Write `spec.md` using the required structure (Spec Structure section below)
-4. Initialize/update the SDD state file
+4. Write feature-identifying fields into the existing state file
 5. Run the inline self-review (Self-Review section below); fix issues inline
 6. Report the spec path
 
@@ -38,7 +38,7 @@ docs/specs/NNN-<short-name>/
   spec.md           # this stage writes (user-facing artifact, committed at Stage 12)
 
 .sublime-skills/
-  state.json        # SDD state file (this stage initializes) — gitignored, never committed
+  state.json        # SDD state file (created by preflight at Stage 0; this stage writes feature_id, short_name, work_type, spec_path into it) — gitignored, never committed
 ```
 
 **Numbering:**
@@ -84,35 +84,25 @@ The Clarifications section is auto-managed by the ss-sdd-grilling-specs skill if
 
 **Write atomically.** Compose the full spec content, write to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. The atomic move prevents a half-written spec.md if the session dies mid-write. Apply the same pattern when editing the spec during grill/approval — never edit-in-place.
 
-## Step 4: Initialize State File
+## Step 4: Write Feature Fields into State
 
-Write `.sublime-skills/state.json` using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`). See `framework/state-schema.md` for the full state schema (and the "Git policy (CRITICAL)" section — state.json is permanently gitignored and must never be committed).
+The state file already exists — preflight (Stage 0) wrote the shell. Read the current contents, merge in the feature-identifying fields produced by Stage 1 / this stage, and write back using the atomic pattern (write to `.sublime-skills/state.json.tmp`, then `mv .sublime-skills/state.json.tmp .sublime-skills/state.json`). See `framework/state-schema.md` for the full state schema (and the "Git policy (CRITICAL)" section — state.json is permanently gitignored and must never be committed).
+
+Fields this skill writes:
+
+| Field | Source | Notes |
+|---|---|---|
+| `feature_id` | This skill (Step 1 dir resolution) | Format: `NNN-<short-name>`. |
+| `short_name` | This skill (Step 1) | Kebab-case. |
+| `work_type` | Coordinator's in-memory dict (captured at Stage 1 by `ss-sdd-discovering-requirements`) | `"feature"` or `"fix"`. |
+| `spec_path` | This skill | `docs/specs/<feature_id>/spec.md`. |
+| `updated_at` | This skill | Touched on every write. |
+
+All other fields (including `started_at`, `current_stage`, `stages_completed`) are owned by other skills or the coordinator — do NOT overwrite them.
+
+**Do NOT change `current_stage` or append to `stages_completed` here.** The coordinator advances the stage and marks `spec_written` complete after this skill returns. (Avoids racing with the coordinator's stage-advancement logic.)
 
 **Do NOT commit spec.md.** It stays uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits spec.md alongside plan.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
-
-Initial state when this skill writes the file:
-
-```json
-{
-  "feature_id": "NNN-<short-name>",
-  "short_name": "<short-name>",
-  "work_type": "<feature|fix from coordinator's in-memory dict>",
-  "started_at": "<ISO-8601 timestamp>",
-  "updated_at": "<ISO-8601 timestamp>",
-  "spec_path": "docs/specs/NNN-<short-name>/spec.md",
-  "plan_path": null,
-  "current_stage": "spec_writing",
-  "stages_completed": ["preflight", "discovering"],
-  "stages_skipped": [],
-  "tasks": {},
-  "adr_results": [],
-  "test_status": null,
-  "fix_iterations": 0,
-  "final_review_completed": false
-}
-```
-
-**Important:** leave `current_stage` as `"spec_writing"` and DO NOT add `"spec_written"` to `stages_completed` here. The coordinator will advance the stage and mark spec_written complete after this skill returns. (Avoids racing with the coordinator's stage-advancement logic.)
 
 ## Step 5: Inline Self-Review
 
@@ -148,7 +138,7 @@ Return to the coordinator. The report **must include the validator's PASS line v
 Spec written: docs/specs/NNN-<short-name>/spec.md
 Sections present: [list]
 Open questions: [count]
-State file initialized.
+State file: feature fields written (feature_id, short_name, work_type, spec_path).
 
 Validator output (last line):
 PASS — N warning(s), 0 critical issues

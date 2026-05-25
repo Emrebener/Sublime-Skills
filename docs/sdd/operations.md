@@ -579,21 +579,14 @@ There's no clean "loop back to earlier stage" mechanism for this — it's delibe
 
 ### Existing state when starting a fresh feature
 
-**Cause:** an SDD run was abandoned mid-pipeline. `.sublime-skills/state.json` still references it. You now want to start a different feature.
-**Fix:** the coordinator's resume check detects the existing state and asks: "Resume `<feature_id>` at `<current_stage>`?". On no, it prompts "Discard this state and start fresh, or abort?". On Discard, the coordinator runs `rm .sublime-skills/state.json` and proceeds to Stage 0 for the new feature.
+**Cause:** an SDD run was abandoned mid-pipeline in a dead prior conversation. `.sublime-skills/state.json` is still on disk. You now want to start a new feature in this conversation.
+**Fix:** nothing for you to do — Stage 0 (preflight) silently removes any pre-existing state file and writes a fresh shell before returning ready. SDD treats cross-conversation resume as out of scope; any orphan is unambiguously dead.
 
 If you genuinely need multiple concurrent runs (rare), use git worktrees — each worktree has its own `.sublime-skills/state.json` and they're naturally isolated.
 
 ### Resume after a long time
 
-**Cause:** weeks or months have passed since the last SDD session on this feature.
-**Fix:** the coordinator still resumes if `.sublime-skills/state.json` is present on disk. But:
-- Cross-session continuity is best-effort — the state file is not committed, so a clone on a different machine has no state.
-- Read the handoff doc first if one was generated.
-- Re-read the spec and plan; some context may have changed since.
-- Consider whether the spec/plan needs updates before continuing.
-
-If the state file is missing (deleted, on a different machine, after a fresh clone), start a new run rather than trying to reconstruct.
+SDD does not support cross-conversation resume. If you want to continue work on a feature whose pipeline ran in a prior conversation, start a new SDD run and reference the existing spec/plan/ADRs that landed on disk (or the handoff doc from Stage 15, if you generated one). Any leftover state file from the prior conversation will be cleared by preflight as an orphan.
 
 ### Coordinator wants to do a phase-skill's work inline
 

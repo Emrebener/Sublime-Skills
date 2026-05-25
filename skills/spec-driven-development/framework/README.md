@@ -127,30 +127,6 @@ YAML parsing + overlay merge; falls back to an awk-based shallow scanner when
 those aren't available (the fallback validates base config only and emits a
 `WARN` if `config-local.yml` exists).
 
-### `verify-state-references.sh`
-
-```bash
-"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/verify-state-references.sh" [state-path]
-```
-
-Used by `ss-sdd-coordinator` on every invocation that finds an existing
-state file at `.sublime-skills/state.json`. Reads the file's `spec_path`
-and `plan_path` fields and verifies each still exists on disk — the user
-could have manually deleted spec/plan files between sessions.
-
-Default `state-path` is `.sublime-skills/state.json` relative to cwd.
-
-Output: prints each missing referenced path on its own line, prefixed
-with `  - ` (two-space indent + dash), ready to splice into a
-user-facing prompt asking whether to discard the stale state.
-
-Exit codes:
-- `0` — all referenced paths exist (or the state file itself is missing — no refs to check)
-- `1` — at least one referenced path is missing (stdout lists them)
-- `2` — state file present but unreadable / unparseable (error on stderr)
-
-Requires `jq` (same dependency as other framework scripts that read state).
-
 ## `get-config-value.sh`
 
 Reads a single scalar value from the layered config. `config-local.yml` is consulted first; if the key is present there (including as `null`), that value wins. Otherwise the read falls through to `config.yml`. Intended for skills that need one or two config values and don't want to inline YAML parsing.

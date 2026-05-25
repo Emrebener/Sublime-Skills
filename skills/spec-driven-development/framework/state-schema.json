@@ -5,18 +5,15 @@
   "description": "Schema for .sublime-skills/state.json (single global file, gitignored). Canonical companion to state-schema.md.",
   "type": "object",
   "required": [
-    "feature_id",
-    "short_name",
-    "work_type",
     "started_at",
     "updated_at",
-    "spec_path",
     "current_stage",
     "stages_completed",
     "stages_skipped",
     "tasks"
   ],
   "additionalProperties": false,
+  "$comment": "feature_id, short_name, work_type, spec_path are not in the always-required set: preflight (Stage 0) creates the state shell before these are knowable; ss-sdd-writing-specs (Stage 2) writes them. They are required-by-Stage-2 — every skill that reads them runs at Stage 3 or later, so they can assume presence.",
   "properties": {
     "feature_id": {
       "type": "string",

@@ -16,7 +16,7 @@ Forbidden, even when "just this once":
 - `git commit -- .sublime-skills/state.json` (any direct path-add)
 - Editing `.sublime-skills/.gitignore` to remove the entry
 
-The state file is local-only orchestration metadata. It exists from Stage 2 (ss-sdd-writing-specs creates it) until Stage 17 (ss-sdd-finishing deletes it via plain `rm`, NOT `git rm`). Across every stage between, it lives uncommitted in the working tree.
+The state file is local-only orchestration metadata. It exists from Stage 0 (ss-sdd-preflight-checks creates the shell after validation passes) until Stage 17 (ss-sdd-finishing deletes it via plain `rm`, NOT `git rm`). Across every stage between, it lives uncommitted in the working tree.
 
 Recovery if accidentally committed:
 
@@ -29,24 +29,31 @@ A machine-readable JSON Schema version lives alongside this file at `state-schem
 
 ## Lifecycle in one paragraph
 
-The state file is **created** by `ss-sdd-writing-specs` at Stage 2 (it doesn't exist during Stages 0-1; preflight outcomes are held in coordinator memory). It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below). It is **never committed at any stage** — the file lives only in the working tree and is gitignored throughout. It is **deleted** at Stage 17 by `ss-sdd-finishing` via plain `rm` (no commit; nothing to untrack from git).
+The state file is **created** by `ss-sdd-preflight-checks` at Stage 0, after all validation passes, as a minimal shell containing only the always-required fields. It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below) — feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) are filled in at Stage 2 by `ss-sdd-writing-specs`, with later fields appended as their owning stages run. It is **never committed at any stage** — the file lives only in the working tree and is gitignored throughout. It is **deleted** at Stage 17 by `ss-sdd-finishing` via plain `rm` (no commit; nothing to untrack from git).
 
-## Required fields
+## Always-required fields
 
-These MUST be present in any valid state file (i.e., from Stage 2 onward):
+These MUST be present from the moment preflight (Stage 0) writes the shell:
+
+| Field | Type | Description |
+|---|---|---|
+| `started_at` | string (ISO-8601 UTC) | When preflight first wrote the shell. |
+| `updated_at` | string (ISO-8601 UTC) | Last write timestamp. Updated on every atomic write. |
+| `current_stage` | string | One of the enum values in the Stage Name Mapping table below. Starts as `preflight`; coordinator advances at every stage boundary. |
+| `stages_completed` | array of strings | Stages finished successfully, in chronological order. Initialized as `[]`; each value from the Stage Name Mapping table's "stages_completed entry" column. |
+| `stages_skipped` | array of strings | Stages user opted to skip (only the four optional stages can appear here). Initialized as `[]`. |
+| `tasks` | object | `{ "T###": "pending" | "in_progress" | "completed" }`. Initialized as `{}` by preflight; populated with per-task entries by `ss-sdd-implementing-plans` at Stage 13. |
+
+## Required-by-Stage-2 fields
+
+These are absent from the preflight shell and become required once `ss-sdd-writing-specs` (Stage 2) has run. Every skill that reads them runs at Stage 3 or later, so consumers can safely assume presence:
 
 | Field | Type | Description |
 |---|---|---|
 | `feature_id` | string | Format: `NNN-<short-name>`, e.g., `003-user-auth`. Sequential within the project. |
 | `short_name` | string | Kebab-case, 2-4 words. Used in branch names, ADR refs, handoff filenames. |
-| `work_type` | string | `"feature"` or `"fix"`. Captured at Stage 1 by `ss-sdd-discovering-requirements`; used by `ss-sdd-choosing-feature-branch` (Stage 12) to derive the suggested branch prefix. |
-| `started_at` | string (ISO-8601 UTC) | When Stage 2 first initialized this state file. |
-| `updated_at` | string (ISO-8601 UTC) | Last write timestamp. Updated on every atomic write. |
+| `work_type` | string | `"feature"` or `"fix"`. Captured at Stage 1 by `ss-sdd-discovering-requirements`; persisted at Stage 2; used by `ss-sdd-choosing-feature-branch` (Stage 12) to derive the suggested branch prefix. |
 | `spec_path` | string | Repo-relative path to `spec.md`. Default: `docs/specs/<feature_id>/spec.md`. |
-| `current_stage` | string | One of the enum values in the Stage Name Mapping table below. |
-| `stages_completed` | array of strings | Stages finished successfully, in chronological order. Each value from the Stage Name Mapping table's "stages_completed entry" column. |
-| `stages_skipped` | array of strings | Stages user opted to skip (only the four optional stages can appear here). |
-| `tasks` | object | `{ "T###": "pending" | "in_progress" | "completed" }`. Initialized as `{}` by `ss-sdd-writing-specs` at Stage 2; populated with per-task entries by `ss-sdd-implementing-plans` at Stage 13. |
 
 ## Optional fields (present after specific stages advance)
 
@@ -71,13 +78,14 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 
 | Field | Owner | Notes |
 |---|---|---|
-| `feature_id`, `short_name`, `started_at`, `spec_path` | `ss-sdd-writing-specs` (Stage 2 init) | Set once at Stage 2; never updated after. |
-| `work_type` | `ss-sdd-discovering-requirements` (Stage 1; captured in-memory) + persisted by `ss-sdd-writing-specs` (Stage 2 init) | Set once; never updated after. |
+| `started_at`, initial `tasks: {}`, `stages_completed: []`, `stages_skipped: []` | `ss-sdd-preflight-checks` (Stage 0 shell creation) | Written once at the end of preflight, after all validation passes. |
+| `feature_id`, `short_name`, `spec_path` | `ss-sdd-writing-specs` (Stage 2) | Written into the existing state file; never updated after. |
+| `work_type` | `ss-sdd-discovering-requirements` (Stage 1; captured in-memory) + persisted by `ss-sdd-writing-specs` (Stage 2) | Set once; never updated after. |
 | `updated_at` | Every writer | Touched on each atomic write. |
-| `current_stage` | Coordinator | Advanced at every stage boundary. |
+| `current_stage` | Coordinator | Initialized as `"preflight"` by the shell; advanced at every stage boundary. |
 | `stages_completed` | Coordinator | Appended to after each stage succeeds. |
 | `stages_skipped` | Coordinator | Appended when user declines an optional stage. |
-| `tasks` (init) | `ss-sdd-implementing-plans` Step 2 | Merge with existing on resume; never overwrite completed tasks. |
+| `tasks` (per-task init) | `ss-sdd-implementing-plans` Step 2 | Adds task entries to the existing `{}`; never overwrites completed tasks. |
 | `tasks` (per-task transitions) | `ss-sdd-implementing-plans` Step 3 | `pending` → `in_progress` at task start; `in_progress` → `completed` at task finish. |
 | `plan_path` | `ss-sdd-writing-plans` (Stage 8 init) | Set once. |
 | `adr_results` | Coordinator | Populated from `ss-sdd-maintaining-adrs`' return value at Stage 6. |
@@ -177,7 +185,7 @@ This is a typical state during Stage 13 with 3 tasks done, 1 in progress, 3 pend
 
 This schema is the contract. A consumer that wants to verify a state file should check:
 - JSON parses
-- All required fields present
+- All always-required fields present; if `current_stage` is past `spec_writing`, the four required-by-Stage-2 fields are also present
 - Enum values valid (`current_stage` from the Stage Name Mapping; `tasks.T###` in `pending|in_progress|completed`; `test_status` from the documented set)
 - Stage progression is consistent (e.g., `current_stage: implementing` implies `plan_approved` is in `stages_completed`)
 

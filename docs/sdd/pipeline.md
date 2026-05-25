@@ -35,17 +35,11 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-Every invocation of `ss-sdd-coordinator` begins with a quick resume check, then a todo-list build, then the pipeline. All halt checks (config validation, git repo presence, detached HEAD) live inside Stage 0 (`ss-sdd-preflight-checks`), not in this entry sequence.
+`ss-sdd-coordinator` is an LLM-driven state machine: on a fresh user invocation it starts at Stage 0; on re-entry within the same conversation it picks up from `current_stage` (read from `.sublime-skills/state.json`) — there's no test-and-ask resume ceremony, because the conversation context already tells the coordinator where it is.
 
-1. **Resume check.** Check `.sublime-skills/state.json`:
-   - **File not found** → fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
-   - **File found** → ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, ask whether to start a fresh feature (overwriting the existing state file) or abort.
+On a fresh run, the coordinator builds the progress todo list (one entry per non-optional row in the pipeline table; optional rows added when the user opts in) before entering Stage 0.
 
-   No halts here. Bad-config / not-a-repo / detached-HEAD all fall through to Stage 0.
-
-2. **Build the progress todo list** for the user's view.
-
-After the entry sequence, the coordinator proceeds into the pipeline. **Stage 0 is the first stage** and the single home for every pre-pipeline halt check — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `framework/get-config-value.sh` for use throughout the rest of the run.
+**Stage 0 is the single home for every pre-pipeline halt check** — config validation (`validate-config.sh`, HALT on non-zero), git repo presence, detached HEAD — plus a dirty-tree warning (proceed-or-abort confirmation, not an automatic abort). Once every check passes, Stage 0 creates `.sublime-skills/state.json` as a minimal shell (silently removing any orphan file from a dead prior pipeline first), then returns. After Stage 0 returns ready, the config is known-valid and the coordinator caches values (paths, `branching.branch_pattern`, grill cap, memory file size budget) via `framework/get-config-value.sh` for use throughout the rest of the run.
 
 ### Commit timing (important)
 

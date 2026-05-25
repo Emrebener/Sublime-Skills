@@ -8,15 +8,15 @@ This document covers two things that aren't artifacts in the user-facing sense b
 
 ### What it is
 
-A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds everything the coordinator needs to know to resume an interrupted pipeline from any stage.
+A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds the orchestration record the coordinator and per-task subagents share within a conversation. Cross-conversation resume is not supported; any leftover state file from a dead prior conversation is silently removed by preflight at the next fresh run.
 
 ### Lifecycle
 
 | Stage | What happens to state.json |
 |---|---|
-| 0 (Preflight) | Does NOT exist yet. Preflight outputs (current branch) are held in coordinator's in-memory dict. |
-| 1 (Discovery) | Still does not exist. Discovery outputs in memory. |
-| 2 (Writing spec) | **Created** by `ss-sdd-writing-specs` at `.sublime-skills/state.json`, atomic write. Pre-populated with feature_id, branch, paths. **Gitignored from the start.** |
+| 0 (Preflight) | **Created** as a minimal shell at the end of preflight, after all validation passes. Contains only the always-required fields (`started_at`, `updated_at`, `current_stage: "preflight"`, empty `stages_completed` / `stages_skipped`, empty `tasks`). Any pre-existing file is treated as an orphan from a dead prior pipeline and silently removed before the shell is written. **Gitignored from the start.** |
+| 1 (Discovery) | Coordinator advances `current_stage` to `discovering` at the stage boundary. Discovery outputs (`short_name`, `work_type`, etc.) are held in coordinator memory and persisted by `ss-sdd-writing-specs` at Stage 2. |
+| 2 (Writing spec) | `ss-sdd-writing-specs` writes the feature-identifying fields into the existing shell: `feature_id`, `short_name`, `work_type`, `spec_path`. Atomic write. Coordinator then advances `current_stage`. |
 | 3–11 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
 | 12 (Choosing branch) | Updated atomically (`current_stage: implementing`, `branch_name: "<chosen branch>"`). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. `branch_name` is later read by Stage 17 to know what to merge. |
 | 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). |
@@ -215,7 +215,7 @@ Each skill that depends on config reads it explicitly. The pattern is:
 2. Use the value verbatim. There is **no auto-fallback** to other locations — if a key is null or absent in both files, that's the answer.
 3. If `.sublime-skills/config.yml` is missing entirely or fails `validate-config.sh`, the project hasn't been bootstrapped for SDD; the user should run `ss-bs-bootstrapping-project` first.
 
-The coordinator caches the config once at session start (after the resume check) and passes relevant values into each skill dispatch.
+The coordinator caches the config once at session start (after Stage 0 preflight returns ready) and passes relevant values into each skill dispatch.
 
 ### Common overrides
 

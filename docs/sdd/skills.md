@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 7 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`, `verify-state-references.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -53,20 +53,18 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 **Loaded:** by the user at the start of every SDD session
 **Stage:** drives all 18 stages
 
-**Purpose:** The single entry point. Reads `.sublime-skills/config.yml`, does a quick resume check (`[ -f .sublime-skills/state.json ]` and asks whether to resume), then walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary.
+**Purpose:** The single entry point. Reads `.sublime-skills/config.yml` (via preflight) and walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary. On a fresh user invocation it starts at Stage 0; on re-entry within the same conversation it picks up from `current_stage` (the LLM uses conversation context — there's no test-and-ask resume ceremony).
 
 **Key rules:**
-- ALWAYS does the resume check (state-file existence check + ask) first on every invocation
 - Never advances past a user-approval gate (Stages 7, 11) without explicit user yes
 - Never auto-skips optional stages (4, 5, 10, 13) — always asks
 - Never tests the feature itself when `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE
 - State updates are atomic and happen at stage boundaries only
 
-**Reads:** `.sublime-skills/config.yml`, any existing state file, every artifact the pipeline produces
-**Writes:** state file (atomic), commits at stage transitions, ADR status flips on approval
+**Reads:** `.sublime-skills/config.yml`, the state file (created by preflight at Stage 0), every artifact the pipeline produces
+**Writes:** state file (atomic; the shell is created by preflight), commits at stage transitions, ADR status flips on approval
 
 **Common mistakes the skill warns against:**
-- Skipping the resume check at session start
 - Updating state mid-stage
 - Doing phase-skill work inline instead of loading the phase-skill or dispatching a subagent
 - Multiple implementer subagents in parallel (sequential only)
@@ -79,7 +77,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 **Loaded:** by the coordinator at Stage 0
 **Stage:** 0
 
-**Purpose:** Validate that the repo is workable for SDD. A **permissive** gate: aborts only on conditions that genuinely make SDD impossible. Does NOT create branches (Stage 12 owns that).
+**Purpose:** Validate that the repo is workable for SDD, then create the state file shell. A **permissive** gate: aborts only on conditions that genuinely make SDD impossible. Does NOT create branches (Stage 12 owns that).
 
 **Behavior matrix:**
 
@@ -90,16 +88,18 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 | Not a git repo | ABORT — `not_a_git_repo` |
 | Detached HEAD | ABORT — `detached_head` |
 | Dirty working tree | WARN + confirm; ABORT — `user_declined` only if user says no |
-| Otherwise (clean tree, named branch, valid config, git repo) | Proceed |
+| Otherwise (clean tree, named branch, valid config, git repo) | Proceed → create state shell, return ready |
 
 **Key rules:**
-- No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout`. Preflight never mutates state.
+- No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout`. Preflight never mutates working-tree state.
 - Dirty trees are allowed because SDD's commits are path-scoped to its own artifacts — the user's pre-existing dirty files stay untouched throughout the pipeline.
 - Branch creation belongs to Stage 12 (`ss-sdd-choosing-feature-branch`), not here.
+- State shell is written as the **last** step, only after all validation passes — an aborted preflight leaves no trace.
+- Any pre-existing `.sublime-skills/state.json` at preflight entry is treated as an orphan from a dead prior pipeline and silently removed before the fresh shell is written.
 
 **Reads:** config + git state
-**Writes:** nothing
-**State file:** does not yet exist; outputs (current branch) are returned to the coordinator for in-memory holding
+**Writes:** `.sublime-skills/state.json` (shell with `started_at`, `updated_at`, `current_stage: "preflight"`, empty `stages_completed` / `stages_skipped`, empty `tasks`)
+**Returns to coordinator:** current branch (also held in-memory for downstream use)
 
 **Returns on success:**
 
@@ -107,6 +107,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 Preflight complete.
 - Branch: <current branch>
 - Working tree: clean | dirty (proceeding per user confirmation)
+- State file: created (shell) | created (orphan removed first)
 - Status: ready
 ```
 
@@ -169,7 +170,7 @@ Preflight aborted.
 - No implementation details (file paths, code, task lists)
 - No Mermaid, C4, PlantUML, or ASCII diagrams
 
-**State file:** initialized here. Writes `current_stage: "spec_writing"` and `stages_completed: ["preflight", "discovering"]`. Coordinator advances after the skill returns.
+**State file:** writes feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) into the existing shell (preflight created it at Stage 0). Does NOT advance `current_stage` or append to `stages_completed`; the coordinator handles stage advancement after the skill returns.
 
 **Validator invoked:** `framework/validate-spec.sh`. Runs as first sub-step of Step 5 self-review. Must pass before the skill reports back.
 

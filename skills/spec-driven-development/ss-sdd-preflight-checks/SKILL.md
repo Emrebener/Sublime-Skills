@@ -1,13 +1,13 @@
 ---
 name: ss-sdd-preflight-checks
-description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. A permissive validation gate — confirms config is valid, the repo is a git repo, the user is on a named branch, and warns (does not abort) on a dirty working tree.
+description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. A permissive validation gate — confirms config is valid, the repo is a git repo, the user is on a named branch, warns (does not abort) on a dirty working tree, and creates the SDD state file shell once everything checks out.
 ---
 
 # Preflight Checks
 
 ## Overview
 
-Verify the repo is in a workable state for an SDD pipeline run: `.sublime-skills/config.yml` is present and valid, we're inside a git repo, and HEAD is attached (named branch, not detached). A dirty working tree is allowed — SDD commits are path-scoped to its own artifacts, so the user's pre-existing dirty files stay untouched.
+Verify the repo is in a workable state for an SDD pipeline run: `.sublime-skills/config.yml` is present and valid, we're inside a git repo, and HEAD is attached (named branch, not detached). A dirty working tree is allowed — SDD commits are path-scoped to its own artifacts, so the user's pre-existing dirty files stay untouched. Once every check passes, preflight creates `.sublime-skills/state.json` as a minimal shell, removing any orphan state file from a previous dead pipeline first.
 
 This skill **does NOT** create branches. Branch policy is decided much later, at Stage 12 (`ss-sdd-choosing-feature-branch`), right before implementation starts.
 
@@ -22,7 +22,8 @@ This skill **does NOT** create branches. Branch policy is decided much later, at
 1. `.sublime-skills/config.yml` is present and passes `validate-config.sh`
 2. The current directory is inside a git repository
 3. HEAD is attached (a named branch, not detached)
-4. After this skill returns, the coordinator can safely begin spec/plan work and trust every path in `.sublime-skills/config.yml`
+4. `.sublime-skills/state.json` exists as a fresh shell (any pre-existing state file is treated as an orphan from a dead prior pipeline and removed first)
+5. After this skill returns, the coordinator can safely begin spec/plan work and trust every path in `.sublime-skills/config.yml`
 
 ### What this skill aborts on (fail-fast cases)
 
@@ -34,15 +35,11 @@ This skill **does NOT** create branches. Branch policy is decided much later, at
 | Detached HEAD | `detached_head` | `git branch --show-current` returns empty (no branch to commit to) |
 | User declined | `user_declined` | User said "no" to the dirty-tree confirmation prompt |
 
-### What this skill does NOT do
+State creation is the LAST step — if any check above aborts, no state file is written, so an aborted preflight leaves no trace. Preflight runs inline (no subagents).
 
-- Does NOT create or switch branches (that's Stage 12)
-- Does NOT abort on a dirty working tree (it warns and asks)
-- Does NOT abort on which branch you're on — any named branch is fine
-- Does NOT commit, stash, discard, or restore working tree changes
-- Does NOT write to a state file (state file doesn't exist yet — initialized in Stage 2 by `ss-sdd-writing-specs`)
-- Does NOT modify user-authored files
-- Does NOT dispatch subagents (runs inline in the coordinator)
+## Hard Gates
+
+- NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 
 ## Checklist
 
@@ -52,7 +49,8 @@ The coordinator MUST track each of these as a todo item and complete them in ord
 2. Run `git rev-parse --git-dir`. If exit code is non-zero: **ABORT** per the Git Repo Protocol below.
 3. Run `git branch --show-current`. If it returns empty: **ABORT** per the Detached HEAD Protocol below.
 4. Run `git status --porcelain`. If it returns any output: **WARN** per the Dirty Tree Protocol below (proceed-or-abort, not automatic abort).
-5. Report ready — return preflight outcomes (current branch) to the coordinator.
+5. Create the state file shell per the State Shell Protocol below.
+6. Report ready — return preflight outcomes (current branch) to the coordinator.
 
 ## Config Validation Protocol
 
@@ -129,7 +127,7 @@ Then re-invoke the SDD coordinator.
 
 If `git status --porcelain` returns any output, the working tree has uncommitted changes. **WARN, do not abort.** SDD can run on top of dirty work because all SDD-driven commits are path-scoped to its own artifacts (`docs/specs/...`, `docs/adr/...`, and code files the implementer subagents explicitly touch). Your other dirty files stay untouched.
 
-Show the user the dirty files (cap the list at ~30 lines; summarize the rest) and ask via the harness's interactive question tool:
+Show the user the dirty files and ask via the harness's interactive question tool:
 
 ```
 Working tree has uncommitted changes:
@@ -151,6 +149,32 @@ Proceed with the dirty tree? (yes/no)
 
 This is the ONLY user prompt in preflight. The other checks are pure validation.
 
+## State Shell Protocol
+
+After every validation check passes, create `.sublime-skills/state.json`. If a state file already exists at this path, it is an orphan from a dead prior pipeline (normal flow at Stage 17 deletes it via `ss-sdd-finishing`); remove it silently and write the fresh shell.
+
+```bash
+mkdir -p .sublime-skills
+rm -f .sublime-skills/state.json
+
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+cat > .sublime-skills/state.json.tmp <<JSON
+{
+  "started_at": "$NOW",
+  "updated_at": "$NOW",
+  "current_stage": "preflight",
+  "stages_completed": [],
+  "stages_skipped": [],
+  "tasks": {}
+}
+JSON
+mv .sublime-skills/state.json.tmp .sublime-skills/state.json
+```
+
+The atomic-write pattern (`.tmp` then `mv`) is mandatory for every state write — see `framework/state-schema.md` "Atomic write pattern (required)".
+
+The shell is intentionally minimal: feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) aren't knowable yet — discovery (Stage 1) and writing-specs (Stage 2) fill those in. See `framework/state-schema.md` for the full ownership table.
+
 ## Reporting Back
 
 ### On success
@@ -161,6 +185,7 @@ Return to the coordinator:
 Preflight complete.
 - Branch: <current branch>
 - Working tree: clean | dirty (proceeding per user confirmation)
+- State file: created (shell) | created (orphan removed first)
 - Status: ready
 ```
 
@@ -186,8 +211,10 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 | Trying to create a feature branch here | NEVER — that's Stage 12's job. Preflight just validates that a branch exists. |
 | Auto-`git init`ing a non-repo | NEVER — surface the abort message and let the user run `git init` themselves. |
 | Aborting on detached HEAD only when state files exist | Detached HEAD is an UNCONDITIONAL abort. SDD needs a named branch. |
-| Trying to write a state file from this skill | The state file doesn't exist yet — only `ss-sdd-writing-specs` initializes it. |
 | Dispatching a subagent for any work | NEVER — preflight runs entirely inline. |
+| Writing the state shell before all checks pass | NEVER — shell write is the LAST step, so an aborted preflight leaves no trace. |
+| Asking the user "discard orphan state?" | NEVER — there's nothing to ask. Orphans are silently removed. Cross-session resume isn't supported; any pre-existing state file at preflight entry is unambiguously dead. |
+| Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
 
 ## Red Flags
 
@@ -198,4 +225,6 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 - About to create a feature branch from here → STOP; that's Stage 12 (`ss-sdd-choosing-feature-branch`)
 - About to `git checkout` to switch branches → STOP; not preflight's job
 - About to dispatch a subagent for branch-detection or any other work → STOP; preflight runs entirely inline
-- About to try `Read`/`Write` on a state.json file → STOP; state file is initialized in Stage 2 (`ss-sdd-writing-specs`)
+- About to write the state shell before all checks have passed → STOP; shell write is the LAST step
+- About to prompt the user before removing an orphan state.json → STOP; remove silently
+- About to type `git add -f .sublime-skills/state.json` → STOP

@@ -16,12 +16,11 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 ## Hard Gates
 
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
-- Do a quick resume check on every invocation (Step 1 below) before doing anything else
-- Do NOT perform halt checks (config validation, git workspace, detached HEAD) inline — that's `ss-sdd-preflight-checks`'s job. Stage 0 owns every pre-pipeline halt.
+- Do NOT perform halt checks (config validation, git workspace, detached HEAD) inline — that's `ss-sdd-preflight-checks`'s job. Stage 0 owns every pre-pipeline halt, and also creates the state file shell.
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
 - ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool to track progress through the pipeline. Build the initial list in Step 3: one todo per stage you'll actually run (mandatory stages always; optional stages added when the user opts in). Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates. The user uses this list to see where you are in a multi-hour run; running without it leaves them blind.
+- ALWAYS use the harness's todo/task tool to track progress through the pipeline. On a fresh run, create one todo per non-optional row in the Pipeline table; add optional rows when the user opts in. On re-entry within the same conversation (where you've already been driving the pipeline), the todo list is already there — don't rebuild it. Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
@@ -53,75 +52,15 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask, default yes** (auto-skipped if no memory file configured/detected) | `memory_file` | `memory_file_maintained` |
 | 17 | Merge to `main`, delete branch, cleanup | Inline via `ss-sdd-finishing` (`git merge --no-ff` + safe-delete, then `rm` state) | No | `finishing` | `finished` |
 
-When resuming, advance to the stage one beyond the last `stages_completed` entry. If that stage is also in `stages_skipped`, advance to the next mandatory or asked-and-confirmed stage. State updates happen at stage boundaries — never mid-stage.
+A fresh run starts at Stage 0; on re-entry within the same conversation, continue from `current_stage` (read it from state.json). State updates happen at stage boundaries — never mid-stage.
 
-## On Every Invocation: Resume Check (BEFORE anything else)
+## State File Schema
 
-Do this first, every time the coordinator is invoked.
+Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins. The state file is created as a minimal shell by `ss-sdd-preflight-checks` at Stage 0 (after all validation passes); it's deleted at Stage 17 by `ss-sdd-finishing`. Any state file found at the top of preflight is treated as an orphan and removed silently.
 
-### Step 1: Resume or Fresh Start
+The coordinator persists these fields at stage boundaries (atomic: write `.tmp`, then `mv`): `current_stage`, `stages_completed`, `stages_skipped`, `adr_results` (transcribed from Stage 6 subagent's report), `handoff_path` (from Stage 15 subagent's report), and `memory_file_updated` / `memory_file_path` (from Stage 16 subagent's report). `updated_at` is touched by every writer on every atomic write — coordinator included. All other fields are owned and written by their respective skills (coordinator reads only): the shell fields (`started_at`, initial `current_stage`, initial empty arrays / `tasks`) by `ss-sdd-preflight-checks`; `feature_id` / `short_name` / `work_type` / `spec_path` by `ss-sdd-writing-specs`; `plan_path` by `ss-sdd-writing-plans`; `branch_name` by `ss-sdd-choosing-feature-branch`; the per-task `tasks` map and `final_review_completed` by `ss-sdd-implementing-plans`; `test_status` / `fix_iterations` by `ss-sdd-testing-implementation`; `reviewer_pushbacks` and `spec_auto_review_iterations` / `plan_auto_review_iterations` by `ss-sdd-receiving-review-findings`. The full authoritative table lives in `framework/state-schema.md` under "Field Ownership".
 
-Check whether an SDD state file is present at the single global path:
-
-```bash
-test -f .sublime-skills/state.json && echo found || echo missing
-```
-
-- **`missing`** → fresh start. Confirm intent with the user ("Start a new feature?") and proceed to Step 3.
-- **`found`** → read the file and verify its references still exist (see Step 2 below), then ask the user: "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage` (per the Pipeline table's `current_stage` column). On no, prompt: "Discard this state and start a fresh feature, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
-
-Multiple concurrent active runs are NOT supported in this design — there's a single global state file. If a user truly needs concurrent runs, they use git worktrees (each worktree has its own `.sublime-skills/state.json`).
-
-### Step 2: Verify state references on resume
-
-When a state file is found, before offering resume, verify the files it references still exist on disk. The state file lives at the fixed global path but the spec/plan it references live under `docs/specs/<feature_id>/`, so the user could have manually deleted them since the state was last written.
-
-```bash
-"${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/verify-state-references.sh
-```
-
-Exit 0 = all referenced paths exist; proceed to the resume prompt. Exit 1 = at least one referenced path is missing (the script prints each missing path on its own line, prefixed with `  - `, ready to splice into the prompt below). Exit 2 = state file unreadable; halt and surface.
-
-On exit 1, prompt the user via the harness's interactive question tool:
-
-```
-State file references files that no longer exist:
-<script output>
-
-Options:
-- Discard state and start fresh (runs `rm .sublime-skills/state.json`)
-- Abort (let me investigate)
-```
-
-On **Discard:** `rm .sublime-skills/state.json` and proceed to Step 3 as if no state file was found. On **Abort:** halt and surface.
-
-Halts on bad config / not-a-repo / detached HEAD happen later inside Stage 0 (`ss-sdd-preflight-checks`) — not here.
-
-### Step 3: Build the Todo List
-
-Before running any stage, build the progress todo list using the harness's todo/task tool. One todo per stage you're about to run:
-
-- **Fresh start:** create todos for all mandatory stages (0, 1, 2, 3, 6, 7, 8, 9, 11, 12, 13, 17) up front. Add optional stages (4, 5, 10, 14, 15, 16) as you reach them and the user opts in — don't pre-create todos for stages that may not run.
-- **Resume:** rebuild the list from `state.stages_completed` + `state.stages_skipped` (mark those `completed`) and the remaining pipeline.
-
-Update discipline:
-- Mark the current stage's todo `in_progress` as you begin it
-- Mark it `completed` the moment the stage advances (after `stages_completed` is updated)
-- Never batch updates; the user is watching this list during the run
-
-An 18-stage pipeline is invisible to the user without it.
-
-### When the State File Exists
-
-Created in **Stage 2** (`ss-sdd-writing-specs`). Stages 0-1 run before it exists; their outputs are held by the coordinator in-memory and persisted into the state file by `ss-sdd-writing-specs`.
-
-### State File Schema
-
-Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins.
-
-The coordinator persists these fields at stage boundaries (atomic: write `.tmp`, then `mv`): `current_stage`, `stages_completed`, `stages_skipped`, `adr_results` (transcribed from Stage 6 subagent's report), `handoff_path` (from Stage 15 subagent's report), and `memory_file_updated` / `memory_file_path` (from Stage 16 subagent's report). `updated_at` is touched by every writer on every atomic write — coordinator included. All other fields are owned and written by their respective skills (coordinator reads only): `branch_name` by `ss-sdd-choosing-feature-branch`, the per-task `tasks` map and `final_review_completed` by `ss-sdd-implementing-plans`, `test_status` / `fix_iterations` by `ss-sdd-testing-implementation`, `reviewer_pushbacks` and `spec_auto_review_iterations` / `plan_auto_review_iterations` by `ss-sdd-receiving-review-findings`, plus init-only fields (`feature_id`, `short_name`, `started_at`, `spec_path`, `work_type`, `plan_path`) by their respective writer skills. The full authoritative table lives in `framework/state-schema.md` under "Field Ownership".
-
-### Commit timing
+## Commit timing
 
 Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. `ss-sdd-choosing-feature-branch` at Stage 12 batch-commits them on the chosen branch in two thematic, path-scoped commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 produces one commit (the `--no-ff` merge on `main`) and then deletes the state file via plain `rm`. `.sublime-skills/state.json` is gitignored and is never committed at any stage. In stage descriptions below, "**No commit (Stage 12 batches)**" is shorthand for this rule.
 
@@ -149,21 +88,21 @@ If a stage fails (subagent returns Issues Found, validator fails, etc.): handle 
 
 ### Stage 0 — Preflight
 
-Load `ss-sdd-preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, and warns (does not abort) on a dirty working tree. **It does NOT create branches** — branch decision happens at Stage 12. State file does NOT yet exist.
+Load `ss-sdd-preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, warns (does not abort) on a dirty working tree, and — once everything passes — creates `.sublime-skills/state.json` as a minimal shell (removing any orphan state file from a dead prior pipeline first). **It does NOT create branches** — branch decision happens at Stage 12.
 
 After preflight returns ready, the config is known-valid and you can use `framework/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
 
-The coordinator carries from Stage 0 in-memory (no state file yet): the current branch name (preflight already read it) and any cached config values used downstream (e.g., `branching.branch_pattern`, grill cap, memory file size budget).
+The coordinator carries from Stage 0 in-memory: the current branch name (preflight already read it) and any cached config values used downstream (e.g., `branching.branch_pattern`, grill cap, memory file size budget). The state file shell is on disk; the coordinator's first stage-boundary write (advancing `current_stage` to `discovering`) goes into it normally.
 
-On any abort (`config_missing` / `config_invalid` / `not_a_git_repo` / `detached_head` / `user_declined`): surface preflight's message verbatim and exit. Do not advance.
+On any abort (`config_missing` / `config_invalid` / `not_a_git_repo` / `detached_head` / `user_declined`): surface preflight's message verbatim and exit. Do not advance. No state file is written on abort.
 
 ### Stage 1 — Discovering Requirements
 
-Load `ss-sdd-discovering-requirements`. Follow it. State file still doesn't exist; the coordinator carries the discovery outputs in-memory: `short_name`, `work_type` (`feature` or `fix`), the user-approved discovery sections, and ADR-candidate decisions. `ss-sdd-writing-specs` (Stage 2) persists `work_type` into state.json; `ss-sdd-choosing-feature-branch` (Stage 12) reads it back to derive the branch prefix.
+Load `ss-sdd-discovering-requirements`. Follow it. The coordinator carries the discovery outputs in-memory: `short_name`, `work_type` (`feature` or `fix`), the user-approved discovery sections, and ADR-candidate decisions. `ss-sdd-writing-specs` (Stage 2) persists `short_name` / `work_type` / `feature_id` / `spec_path` into state.json; `ss-sdd-choosing-feature-branch` (Stage 12) reads `work_type` back to derive the branch prefix.
 
 ### Stage 2 — Writing the Spec
 
-Load `ss-sdd-writing-specs`. Pass it the in-memory discovery outputs (including `work_type`) — it initializes the state file.
+Load `ss-sdd-writing-specs`. Pass it the in-memory discovery outputs (including `work_type`) — it writes the feature-identifying fields into the existing state file shell.
 
 **Validator enforcement:** `ss-sdd-writing-specs` must return the validator's PASS line verbatim. Re-run yourself:
 
@@ -343,7 +282,6 @@ When in doubt about edge cases, follow operations.md.
 
 | Mistake | Fix |
 |---|---|
-| Skipping the resume check at session start | Always do the test-and-ask check first |
 | Updating state mid-stage | Updates happen at stage boundaries (atomic) |
 | Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
 | Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
@@ -354,7 +292,6 @@ When in doubt about edge cases, follow operations.md.
 
 ## Red Flags
 
-- About to do work without the resume check first → STOP; test-and-ask is first
 - About to advance past a user-approval gate without typed approval → STOP
 - About to auto-skip an optional stage → STOP; user decides
 - About to start two implementer subagents in parallel → STOP
