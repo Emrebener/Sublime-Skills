@@ -21,6 +21,7 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 - `MODE` — `create`, `extend`, or `replace`
 - `EXISTING_CONTENT` — verbatim current `docs/constitution.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/constitution.md`; honors `context.constitution_path` config override if non-default)
+- **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates
 
@@ -34,6 +35,10 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 - Do NOT include universal truisms ("write good code", "be consistent") — project-specific only.
 - Do NOT overwrite an existing constitution in `extend` mode. Extend merges; only `replace` overwrites.
 - Do NOT loop past 3 tweak iterations without surfacing bail options to the user.
+- Do NOT exceed the diagnose budget: Step 1.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 1 read.
+- Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
+- Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
+- Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
 
 ## Top-Level Flow
 
@@ -41,16 +46,19 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 ┌─────────────────────────────────────────────────────┐
 │ MODE = create or replace                            │
 │   → Step 1: silent code scan                        │
-│   → Step 2: announce findings                       │
-│   → Step 3: targeted questions                      │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings (+ diagnoses)         │
+│   → Step 3: targeted questions (Q1, Q1.5 if SUGGEST,│
+│             then Q2-Q4)                             │
 │   → Step 4: synthesize draft → show to user         │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write                            │
 ├─────────────────────────────────────────────────────┤
 │ MODE = extend                                       │
 │   → Step 1: silent code scan + read EXISTING_CONTENT│
-│   → Step 2: announce findings + gaps                │
-│   → Step 3: targeted questions on gaps only         │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings + gaps + diagnoses    │
+│   → Step 3: targeted questions on gaps + Q1.5       │
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
@@ -134,9 +142,38 @@ For each candidate principle, hold:
 
 Keep this list to ≤10 candidates internally — you'll trim to 7 with the user.
 
+## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
+
+If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
+
+Diagnose looks for principles that the project's evidence suggests *should* exist but currently don't. Every diagnose finding must cite specific file paths or counts.
+
+### 1.5a. Constitution diagnose categories
+
+Scan each category for candidates. One strong candidate per category is the target; the aggregate cap of 5 is enforced in 1.5b after dropping unsupported candidates.
+
+- **Missing principle where the stack implies one.** Example: the project has Stripe + Sentry + Auth0 integrations but no codified input-validation discipline. Evidence: list the integrations + count of unvalidated handlers.
+- **Weak severity that should be stronger.** A lint rule is set to `warn` rather than `error`, a coverage threshold is logged but not gating merge, or a security check exists but doesn't fail the build. Evidence: file path + the exact "weak" config value.
+- **Contradictions between an existing stated principle and observed code.** (Extend mode only.) The existing constitution claims X but the code does not-X consistently. Evidence: principle quote + file paths showing not-X.
+
+### 1.5b. Compile candidate suggestions in memory
+
+Each candidate must include:
+- `severity`: one of `MUST`, `SHOULD`, `INFO` — see Hard Gates for the matching evidence bar
+- `title`: one-line headline
+- `evidence`: file paths or counts
+- `proposed_addition`: exact markdown text for a new Principle entry
+
+Drop unsupported candidates. If more than 5 candidates remain after dropping unsupported ones, rank by:
+1. Severity (MUST > SHOULD > INFO)
+2. Evidence count (more paths/higher counts = stronger)
+3. Impact (changes that prevent bugs > consistency improvements)
+
+Surface the top 5. If 0 candidates remain, Q1.5 is skipped silently.
+
 ## Step 2: Announce Findings
 
-One short message (3-6 sentences). State what you scanned and the headline finding. Example:
+One short message (3-6 sentences; 3-7 when SUGGEST=on extends with the diagnose-mention sentence). State what you scanned and the headline finding. Example:
 
 > "Here's what I picked up from the codebase: TypeScript with `no-any` and `no-floating-promises` set to error in `.eslintrc.json`; a CI gate requiring 80% test coverage in `.github/workflows/test.yml`; `Result<T, E>` error returns used consistently across `src/lib/`; all API handlers validate via Zod. I have 6 candidate principles ready. I'll ask you a few targeted questions, then show you the draft."
 
@@ -145,6 +182,8 @@ If `create` mode and the scan found very little evidence:
 
 If `extend` mode:
 > "Your existing constitution covers [N] principles: [brief list]. I scanned the codebase and found gaps around [areas]. I'll ask about those, then propose additions."
+
+If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few principles worth declaring even though they're not currently codified. I'll surface those after we confirm the observed ones."
 
 ## Step 3: Targeted Questions
 
@@ -167,6 +206,24 @@ Example option list:
 - "MUST use 2-space indent, no semicolons — from prettier.config.js"
 - "All of the above (Recommended)"
 ```
+
+### Q1.5 — Confirm suggested additions (only if `SUGGEST=on` AND Step 1.5 produced ≥1 candidate)
+
+```
+Question: "Here are some principles I'd suggest adding even though they're
+not currently codified. These are opinionated — pick any you want to include:"
+
+Options (multi-select, one option per Step 1.5 candidate, plus a "None" escape):
+  - [suggestion · <severity> · <evidence-summary>] <title>
+    Evidence: <evidence>
+    Proposed addition: <one-line summary of proposed_addition>
+  - ... (one option per remaining candidate, up to 5)
+  - "None of these — keep the constitution descriptive only"
+
+Use the harness's multi-select question tool. Do not present as plain text.
+```
+
+Accepted suggestions are carried into Step 4 with provenance markers per Step 6's format. The provenance markers must appear in the Step 4 draft shown to the user, not added silently at Step 6 write time.
 
 ### Q2 — MUST vs. SHOULD ranking (per borderline principle)
 
@@ -215,9 +272,12 @@ Options:
 
 Synthesize the draft using:
 - The confirmed candidates from Q1
+- Accepted Q1.5 suggestions, rendered as additional Principle entries with provenance markers (format defined in Step 6's provenance subsection). **The provenance markers must appear in the draft shown to the user at this Step 4**, not added silently at Step 6 write time.
 - Severity choices from Q2
 - Free-form intent additions from Q3
 - (For extend mode) Conflict resolutions from Q4
+
+Cap the final principles list at 7 total. If observed + accepted suggestions exceed 7, ask the user which to drop.
 
 Use the canonical template (see Output Template section). Show the full draft to the user, then ask:
 
@@ -261,6 +321,24 @@ Report to the coordinator one of:
 - `extended` (mode = extend, merged content written)
 - `replaced` (mode = replace, full draft written)
 - `skipped (declined mid-skill)` (user aborted partway)
+
+### Provenance markers for accepted Q1.5 suggestions
+
+Each accepted Q1.5 suggestion becomes a new Principle entry. Render the provenance inline within the Principle's `**Evidence:**` field:
+
+```markdown
+### Principle N — <Title>
+
+**Severity:** <MUST | SHOULD>
+
+**Statement:** <statement text>
+
+**Evidence:** Not currently enforced — Added via bootstrap suggestion pass (YYYY-MM-DD). <evidence summary from the Q1.5 candidate>.
+
+**Rationale:** <rationale text>
+```
+
+Replace `YYYY-MM-DD` with today's date. The audit skill reads this marker on re-runs to ask whether the principle is still aspirational or the code has caught up.
 
 ## Output Template
 
@@ -331,10 +409,14 @@ Record version + date on every change.
 | Proposing >7 principles | Trim with the user; never silently |
 | Universal truisms ("write tests", "be consistent") | Project-specific only |
 | Inventing principles to fill a 7-slot quota | If you only have evidence for 3, propose 3 |
-| Mixing MUST and SHOULD ambiguously | MUST/SHALL = non-negotiable; SHOULD = strong default; pick one per principle |
+| Mixing MUST and SHOULD ambiguously | MUST and SHALL are both non-negotiable; SHOULD = strong default with exceptions; pick one per principle |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Citing external authorities ("Google style guide says...") | Describe THIS project; lineage is irrelevant |
+| Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
+| Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries |
+| Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
 
 ## Red Flags
 
