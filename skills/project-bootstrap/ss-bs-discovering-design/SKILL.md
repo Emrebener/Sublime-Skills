@@ -23,10 +23,12 @@ The coordinator (`ss-bs-bootstrapping-project`) loads this skill when its per-fi
 You're invoked when the user picked **Create / Extend / Replace** for design. The coordinator passes you:
 
 - `REPO_ROOT` — absolute path to the repo root
-- `MODE` — `create`, `extend`, or `replace`
-- `EXISTING_CONTENT` — verbatim current DESIGN.md content (only for `extend` / `replace`; empty otherwise)
+- `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3b.
+- `EXISTING_CONTENT` — verbatim current DESIGN.md content (only for `extend` / `replace` / `audit`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/DESIGN.md`; honors `context.design_path` config override if non-default)
 - **`SUGGEST`** — `on` or `off`. When `on` AND the Build path is taken, run Step 3a.5 (silent diagnose) and surface Q1.5 in Step 3b. When `off`, skip both — identical to pre-suggestion-pass behaviour. Import path always skips diagnose regardless of this flag. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
+
+Audit mode primarily applies to artifacts produced via the **Build path** (where tokens, component variants, and provenance markers were written by this skill). If the existing DESIGN.md was produced via the **Import path**, drift detection is limited to "still exists as a file" only — content drift detection requires Build-path provenance markers that Import-path files do not carry.
 
 ## Hard Gates
 
@@ -45,6 +47,9 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 - Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
 - Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
 - Do NOT run diagnose in the Import path. Import means the user is bringing a pre-existing design file; diagnose would be inappropriate.
+- In audit mode, do NOT skip Step 1.6 (drift check). It's the third operation alongside observe and diagnose; without it, audit is just "extend mode with SUGGEST=on".
+- In audit mode, ask Q0 questions ONE drift item per question — do NOT bundle. Drift resolutions are nuanced individually.
+- In audit mode, SUGGEST is always treated as `on` (regardless of input). This is documented in the Inputs section.
 
 ## Top-Level Flow
 
@@ -71,6 +76,16 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 │       → Step 3b: targeted questions on gaps + Q1.5  │
 │       → Step 3c-e: synthesize → review → merge →   │
 │                    write                            │
+├─────────────────────────────────────────────────────┤
+│ MODE = audit                                        │
+│   → Step 3a: silent code scan                       │
+│   → Step 3a.5: silent diagnose (always on for audit)│
+│   → Step 1.6: drift check vs EXISTING_CONTENT       │
+│       (Build-path files: full token + variant drift; │
+│        Import-path files: file-existence check only) │
+│   → Step 2: announce findings + drift + diagnoses   │
+│   → Step 3b: Q0 (drift resolution) → Q1.5 → Q2+    │
+│   → Step 3c-e: synthesize → review → write          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -185,6 +200,8 @@ Then announce in one short message what you found:
 
 If `SUGGEST=on` AND Step 3a.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few design-system gaps worth documenting — I'll surface those after we confirm the observed tokens."
 
+If `MODE=audit`: "Audit mode. Scan + diagnose + drift check complete. Found N drift items (X token changes, Y variant drift, Z provenance re-evaluations) — I'll surface those first in the questions, then walk through observed candidates and suggestions as usual." If the existing file appears Import-path provenance (no markers found), add: "The existing DESIGN.md appears to have been imported rather than built — full token drift detection isn't available. I checked that the file still exists and will proceed with a fresh scan-based review."
+
 If the scan turns up almost nothing (no framework, no custom properties, no components dir), say so:
 
 > "I didn't find a design framework or token system in this codebase. Three possible reasons: (a) the project doesn't have a UI yet, (b) the UI is upstream / in a different repo, (c) the design system isn't formalized yet. I can still build a DESIGN.md from your answers if you'd like, but if there's no UI surface here, Skip is probably right."
@@ -223,11 +240,62 @@ If more than 5 candidates remain after dropping unsupported ones, rank by:
 
 Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3b is skipped silently.
 
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each documented token, component variant, and provenance entry in `EXISTING_CONTENT` against current code state. The goal is to detect entries that have gone stale.
+
+**Scope rule:** Full drift detection requires Build-path provenance. If the file carries no provenance markers and appears to have been produced via Import path, limit the check to: "Does `FILE_PATH` still exist on disk?" If the file is gone, that is the only drift finding. Announce this scope limitation in Step 2.
+
+### 1.6a. Drift categories for design
+
+For each design-doc entry, check:
+
+- **Token value drift.** Doc says `--color-primary: #3B82F6`; current CSS shows `#2563EB` or the variable no longer exists. Evidence: CSS file paths.
+- **Token deleted.** A documented token has no occurrences in CSS / Tailwind config. Evidence: grep count.
+- **New token undocumented.** A new `--color-*`, `--space-*`, or `--font-*` variable exists in CSS but isn't in DESIGN.md. Evidence: file paths.
+- **Component variants drift.** Doc lists Button variants `{primary, secondary, danger}`; component shows `{primary, secondary, danger, ghost, link}`. Evidence: component file path.
+- **Provenance re-evaluation.** Each suggestion-added token or rule — has the codebase converged on it?
+  - If the original evidence pattern is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (the code has changed to match the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (token-value-changed / token-deleted / token-added / variant-drift / aspiration-met / aspiration-still-pending), `entry` (the doc text being challenged), `evidence` (file paths showing the current code state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
+
 ### 3b. Targeted questions
 
 Ask only what code can't tell you. Skip questions where the code has already answered. One question per turn, multi-choice with a recommended option whenever possible.
 
 The full question library — pick the relevant subset based on the scan:
+
+**Q0 — Drift Resolution (only if `MODE=audit` AND Step 1.6 produced ≥1 drift finding)**
+
+Ask one question per drift finding (do NOT bundle — drift items often have nuanced individual resolutions):
+
+```
+Question: "Drift detected: <entry summary>. Current code state: <evidence>. What's the right resolution?"
+
+Options:
+  - "Update the doc to match code"
+  - "Keep the doc — code is wrong / will be fixed"
+  - "Remove the entry — no longer applies"
+  - "Both — clarify scope (split into multiple entries)"
+```
+
+For **provenance re-evaluation** findings, the question is different:
+
+```
+Question: "Aspirational entry '<title>' was added on <date>. Evidence at that time: <original evidence>. Current code state: <current evidence>. Has this aspiration been realized?"
+
+Options:
+  - "Yes — code has caught up. Remove the provenance marker (promote to normal)."
+  - "No — code still has the original problem. Keep as aspirational; refresh the marker date."
+  - "Drop the entry — we've decided not to pursue this aspiration."
+```
+
+Record each resolution. Apply during Step 3c (Synthesize).
 
 **Vibe / theme intent**
 
@@ -366,6 +434,15 @@ Compose a Markdown draft using the scan results + question answers. Section orde
 11. **Quick Start** (CSS custom properties block, plus a Tailwind `@theme` block if Tailwind is in use)
 
 Accepted Q1.5 suggestions are woven into the appropriate sections above and rendered with provenance markers (see Provenance markers subsection in Step 3e below). **The provenance markers must appear in the draft shown to the user at this Step 3c**, not added silently at Step 3e write time — the user reviews and approves the full content including provenance.
+
+In audit mode, also incorporate Q0 drift resolutions:
+- **Update doc to match code** — revise the relevant token value, variant list, or section to reflect current code state.
+- **Keep doc** — leave the entry unchanged; annotate if helpful (e.g., "code diverged; expected to be fixed").
+- **Remove entry** — delete the outdated token, variant, or section.
+- **Clarify scope** — split the entry as the user described.
+- **Promote to normal** (provenance re-evaluation) — remove the provenance blockquote / comment from the entry.
+- **Keep aspirational; refresh date** — update the `YYYY-MM-DD` in the provenance marker to today's date.
+- **Drop aspirational entry** — remove the section entirely.
 
 Drafting guidelines:
 
@@ -564,6 +641,10 @@ For reference, the canonical DESIGN.md skeleton. Use as a guide, omit empty sect
 | Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
 | Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize bootstrap-added entries; without it, drift detection breaks |
 | Running Step 3a.5 when SUGGEST=off | Skip Step 3a.5 entirely when off; do not run-but-suppress |
+| Skipping Step 1.6 in audit mode | Drift detection is the audit's reason for existing |
+| Bundling Q0 drift resolutions into one multi-select | Each item gets its own question — resolutions are not collectively decidable |
+| Forgetting to refresh the provenance marker date when "Keep aspirational" is chosen | Audit needs the refresh to track time-since-last-evaluation |
+| Forgetting to strip the provenance marker when "Promote to normal" is chosen | The marker is the audit's hook; promoting means removing it |
 
 ## Red Flags
 
