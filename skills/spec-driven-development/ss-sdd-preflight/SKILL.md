@@ -1,9 +1,9 @@
 ---
-name: ss-sdd-preflight-checks
+name: ss-sdd-preflight
 description: Use at the very start of a spec-driven-development pipeline run, before any spec drafting, planning, or implementation work begins. A permissive validation gate — confirms config is valid, the repo is a git repo, the user is on a named branch, warns (does not abort) on a dirty working tree, and creates the SDD state file shell once everything checks out.
 ---
 
-# Preflight Checks
+# Preflight
 
 ## Overview
 
@@ -13,7 +13,7 @@ This skill **does NOT** create branches. Branch policy is decided much later, at
 
 **Core principle:** Permissive by default. Only abort on conditions that genuinely make SDD impossible to run (no git, no config, no branch).
 
-**Announce at start:** "I'm using the ss-sdd-preflight-checks skill to verify the repo state."
+**Announce at start:** "I'm using the ss-sdd-preflight skill to verify the repo state."
 
 ## Contract
 

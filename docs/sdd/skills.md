@@ -8,7 +8,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 - `ss-sdd-coordinator` — entry point; state machine + dispatcher
 
 **Workflow stages (in pipeline order):**
-- `ss-sdd-preflight-checks` — Stage 0
+- `ss-sdd-preflight` — Stage 0
 - `ss-sdd-discovering-requirements` — Stage 1
 - `ss-sdd-writing-specs` — Stage 2
 - `ss-sdd-reviewing-specs` — Stages 3, 5 (subagent)
@@ -71,7 +71,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 
 ---
 
-## ss-sdd-preflight-checks
+## ss-sdd-preflight
 
 **Type:** Phase skill (inline)
 **Loaded:** by the coordinator at Stage 0
@@ -872,7 +872,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 ### validate-config.sh
 
 **Location:** `skills/spec-driven-development/framework/validate-config.sh`
-**Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically — together with `.sublime-skills/config-local.yml` when present (overlay merged before validation). Used by `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight-checks` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
+**Purpose:** Validate `.sublime-skills/config.yml` structurally and semantically — together with `.sublime-skills/config-local.yml` when present (overlay merged before validation). Used by `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight` (Stage 0, Step 1) to halt the SDD pipeline if the config is missing or invalid.
 
 **Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-config.sh" [config-path]` (default: `<repo-root>/.sublime-skills/config.yml`)
 
@@ -980,7 +980,7 @@ Cross-references in this repo:
 
 ```
 ss-sdd-coordinator (entry; user-invoked)
-├── ss-sdd-preflight-checks            (Stage 0)
+├── ss-sdd-preflight            (Stage 0)
 ├── ss-sdd-discovering-requirements    (Stage 1)
 ├── ss-sdd-writing-specs               (Stage 2; uses validate-spec.sh)
 │

@@ -470,7 +470,7 @@ The short name matches the spec directory's short name (after the spec is create
 
 - All kebab-case, gerund-led where it reads naturally:
   - `ss-sdd-writing-specs`, `ss-sdd-discovering-requirements`, `ss-sdd-maintaining-adrs` — gerunds
-  - `ss-sdd-coordinator`, `ss-sdd-preflight-checks` — established role/noun names (allowed exceptions)
+  - `ss-sdd-coordinator`, `ss-sdd-preflight`, `ss-sdd-finishing` — established role/noun names (allowed exceptions)
 - No special characters; just letters, numbers, and hyphens
 
 ---

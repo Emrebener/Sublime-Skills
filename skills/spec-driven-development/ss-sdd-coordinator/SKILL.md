@@ -16,7 +16,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 ## Hard Gates
 
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
-- Do NOT perform halt checks (config validation, git workspace, detached HEAD) inline — that's `ss-sdd-preflight-checks`'s job. Stage 0 owns every pre-pipeline halt, and also creates the state file shell.
+- Do NOT perform halt checks (config validation, git workspace, detached HEAD) inline — that's `ss-sdd-preflight`'s job. Stage 0 owns every pre-pipeline halt, and also creates the state file shell.
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
 - ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
@@ -33,7 +33,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 
 | # | Stage | Mechanism | Optional? | `current_stage` | `stages_completed` |
 |---|---|---|---|---|---|
-| 0 | Preflight | Inline via `ss-sdd-preflight-checks` | No | `preflight` | `preflight` |
+| 0 | Preflight | Inline via `ss-sdd-preflight` | No | `preflight` | `preflight` |
 | 1 | Discovering requirements | Inline via `ss-sdd-discovering-requirements` | No | `discovering` | `discovering` |
 | 2 | Writing the spec | Inline via `ss-sdd-writing-specs` | No | `spec_writing` | `spec_written` |
 | 3 | Auto spec-review | Subagent uses `ss-sdd-reviewing-specs`; findings via `ss-sdd-receiving-review-findings` | No | `spec_auto_review` | `spec_auto_reviewed` |
@@ -56,9 +56,9 @@ A fresh run starts at Stage 0; on re-entry within the same conversation, continu
 
 ## State File Schema
 
-Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins. The state file is created as a minimal shell by `ss-sdd-preflight-checks` at Stage 0 (after all validation passes); it's deleted at Stage 17 by `ss-sdd-finishing`. Any state file found at the top of preflight is treated as an orphan and removed silently.
+Canonical at `framework/state-schema.md` (human) and `framework/state-schema.json` (JSON Schema). If your behavior conflicts with those files, the canonical wins. The state file is created as a minimal shell by `ss-sdd-preflight` at Stage 0 (after all validation passes); it's deleted at Stage 17 by `ss-sdd-finishing`. Any state file found at the top of preflight is treated as an orphan and removed silently.
 
-The coordinator persists these fields at stage boundaries (atomic: write `.tmp`, then `mv`): `current_stage`, `stages_completed`, `stages_skipped`, `adr_results` (transcribed from Stage 6 subagent's report), `handoff_path` (from Stage 15 subagent's report), and `memory_file_updated` / `memory_file_path` (from Stage 16 subagent's report). `updated_at` is touched by every writer on every atomic write — coordinator included. All other fields are owned and written by their respective skills (coordinator reads only): the shell fields (`started_at`, initial `current_stage`, initial empty arrays / `tasks`) by `ss-sdd-preflight-checks`; `feature_id` / `short_name` / `work_type` / `spec_path` by `ss-sdd-writing-specs`; `plan_path` by `ss-sdd-writing-plans`; `branch_name` by `ss-sdd-choosing-feature-branch`; the per-task `tasks` map and `final_review_completed` by `ss-sdd-implementing-plans`; `test_status` / `fix_iterations` by `ss-sdd-testing-implementation`; `reviewer_pushbacks` and `spec_auto_review_iterations` / `plan_auto_review_iterations` by `ss-sdd-receiving-review-findings`. The full authoritative table lives in `framework/state-schema.md` under "Field Ownership".
+The coordinator persists these fields at stage boundaries (atomic: write `.tmp`, then `mv`): `current_stage`, `stages_completed`, `stages_skipped`, `adr_results` (transcribed from Stage 6 subagent's report), `handoff_path` (from Stage 15 subagent's report), and `memory_file_updated` / `memory_file_path` (from Stage 16 subagent's report). `updated_at` is touched by every writer on every atomic write — coordinator included. All other fields are owned and written by their respective skills (coordinator reads only): the shell fields (`started_at`, initial `current_stage`, initial empty arrays / `tasks`) by `ss-sdd-preflight`; `feature_id` / `short_name` / `work_type` / `spec_path` by `ss-sdd-writing-specs`; `plan_path` by `ss-sdd-writing-plans`; `branch_name` by `ss-sdd-choosing-feature-branch`; the per-task `tasks` map and `final_review_completed` by `ss-sdd-implementing-plans`; `test_status` / `fix_iterations` by `ss-sdd-testing-implementation`; `reviewer_pushbacks` and `spec_auto_review_iterations` / `plan_auto_review_iterations` by `ss-sdd-receiving-review-findings`. The full authoritative table lives in `framework/state-schema.md` under "Field Ownership".
 
 ## Commit timing
 
@@ -88,7 +88,7 @@ If a stage fails (subagent returns Issues Found, validator fails, etc.): handle 
 
 ### Stage 0 — Preflight
 
-Load `ss-sdd-preflight-checks`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, warns (does not abort) on a dirty working tree, and — once everything passes — creates `.sublime-skills/state.json` as a minimal shell (removing any orphan state file from a dead prior pipeline first). **It does NOT create branches** — branch decision happens at Stage 12.
+Load `ss-sdd-preflight`. It validates `.sublime-skills/config.yml`, checks the repo is a git repo, refuses to proceed on detached HEAD, warns (does not abort) on a dirty working tree, and — once everything passes — creates `.sublime-skills/state.json` as a minimal shell (removing any orphan state file from a dead prior pipeline first). **It does NOT create branches** — branch decision happens at Stage 12.
 
 After preflight returns ready, the config is known-valid and you can use `framework/get-config-value.sh <block> <key>` (exit 0 + value on stdout, or exit 2 if missing) for scalar lookups throughout the run. For lists / multi-line strings, parse YAML directly.
 

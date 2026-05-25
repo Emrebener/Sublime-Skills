@@ -52,7 +52,7 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
 
 **Starting a feature:** invoke `ss-sdd-coordinator` from `main` (the common case) or from an existing feature branch you want to build on top of. It will:
-1. Run preflight checks (warns and asks if your working tree is dirty; aborts on detached HEAD)
+1. Run preflight (warns and asks if your working tree is dirty; aborts on detached HEAD; creates the SDD state file shell)
 2. Interview you to understand the feature
 3. Write a spec, run automated and optional manual reviews, capture ADRs
 4. Get your approval, write a plan, run reviews, get your approval
@@ -100,7 +100,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 │       └── ...
 └── skills/spec-driven-development/        # the skills themselves (in $SUBLIME_SKILLS_HOME, not the user's repo)
     ├── ss-sdd-coordinator/SKILL.md
-    ├── ss-sdd-preflight-checks/SKILL.md
+    ├── ss-sdd-preflight/SKILL.md
     ├── ... (19 more skills)
     └── framework/
         ├── discover-context.sh

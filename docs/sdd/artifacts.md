@@ -10,7 +10,7 @@ The SDD pipeline produces five categories of artifacts, each with a strict forma
 | Plan | `docs/specs/NNN-<short-name>/plan.md` | `ss-sdd-writing-plans` (Stage 8) | `validate-plan.sh` |
 | ADR | `docs/adr/NNNN-<kebab-title>.md` | `ss-sdd-maintaining-adrs` (Stage 6) | (no automated validator) |
 | Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `ss-sdd-generating-handoff` (Stage 15) | `validate-handoff.sh` |
-| State | `.sublime-skills/state.json` | `ss-sdd-preflight-checks` creates the shell (Stage 0); `ss-sdd-writing-specs` writes feature-identifying fields (Stage 2); coordinator + other skills update later fields | (schema at `framework/state-schema.md` / `.json`) |
+| State | `.sublime-skills/state.json` | `ss-sdd-preflight` creates the shell (Stage 0); `ss-sdd-writing-specs` writes feature-identifying fields (Stage 2); coordinator + other skills update later fields | (schema at `framework/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
 
@@ -683,7 +683,7 @@ See [state-and-config.md](state-and-config.md) for the full state file schema, f
 Quick reference:
 
 - **Path:** `.sublime-skills/state.json`
-- **Created:** Stage 0 (`ss-sdd-preflight-checks`) writes a minimal shell after all validation passes; any pre-existing file is treated as an orphan from a dead prior pipeline and silently removed first
+- **Created:** Stage 0 (`ss-sdd-preflight`) writes a minimal shell after all validation passes; any pre-existing file is treated as an orphan from a dead prior pipeline and silently removed first
 - **Feature fields written:** Stage 2 (`ss-sdd-writing-specs`) fills in `feature_id`, `short_name`, `work_type`, `spec_path`
 - **Updated:** at every stage boundary by the coordinator; per-task by `ss-sdd-implementing-plans`
 - **Deleted:** Stage 17 (`ss-sdd-finishing`) via plain `rm` — no commit anywhere

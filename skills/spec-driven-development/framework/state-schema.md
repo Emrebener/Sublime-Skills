@@ -16,7 +16,7 @@ Forbidden, even when "just this once":
 - `git commit -- .sublime-skills/state.json` (any direct path-add)
 - Editing `.sublime-skills/.gitignore` to remove the entry
 
-The state file is local-only orchestration metadata. It exists from Stage 0 (ss-sdd-preflight-checks creates the shell after validation passes) until Stage 17 (ss-sdd-finishing deletes it via plain `rm`, NOT `git rm`). Across every stage between, it lives uncommitted in the working tree.
+The state file is local-only orchestration metadata. It exists from Stage 0 (ss-sdd-preflight creates the shell after validation passes) until Stage 17 (ss-sdd-finishing deletes it via plain `rm`, NOT `git rm`). Across every stage between, it lives uncommitted in the working tree.
 
 Recovery if accidentally committed:
 
@@ -29,7 +29,7 @@ A machine-readable JSON Schema version lives alongside this file at `state-schem
 
 ## Lifecycle in one paragraph
 
-The state file is **created** by `ss-sdd-preflight-checks` at Stage 0, after all validation passes, as a minimal shell containing only the always-required fields. It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below) — feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) are filled in at Stage 2 by `ss-sdd-writing-specs`, with later fields appended as their owning stages run. It is **never committed at any stage** — the file lives only in the working tree and is gitignored throughout. It is **deleted** at Stage 17 by `ss-sdd-finishing` via plain `rm` (no commit; nothing to untrack from git).
+The state file is **created** by `ss-sdd-preflight` at Stage 0, after all validation passes, as a minimal shell containing only the always-required fields. It is **updated** at every stage boundary by either the coordinator or the active phase skill (per the Field Ownership table below) — feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) are filled in at Stage 2 by `ss-sdd-writing-specs`, with later fields appended as their owning stages run. It is **never committed at any stage** — the file lives only in the working tree and is gitignored throughout. It is **deleted** at Stage 17 by `ss-sdd-finishing` via plain `rm` (no commit; nothing to untrack from git).
 
 ## Always-required fields
 
@@ -78,7 +78,7 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 
 | Field | Owner | Notes |
 |---|---|---|
-| `started_at`, initial `tasks: {}`, `stages_completed: []`, `stages_skipped: []` | `ss-sdd-preflight-checks` (Stage 0 shell creation) | Written once at the end of preflight, after all validation passes. |
+| `started_at`, initial `tasks: {}`, `stages_completed: []`, `stages_skipped: []` | `ss-sdd-preflight` (Stage 0 shell creation) | Written once at the end of preflight, after all validation passes. |
 | `feature_id`, `short_name`, `spec_path` | `ss-sdd-writing-specs` (Stage 2) | Written into the existing state file; never updated after. |
 | `work_type` | `ss-sdd-discovering-requirements` (Stage 1; captured in-memory) + persisted by `ss-sdd-writing-specs` (Stage 2) | Set once; never updated after. |
 | `updated_at` | Every writer | Touched on each atomic write. |

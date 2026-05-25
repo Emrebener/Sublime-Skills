@@ -128,7 +128,7 @@ Per-task work is fully isolated; re-dispatching is safe. No need for fine-graine
 
 A YAML file at `.sublime-skills/config.yml` in the repo root. **The single source of truth** for project paths and per-stage behavior. Created by `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family), which copies the scaffold file verbatim — no AI regeneration.
 
-**The config is required, not optional, and must be valid.** `ss-sdd-preflight-checks` (Stage 0 of the SDD pipeline) runs `framework/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
+**The config is required, not optional, and must be valid.** `ss-sdd-preflight` (Stage 0 of the SDD pipeline) runs `framework/validate-config.sh` as its first step on every invocation and halts on any non-zero exit (missing file, malformed YAML, orphan context path, unknown key). The framework reads every path from this file (context files, memory file, etc.); running without a valid config is unsupported, not a degraded mode.
 
 The scaffold lives at `skills/project-bootstrap/scaffolds/config.yml` and is what gets copied. If you want to change the defaults across all new projects, edit the scaffold; if you want to change one repo's behavior, edit its `.sublime-skills/config.yml`.
 

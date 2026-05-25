@@ -137,7 +137,7 @@ Shared scripts at `skills/spec-driven-development/framework/`:
   load relevant context from a single source of truth.
 - `validate-config.sh` — validates `.sublime-skills/config.yml` end-to-end (YAML
   shape, required keys, context-path resolution, enum values). Used by
-  `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight-checks`
+  `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight`
   (Stage 0 of the SDD pipeline) to halt if the config is missing or
   invalid.
 - `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
@@ -148,25 +148,30 @@ Shared scripts at `skills/spec-driven-development/framework/`:
 #### [ss-sdd-coordinator](skills/spec-driven-development/ss-sdd-coordinator/)
 
 Entry point for SDD runs. Thin state machine + dispatcher — knows the
-18-stage pipeline, checks for an existing per-feature state file on
-every invocation and offers to resume, loads phase-skills inline for
-interactive stages, dispatches subagents for fresh-context stages
-(reviews, ADR maintenance, per-task implementation, testing, handoff).
-Holds state updates atomic at stage boundaries, never mid-stage.
+18-stage pipeline, starts at Stage 0 on a fresh user invocation and
+picks up from `current_stage` on re-entry within the same conversation
+(no test-and-ask resume ceremony — the conversation context already
+says where the pipeline is). Loads phase-skills inline for interactive
+stages, dispatches subagents for fresh-context stages (reviews, ADR
+maintenance, per-task implementation, testing, handoff). Holds state
+updates atomic at stage boundaries, never mid-stage.
 Surfaces user-gated optional stages (grill, 2nd review pass, feature
 testing). Critically: never tests the feature itself — if the tester
 subagent reports MCP unavailability, the coordinator surfaces a manual
 test plan rather than improvising.
 
-#### [ss-sdd-preflight-checks](skills/spec-driven-development/ss-sdd-preflight-checks/)
+#### [ss-sdd-preflight](skills/spec-driven-development/ss-sdd-preflight/)
 
 First stage of an SDD run. A permissive validation gate that confirms
 `.sublime-skills/config.yml` is valid, the current directory is inside
 a git repo, and HEAD is attached to a named branch. Dirty working trees
 are allowed (with a one-time warn-and-confirm) — SDD's commits are
 path-scoped to its own artifacts, so the user's pre-existing dirty
-files stay untouched. Does NOT create branches: that decision happens
-later at Stage 12 (`ss-sdd-choosing-feature-branch`), right before
+files stay untouched. Once every check passes, creates
+`.sublime-skills/state.json` as a minimal shell (silently removing any
+orphan state file from a dead prior pipeline first); on abort, no state
+file is written. Does NOT create branches: that decision happens later
+at Stage 12 (`ss-sdd-choosing-feature-branch`), right before
 implementation.
 
 #### [ss-sdd-discovering-requirements](skills/spec-driven-development/ss-sdd-discovering-requirements/)

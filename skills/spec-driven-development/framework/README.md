@@ -121,7 +121,7 @@ Exit codes: `0` PASS, `1` FAIL (findings on stderr, `FAIL:`/`WARN:` prefixed),
 `2` config file not found, `3` usage error.
 
 Used by `ss-bs-bootstrapping-project` (fix-and-retry loop after scaffold copy) and
-by `ss-sdd-preflight-checks` (Stage 0 of the SDD pipeline; HALT on non-zero
+by `ss-sdd-preflight` (Stage 0 of the SDD pipeline; HALT on non-zero
 exit). Prefers `python3` + PyYAML for full
 YAML parsing + overlay merge; falls back to an awk-based shallow scanner when
 those aren't available (the fallback validates base config only and emits a

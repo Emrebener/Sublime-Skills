@@ -10,7 +10,7 @@ This document explains each stage in detail: what runs, what it produces, how fa
 
 | # | Stage | Mechanism | Optional? | Writes to disk? |
 |---|---|---|---|---|
-| 0 | Preflight | Inline via `ss-sdd-preflight-checks` | No | No (git state only) |
+| 0 | Preflight | Inline via `ss-sdd-preflight` | No | No (git state only) |
 | 1 | Discovering requirements | Inline via `ss-sdd-discovering-requirements` | No | No (in-memory only) |
 | 2 | Writing the spec | Inline via `ss-sdd-writing-specs` | No | `spec.md` (uncommitted), `.sublime-skills/state.json` (gitignored) |
 | 3 | Auto spec-review | Subagent via `ss-sdd-reviewing-specs` | No | No (returns findings) |
@@ -53,15 +53,16 @@ Through Stages 2–11, SDD writes files (spec, plan, ADRs) but does **not** comm
 
 ## Stage 0 — Preflight
 
-**Skill:** `ss-sdd-preflight-checks` (inline)
+**Skill:** `ss-sdd-preflight` (inline)
 **Output:** validated `.sublime-skills/config.yml`, confirmed git repo, named branch, dirty-tree warning acknowledged (if applicable).
 
-Stage 0 is a permissive validation gate. It runs in this order:
+Stage 0 is a permissive validation gate followed by state-shell creation. It runs in this order:
 
 1. `validate-config.sh` — config presence and validity
 2. `git rev-parse --git-dir` — confirm we're in a git repo
 3. `git branch --show-current` — must be non-empty (no detached HEAD)
 4. `git status --porcelain` — if non-empty, show files and ask the user to confirm proceeding (SDD will only commit its own artifacts via path-scoped `git add`; their other dirty files stay untouched)
+5. Create `.sublime-skills/state.json` as a minimal shell (only after all checks above pass; any pre-existing state file is treated as an orphan from a dead prior pipeline and silently removed first)
 
 The abort matrix:
 
@@ -78,9 +79,9 @@ The abort matrix:
 - Abort on a dirty working tree (it warns and asks; if the user wants SDD to run on top of in-progress work, that's allowed)
 - Abort on which branch you're on — any named branch is fine
 
-**State file does not exist yet.** Preflight outputs (current branch) are held by the coordinator in-memory. They get persisted into the state file in Stage 2.
+**State file:** created by preflight as the last step (after all validation passes), containing only the always-required fields — `started_at`, `updated_at`, `current_stage: "preflight"`, empty `stages_completed` / `stages_skipped`, empty `tasks`. Feature-identifying fields (`feature_id`, `short_name`, `work_type`, `spec_path`) are filled in by `ss-sdd-writing-specs` at Stage 2. Preflight outputs (current branch) and cached config values are also held by the coordinator in-memory for downstream use.
 
-**On abort:** the coordinator surfaces the abort message to the user and exits cleanly. No partial state is written.
+**On abort:** the coordinator surfaces the abort message to the user and exits cleanly. No state file is written on abort — it's the last step, deliberately, so a failed preflight leaves no trace.
 
 ---
 

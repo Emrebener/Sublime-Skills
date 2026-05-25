@@ -24,7 +24,7 @@
 #
 # Used by:
 #   - project-bootstrap/ss-bs-bootstrapping-project (Step 6 fix-and-retry loop)
-#   - spec-driven-development/ss-sdd-preflight-checks (Stage 0; Step 1 of its Checklist; HALT-on-fail)
+#   - spec-driven-development/ss-sdd-preflight (Stage 0; Step 1 of its Checklist; HALT-on-fail)
 #   - future audit skill
 #
 # Implementation notes:

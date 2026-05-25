@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-discovering-requirements
-description: Use during the discovery stage of an SDD pipeline run, after ss-sdd-preflight-checks and before ss-sdd-writing-specs. Drives an interactive conversation with the user to reach a shared understanding of what's being built — purpose, scope, users, success criteria, key decisions — without writing any artifacts yet.
+description: Use during the discovery stage of an SDD pipeline run, after ss-sdd-preflight and before ss-sdd-writing-specs. Drives an interactive conversation with the user to reach a shared understanding of what's being built — purpose, scope, users, success criteria, key decisions — without writing any artifacts yet.
 ---
 
 # Discovering Requirements
