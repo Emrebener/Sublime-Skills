@@ -72,6 +72,7 @@ ARCHITECTURE="$(resolve_context_path architecture_path)"
 GLOSSARY="$(resolve_context_path glossary_path)"
 DOMAIN="$(resolve_context_path domain_path)"
 DESIGN="$(resolve_context_path design_path)"
+TESTING="$(resolve_context_path testing_path)"
 
 # README is not configurable — there is exactly one conventional location.
 README=""
@@ -138,6 +139,7 @@ cat <<EOF
   "glossary": $(json_string "$GLOSSARY"),
   "domain": $(json_string "$DOMAIN"),
   "design": $(json_string "$DESIGN"),
+  "testing": $(json_string "$TESTING"),
   "readme": $(json_string "$README"),
   "spec_dir": $(json_string "$SPEC_DIR"),
   "adr_dir": $(json_string "$ADR_DIR"),
