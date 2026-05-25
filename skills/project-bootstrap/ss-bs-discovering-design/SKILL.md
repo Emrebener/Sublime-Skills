@@ -26,6 +26,7 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 - `MODE` — `create`, `extend`, or `replace`
 - `EXISTING_CONTENT` — verbatim current DESIGN.md content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/DESIGN.md`; honors `context.design_path` config override if non-default)
+- **`SUGGEST`** — `on` or `off`. When `on` AND the Build path is taken, run Step 3a.5 (silent diagnose) and surface Q1.5 in Step 3b. When `off`, skip both — identical to pre-suggestion-pass behaviour. Import path always skips diagnose regardless of this flag. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates
 
@@ -39,6 +40,11 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 - Do NOT invent tokens. If only 3 colors are defined, propose 3 — don't pad with `--color-muted-2`, `--color-muted-3` to look thorough.
 - Do NOT skip the Import-vs-Build choice in `create` / `replace` modes. The user may already have a generated DESIGN.md they want to use; asking saves them a wasted Q&A round.
 - Do NOT overwrite an existing DESIGN.md in `extend` mode. Extend merges; only `replace` overwrites.
+- Do NOT exceed the diagnose budget: Step 3a.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 3a read. If you need more reads, surface fewer suggestions instead of widening the budget.
+- Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
+- Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
+- Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO.
+- Do NOT run diagnose in the Import path. Import means the user is bringing a pre-existing design file; diagnose would be inappropriate.
 
 ## Top-Level Flow
 
@@ -48,15 +54,23 @@ You're invoked when the user picked **Create / Extend / Replace** for design. Th
 │   → Ask: "Import existing file" vs. "Build         │
 │     collaboratively"                                │
 │   → Import path:  read user-supplied file → write   │
-│   → Build path:   scan code → ask targeted Qs →     │
-│                   synthesize → review → write       │
+│   → Build path:                                     │
+│       → Step 3a: silent code scan                   │
+│       → Step 3a.5: silent diagnose (if SUGGEST=on)  │
+│       → Step 3b: targeted questions (Q1, Q1.5 if   │
+│                  SUGGEST, Q2+)                      │
+│       → Step 3c-e: synthesize → review → write      │
 ├─────────────────────────────────────────────────────┤
 │ MODE = extend                                       │
 │   → Skip the Import question (extending doesn't     │
 │     make sense via import — would just be replace)  │
 │   → Build path with EXISTING_CONTENT as starting    │
-│     point → ask only about gaps → synthesize        │
-│     additions → review → merge → write              │
+│     point:                                          │
+│       → Step 3a: silent code scan + existing content│
+│       → Step 3a.5: silent diagnose (if SUGGEST=on)  │
+│       → Step 3b: targeted questions on gaps + Q1.5  │
+│       → Step 3c-e: synthesize → review → merge →   │
+│                    write                            │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -169,11 +183,45 @@ Then announce in one short message what you found:
 
 > "Here's what I picked up from the codebase: Tailwind v4 with 19 color tokens defined in `src/styles/globals.css`, Inter Variable + Berkeley Mono, an 8-step border-radius scale, and 9 named shadows. I see shadcn/ui components (Button with 4 variants, Card with 3, Input, Badge). Theme looks dark-mode primary. I'll ask you a handful of questions for the parts code can't tell me, then show you a draft."
 
+If `SUGGEST=on` AND Step 3a.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few design-system gaps worth documenting — I'll surface those after we confirm the observed tokens."
+
 If the scan turns up almost nothing (no framework, no custom properties, no components dir), say so:
 
 > "I didn't find a design framework or token system in this codebase. Three possible reasons: (a) the project doesn't have a UI yet, (b) the UI is upstream / in a different repo, (c) the design system isn't formalized yet. I can still build a DESIGN.md from your answers if you'd like, but if there's no UI surface here, Skip is probably right."
 
 Offer a choice: "Continue (I'll ask everything)" / "Skip (no UI surface)" / "Let me point you to where the UI actually lives" (which routes back to Step 2a as an Import-style flow).
+
+### 3a.5: Silent Diagnose (only if `SUGGEST=on` and Build path was taken)
+
+If `SUGGEST=off`, skip this step entirely and proceed to Step 3b.
+
+Diagnose looks for design-system anti-patterns and missing-but-typically-valuable structural decisions. Every diagnose finding must be **evidence-cited** with specific file paths or concrete counts. Abstract "best practice" suggestions are not allowed.
+
+#### 3a.5a. Design diagnose categories
+
+For each category below, scan additional files if needed (within the budget — see Hard Gates). Scan each category for candidates. One strong candidate per category is the target; the aggregate cap of 5 is enforced in 3a.5b after dropping unsupported candidates.
+
+- **Hex literals scattered through CSS.** ≥10 unique hex color literals across CSS/SCSS files with no central `:root` custom-properties block defining a palette. Evidence: file paths + a sample of the literals.
+- **Inconsistent spacing (no scale).** Padding/margin values across components use ≥6 distinct numeric values not on any consistent scale (4/8/12/16 or 4/8/16/24 are common). Evidence: file paths + the values.
+- **Only literal colors, no semantic roles.** Code uses raw hex values like `#3B82F6` directly in components instead of semantic tokens (`var(--color-primary)`). Evidence: file paths + raw-hex occurrence count.
+- **Component variants in code but absent from doc.** A component (button, input) has 4+ distinct variants in code (variant="primary"|"secondary"|...) but no design doc mentions them. Evidence: component file + variant list.
+
+#### 3a.5b. Compile candidate suggestions in memory
+
+Each candidate must include:
+- `severity`: one of `MUST`, `SHOULD`, `INFO` — see Hard Gates for the matching evidence bar
+- `title`: one-line headline (e.g., "Centralize hex literals into CSS custom properties")
+- `evidence`: specific file paths or counts (e.g., `src/components/Button.tsx:12, .../Card.tsx:8, .../Badge.tsx:5`)
+- `proposed_addition`: exact markdown text to add to the artifact (a new token section, a new component variant block, etc.)
+
+Drop any candidate that cannot be cited with specific evidence. Drop any candidate where the severity guess cannot be justified from the evidence (no MUST without observable harm).
+
+If more than 5 candidates remain after dropping unsupported ones, rank by:
+1. Severity (MUST > SHOULD > INFO)
+2. Evidence count (more file paths / higher counts = stronger)
+3. Impact (changes that prevent bugs > changes that improve consistency)
+
+Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3b is skipped silently.
 
 ### 3b. Targeted questions
 
@@ -255,6 +303,25 @@ Multi-select:
   - All of the above (Recommended)
 ```
 
+**Q1.5 — Confirm suggested additions (only if `SUGGEST=on` AND Step 3a.5 produced ≥1 candidate)**
+
+```
+Question: "Here are some things I'd suggest adding even though they're
+not currently codified. These are opinionated — pick any you want to
+include:"
+
+Options (multi-select, one option per Step 3a.5 candidate, plus a "None" escape):
+  - [suggestion · <severity> · <evidence-summary>] <title>
+    Evidence: <evidence>
+    Proposed addition: <one-line summary of proposed_addition>
+  - ... (one option per remaining candidate, up to 5)
+  - "None of these — keep the design doc descriptive only"
+
+Use the harness's multi-select question tool. Do not present as plain text.
+```
+
+If the user picks none, treat as "no suggestions accepted" and proceed to the next question. Accepted suggestions are carried into Step 3c (Synthesize) and rendered with provenance markers.
+
 **Do's and don'ts (the philosophy layer)**
 
 ```
@@ -297,6 +364,8 @@ Compose a Markdown draft using the scan results + question answers. Section orde
 9. **Imagery** (if discussed)
 10. **Layout** (only if page-level structure was evident from layout components)
 11. **Quick Start** (CSS custom properties block, plus a Tailwind `@theme` block if Tailwind is in use)
+
+Accepted Q1.5 suggestions are woven into the appropriate sections above and rendered with provenance markers (see Provenance markers subsection in Step 3e below). **The provenance markers must appear in the draft shown to the user at this Step 3c**, not added silently at Step 3e write time — the user reviews and approves the full content including provenance.
 
 Drafting guidelines:
 
@@ -346,6 +415,39 @@ Report to the coordinator one of:
 - `extended via build` (mode = extend, merged content written)
 - `replaced via build` (mode = replace, full draft written)
 - `skipped (declined mid-skill)` (user aborted partway)
+
+### Provenance markers for accepted Q1.5 suggestions
+
+Accepted Q1.5 suggestions are rendered with provenance markers so that audit passes can recognize them. Design tokens use HTML comments (renders cleanly inside token blocks); component variant blocks use a three-line italic blockquote.
+
+**Token sections** — append a provenance block immediately after the section heading and before the token table:
+
+```markdown
+## Tokens — Colors
+
+<!-- provenance: added via bootstrap suggestion pass YYYY-MM-DD -->
+<!-- evidence: <evidence summary> -->
+
+### Primary · `--color-primary`
+- Default: `#3B82F6` (blue-500)
+- Hover: `#2563EB`
+```
+
+**Component variant blocks** — prepend a three-line blockquote immediately after the component heading:
+
+```markdown
+## Components
+
+> _Added via bootstrap suggestion pass (YYYY-MM-DD)._
+> _Evidence: <evidence summary>._
+> _Component variants observed in code but previously undocumented._
+
+### <Component Name>
+
+...
+```
+
+Replace `YYYY-MM-DD` with today's date. The audit skill reads these markers on re-runs to ask whether gaps have since been addressed.
 
 ## Output Template
 
@@ -458,6 +560,10 @@ For reference, the canonical DESIGN.md skeleton. Use as a guide, omit empty sect
 | Asking "what's the brand vibe" five times in different words | One question per topic; if the user said "minimal Nordic dark", stop probing |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
+| Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
+| Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize bootstrap-added entries; without it, drift detection breaks |
+| Running Step 3a.5 when SUGGEST=off | Skip Step 3a.5 entirely when off; do not run-but-suppress |
 
 ## Red Flags
 
