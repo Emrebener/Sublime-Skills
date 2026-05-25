@@ -18,7 +18,7 @@ You are loaded **inline** by `ss-bs-bootstrapping-project` (NOT dispatched as a 
 You're invoked when the user picked **Create / Extend / Replace** for glossary. The coordinator passes you:
 
 - `REPO_ROOT` — absolute path to the repo root
-- `MODE` — `create`, `extend`, or `replace`
+- `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3.
 - `EXISTING_CONTENT` — verbatim current `docs/GLOSSARY.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/GLOSSARY.md`; honors `context.glossary_path` config override if non-default)
 - **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
@@ -39,6 +39,9 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 - Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
 - Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
 - Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO. Note: for glossary, severity is typically SHOULD/INFO — MUST is rare.
+- In audit mode, do NOT skip Step 1.6 (drift check). It's the third operation alongside observe and diagnose; without it, audit is just "extend mode with SUGGEST=on".
+- In audit mode, ask Q0 questions ONE drift item per question — do NOT bundle. Drift resolutions are nuanced individually.
+- In audit mode, SUGGEST is always treated as `on` (regardless of input). This is documented in the Inputs section.
 
 ## Top-Level Flow
 
@@ -63,6 +66,14 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
+├─────────────────────────────────────────────────────┤
+│ MODE = audit                                        │
+│   → Step 1: silent code scan                        │
+│   → Step 1.5: silent diagnose (always on for audit) │
+│   → Step 1.6: drift check vs EXISTING_CONTENT       │
+│   → Step 2: announce findings + drift + diagnoses   │
+│   → Step 3: Q0 (drift resolution) → Q1 → Q1.5 → ...│
+│   → Step 4-6: as usual                              │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -176,6 +187,25 @@ If more than 5 candidates remain after dropping unsupported ones, rank by:
 
 Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
 
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each entry in `EXISTING_CONTENT` against current code state. The goal is to detect entries that have gone stale.
+
+### 1.6a. Drift categories for glossary
+
+- **Term no longer used in code.** A defined term has zero occurrences in current source. Evidence: grep count = 0.
+- **Term renamed in code.** A defined term has zero occurrences but a clear successor term has high occurrences (e.g. "Order" → 0 occurrences, "PurchaseOrder" → 47 occurrences). Evidence: both counts.
+- **New high-traffic term undefined.** A new term (not in glossary) appears ≥10 times in code. Evidence: term + occurrence count.
+- **Provenance re-evaluation.** Each term added via suggestion pass — is it actually being used now? Has the inconsistency it was meant to resolve been resolved?
+  - If the original evidence pattern (e.g. "synonym inconsistency across 6 files") is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (the code has standardized on one term), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (term-removed / term-renamed / new-high-traffic-term / aspiration-met / aspiration-still-pending), `entry` (the doc text being challenged), `evidence` (grep counts or file paths showing the current code state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
+
 ## Step 2: Announce Findings
 
 One short message (3-6 sentences; 3-7 when SUGGEST=on extends with the diagnose-mention sentence). State what you scanned and the headline finding. Example:
@@ -190,9 +220,38 @@ If `extend` mode:
 
 If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few vocabulary inconsistencies or missing definitions worth adding — I'll surface those after we confirm the observed candidates."
 
+If `MODE=audit`: "Audit mode. Scan + diagnose + drift check complete. Found N drift items (X terms removed/renamed, Y new high-traffic terms undefined, Z provenance re-evaluations) — I'll surface those first in the questions, then walk through observed candidates and suggestions as usual."
+
 ## Step 3: Targeted Questions
 
 Ask in this order, one question per turn. Skip a question if the scan and (for extend mode) the existing file already answered it.
+
+### Q0 — Drift Resolution (only if `MODE=audit` AND Step 1.6 produced ≥1 drift finding)
+
+Ask one question per drift finding (do NOT bundle — drift items often have nuanced individual resolutions):
+
+```
+Question: "Drift detected: <entry summary>. Current code state: <evidence>. What's the right resolution?"
+
+Options:
+  - "Update the doc to match code"
+  - "Keep the doc — code is wrong / will be fixed"
+  - "Remove the entry — no longer applies"
+  - "Both — clarify scope (split into multiple entries)"
+```
+
+For **provenance re-evaluation** findings, the question is different:
+
+```
+Question: "Aspirational entry '<title>' was added on <date>. Evidence at that time: <original evidence>. Current code state: <current evidence>. Has this aspiration been realized?"
+
+Options:
+  - "Yes — code has caught up. Remove the provenance marker (promote to normal)."
+  - "No — code still has the original problem. Keep as aspirational; refresh the marker date."
+  - "Drop the entry — we've decided not to pursue this aspiration."
+```
+
+Record each resolution. Apply during Step 4 (Draft Synthesis).
 
 ### Q1 — Term selection (multi-select)
 
@@ -280,6 +339,8 @@ Synthesize the draft using:
 - Accepted Q1.5 suggestions, rendered as new glossary entries with provenance markers (format defined in Step 6's provenance subsection). **The provenance markers must appear in the draft shown to the user at this Step 4**, not added silently at Step 6 write time — the user reviews and approves the full content including provenance.
 - Alias notes from Q2
 - Conflict resolutions from Q3 (extend mode)
+- Q0 drift resolutions (per drift item: update / keep / remove / clarify)
+- Q0 provenance re-evaluations (per aspirational entry: promote / refresh / drop)
 
 Use the canonical alphabetical template (see Output Template section). Show the full draft to the user, then ask:
 
@@ -400,6 +461,10 @@ note them: "Also called `<alternate>`.">
 | Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
 | Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries; without it, drift detection breaks |
 | Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
+| Skipping Step 1.6 in audit mode | Drift detection is the audit's reason for existing |
+| Bundling Q0 drift resolutions into one multi-select | Each item gets its own question — resolutions are not collectively decidable |
+| Forgetting to refresh the provenance marker date when "Keep aspirational" is chosen | Audit needs the refresh to track time-since-last-evaluation |
+| Forgetting to strip the provenance marker when "Promote to normal" is chosen | The marker is the audit's hook; promoting means removing it |
 
 ## Red Flags
 
