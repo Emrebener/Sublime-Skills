@@ -33,7 +33,7 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 ## Checklist
 
 1. Read the plan and extract every task with its full text and context
-2. Initialize/sync the state file's `tasks` map and create todos via the harness's task tool
+2. Initialize/sync the state file's `tasks` map and replace the coordinator's pre-implementation todo list with one todo per plan task
 3. For each task in order:
    - Dispatch implementer subagent
    - Handle status (DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT)
@@ -81,11 +81,11 @@ Resulting tasks map example on resume:
 
 Set `current_stage: "implementing"` (unconditionally). Write the state file atomically.
 
-### 2b. Sync the todo tool
+### 2b. Replace the coordinator's todo list with a per-task list
 
-Create one todo per plan task using the harness's todo/task tool.
+By the time this skill runs, the coordinator's pre-implementation todo list (Stages 0–12) is fully `completed`. Replace it with one new todo per plan task (T001, T002, ...). Pass the harness's todo/task tool the full new list — it overwrites the prior list in place.
 
-On resume: if the harness preserved todos from a prior session, reconcile their statuses to match `state.tasks`. If the harness didn't preserve todos, create them fresh and immediately mark `completed`/`in_progress` ones to match the state file.
+Match each new todo's initial status to `state.tasks`: `completed` / `in_progress` / `pending`. The coordinator creates the post-implementation list (Stages 14–17) when this skill returns.
 
 ### 2c. Pick the starting task
 

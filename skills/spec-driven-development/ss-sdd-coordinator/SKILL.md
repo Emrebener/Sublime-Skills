@@ -20,7 +20,12 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 - Do NOT skip mandatory stages (everything in the pipeline table except those marked optional)
 - Optional stages are user-gated — always ask, default per the table
 - ALWAYS use the harness's interactive question tool when asking the user a yes/no or multi-choice question. Do NOT fall back to a plain-text prompt that forces the user to type their answer — every "Ask: ..." instruction below is meant to be a structured question, not a text prompt.
-- ALWAYS use the harness's todo/task tool to track progress through the pipeline. On a fresh run, create one todo per non-optional row in the Pipeline table; add optional rows when the user opts in. On re-entry within the same conversation (where you've already been driving the pipeline), the todo list is already there — don't rebuild it. Mark a todo `in_progress` when you start the stage and `completed` immediately after it finishes — don't batch updates.
+- ALWAYS use the harness's todo/task tool to track progress. The pipeline uses three sequential todo lists, each one replacing the previous:
+  1. **Pre-implementation (Stages 0–12)** — at Stage 0, create one todo per row from Stages 0–12, including the optional ones (4, 5, 10). Do NOT include Stages 13–17 in this list.
+  2. **Per-task implementation (Stage 13)** — `ss-sdd-implementing-plans` replaces list 1 with one todo per plan task (T001, T002, ...). By then every entry in list 1 is `completed`.
+  3. **Post-implementation (Stages 14–17)** — when `ss-sdd-implementing-plans` returns, replace list 2 with one todo per row from Stages 14–17, including the optional ones (14, 15, 16).
+
+  Mark a todo `in_progress` when you start the stage/task and `completed` immediately after it finishes — don't batch updates. **For optional stages: when the user opts out at the gate, mark the todo `completed` straight away (and add the stage to `stages_skipped` in state.json per the existing convention), then advance.** Optional stages are always pre-listed; opt-outs are just a fast path through them.
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
@@ -122,7 +127,7 @@ Process findings via `ss-sdd-receiving-review-findings` (load it inline). It han
 
 Ask: "Want a grill session to stress-test the spec? (yes/no, default no)"
 
-If yes: load `ss-sdd-grilling-specs`. Follow it. **No commit (Stage 12 batches).**
+If no: add `spec_grill` to `stages_skipped`. If yes: load `ss-sdd-grilling-specs`. Follow it. **No commit (Stage 12 batches).**
 
 ### Stage 5 — Optional 2nd Spec-Review (User-Gated)
 
@@ -188,11 +193,13 @@ Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer
 
 **Continuous execution:** Stage 13 does NOT pause between tasks for human check-in. Only stop when: a task returns BLOCKED that can't be resolved by the coordinator (e.g., needs user input); a review loop hits its 3-iteration cap; the plan itself appears wrong; or all tasks complete. Coordinator-driven pauses between tasks waste run time and break the per-task isolation.
 
-After all tasks complete and final review passes, advance to Stage 14.
+After all tasks complete and final review passes, replace the per-task todo list with the post-implementation list (one todo per row from Stages 14–17, including the optional ones 14, 15, 16). Then advance to Stage 14.
 
 ### Stage 14 — Optional Feature Testing (User-Gated)
 
 Ask: "Implementation complete. Run feature-level tests now? (yes/no, default yes)"
+
+If no: add `testing` to `stages_skipped`. Advance to Stage 15.
 
 If yes: load `ss-sdd-testing-implementation`. It dispatches the tester subagent and handles the FAIL → fixer loop. **If the tester reports `MCP_UNAVAILABLE`, do NOT pick up Bash/Playwright/curl to test it yourself — surface the manual test plan to user.**
 
