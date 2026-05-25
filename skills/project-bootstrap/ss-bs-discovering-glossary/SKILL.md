@@ -21,6 +21,7 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 - `MODE` — `create`, `extend`, or `replace`
 - `EXISTING_CONTENT` — verbatim current `docs/GLOSSARY.md` content (only for `extend` / `replace`; empty otherwise)
 - `FILE_PATH` — target write path (typically `docs/GLOSSARY.md`; honors `context.glossary_path` config override if non-default)
+- **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates
 
@@ -34,6 +35,10 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 - Do NOT write definitions longer than 2 sentences each.
 - Do NOT overwrite an existing glossary in `extend` mode. Extend merges; only `replace` overwrites.
 - Do NOT loop past 3 tweak iterations without surfacing bail options to the user.
+- Do NOT exceed the diagnose budget: Step 1.5 (when run) takes at most ~2 minutes of agent work and reads at most 10 additional files beyond what Step 1 read. If you need more reads, surface fewer suggestions instead of widening the budget.
+- Do NOT surface diagnose candidates without specific file-path or count evidence. Abstract "best practice" suggestions are forbidden.
+- Do NOT pad the Q1.5 list to fill a quota. If diagnose finds 0 strong candidates, Q1.5 is skipped silently — this is the correct outcome, not a bug.
+- Do NOT use severity MUST for a diagnose candidate unless there is observable harm (broken tests, security risk, observed bug pattern). Weaker evidence defaults to SHOULD or INFO. Note: for glossary, severity is typically SHOULD/INFO — MUST is rare.
 
 ## Top-Level Flow
 
@@ -42,17 +47,19 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 │ MODE = create or replace                            │
 │   → Step 1: silent code scan (READMEs, identifiers, │
 │             schemas, routes, comments)              │
-│   → Step 2: announce findings                       │
-│   → Step 3: targeted questions (term selection,     │
-│             aliases)                                │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings (+ diagnoses)         │
+│   → Step 3: targeted questions (Q1, Q1.5 if SUGGEST,│
+│             then Q2-Q3)                             │
 │   → Step 4: synthesize draft → show to user         │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write                            │
 ├─────────────────────────────────────────────────────┤
 │ MODE = extend                                       │
 │   → Step 1: silent code scan + read EXISTING_CONTENT│
-│   → Step 2: announce findings + gaps                │
-│   → Step 3: targeted questions on gaps only         │
+│   → Step 1.5: silent diagnose (if SUGGEST=on)       │
+│   → Step 2: announce findings + gaps + diagnoses    │
+│   → Step 3: targeted questions on gaps + Q1.5       │
 │   → Step 4: synthesize additions → show diff        │
 │   → Step 5: refine via tweak loop (cap 3)           │
 │   → Step 6: atomic write of merged content          │
@@ -138,9 +145,40 @@ For each surviving candidate, hold:
 - A draft 1-sentence definition (lifted from inline comments where possible; otherwise from what you observed about its use)
 - The evidence (where it appeared, layer count)
 
+## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
+
+If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
+
+Diagnose looks for vocabulary inconsistencies and missing-but-typically-valuable term definitions. Every diagnose finding must be **evidence-cited** with specific file paths or concrete counts. Abstract "you should do X" findings are not allowed.
+
+### 1.5a. Glossary diagnose categories
+
+For each category below, scan additional files if needed (within the budget — see Hard Gates). Scan each category for candidates. One strong candidate per category is the target; the aggregate cap of 5 is enforced in 1.5b after dropping unsupported candidates.
+
+- **Term inconsistencies (synonyms used as if interchangeable).** Two or more terms used for the same concept across multiple files. Evidence: each term + at least 3 file paths showing it used in equivalent contexts (e.g., `user` in 8 places, `account` in 6, both referring to the authenticated subject).
+- **High-traffic acronyms with no definition.** An acronym (2-5 uppercase letters) appearing in ≥10 files with no expansion or definition in any current doc. Evidence: the acronym + occurrence count.
+- **Aliases that should be unified.** A term appears with multiple syntactic variants (snake_case vs camelCase, singular vs plural in identifier names) suggesting unintended divergence. Evidence: each variant + file paths.
+
+### 1.5b. Compile candidate suggestions in memory
+
+Each candidate must include:
+- `severity`: one of `MUST`, `SHOULD`, `INFO` — see Hard Gates for the matching evidence bar (typically SHOULD/INFO for glossary)
+- `title`: one-line headline (e.g., "Define canonical term for authenticated subject")
+- `evidence`: specific file paths or counts (e.g., `src/auth/user.ts:12, src/billing/account.ts:8, src/api/routes.ts:34`)
+- `proposed_addition`: exact markdown text for a new glossary entry
+
+Drop any candidate that cannot be cited with specific evidence. Drop any candidate where the severity guess cannot be justified from the evidence (no MUST without observable harm).
+
+If more than 5 candidates remain after dropping unsupported ones, rank by:
+1. Severity (MUST > SHOULD > INFO)
+2. Evidence count (more file paths / higher counts = stronger)
+3. Impact (changes that prevent bugs > changes that improve consistency)
+
+Surface the top 5. If 0 candidates remain, the candidate list is empty and Q1.5 in Step 3 is skipped silently.
+
 ## Step 2: Announce Findings
 
-One short message (3-6 sentences). State what you scanned and the headline finding. Example:
+One short message (3-6 sentences; 3-7 when SUGGEST=on extends with the diagnose-mention sentence). State what you scanned and the headline finding. Example:
 
 > "Here's what I picked up: 38 candidate terms after filtering generic ones. The strongest signals are `Quote`, `RFQ`, `Settlement`, `Reconciliation`, `Idempotency Key`, `Workspace` (each appears in ≥3 layers: DB schema, models, routes, docs). I'll ask you which ≤30 should land in the glossary, then refine the definitions."
 
@@ -149,6 +187,8 @@ If `create` mode and the scan found very little:
 
 If `extend` mode:
 > "Your existing glossary covers [N] terms. I scanned the codebase and found [M] additional candidates not covered (and [K] existing definitions that look inconsistent with current code). I'll ask about those, then propose additions/refinements."
+
+If `SUGGEST=on` AND Step 1.5 produced ≥1 candidate, extend the announcement with: "…and I noticed a few vocabulary inconsistencies or missing definitions worth adding — I'll surface those after we confirm the observed candidates."
 
 ## Step 3: Targeted Questions
 
@@ -179,6 +219,25 @@ If the user selects >30, immediately follow up with a single trim question:
 Question: "That's more than 30. Which should I drop?"
 Multi-select from the over-cap list.
 ```
+
+### Q1.5 — Confirm suggested additions (only if `SUGGEST=on` AND Step 1.5 produced ≥1 candidate)
+
+```
+Question: "Here are some things I'd suggest adding even though they're
+not currently codified. These are opinionated — pick any you want to
+include:"
+
+Options (multi-select, one option per Step 1.5 candidate, plus a "None" escape):
+  - [suggestion · <severity> · <evidence-summary>] <title>
+    Evidence: <evidence>
+    Proposed addition: <one-line summary of proposed_addition>
+  - ... (one option per remaining candidate, up to 5)
+  - "None of these — keep the glossary descriptive only"
+
+Use the harness's multi-select question tool. Do not present as plain text.
+```
+
+If the user picks none, treat as "no suggestions accepted" and proceed to Q2. Accepted suggestions are carried into Step 4 (Draft & Show) and rendered with provenance markers.
 
 ### Q2 — Aliases / multi-naming (free-form)
 
@@ -218,6 +277,7 @@ Definition refinements are handled during the Step 5 tweak loop — the user can
 
 Synthesize the draft using:
 - Selected terms from Q1 (≤30)
+- Accepted Q1.5 suggestions, rendered as new glossary entries with provenance markers (format defined in Step 6's provenance subsection). **The provenance markers must appear in the draft shown to the user at this Step 4**, not added silently at Step 6 write time — the user reviews and approves the full content including provenance.
 - Alias notes from Q2
 - Conflict resolutions from Q3 (extend mode)
 
@@ -263,6 +323,24 @@ Report to the coordinator one of:
 - `extended` (mode = extend, merged content written)
 - `replaced` (mode = replace, full draft written)
 - `skipped (declined mid-skill)` (user aborted partway)
+
+### Provenance markers for accepted Q1.5 suggestions
+
+Each accepted Q1.5 suggestion becomes a new glossary entry. Append a provenance note at the end of the entry using this exact format:
+
+```markdown
+### <Term> · `<slug>`
+
+<Definition text, 1-3 sentences.>
+
+**Aliases:** <comma-separated list, if any>
+
+> _Added via bootstrap suggestion pass (YYYY-MM-DD)._
+> _Evidence: <evidence summary from the Q1.5 candidate>._
+> _The team has not yet standardized on this term._
+```
+
+Replace `YYYY-MM-DD` with today's date. The three blockquote lines each carry a self-contained italic span (italic spans never cross blockquote line boundaries). The audit skill reads this marker on re-runs to ask whether the team has resolved the inconsistency.
 
 ## Output Template
 
@@ -318,6 +396,10 @@ note them: "Also called `<alternate>`.">
 | Bundling multiple questions in one ask | One question per turn |
 | Looping past 3 tweak iterations | Surface to user with bail options |
 | Overwriting in extend mode | Extend merges; only replace overwrites |
+| Surfacing a diagnose candidate without file-path evidence | Drop it; only evidence-cited candidates pass the gate |
+| Surfacing >5 diagnose candidates | Hard cap is 5; rank by severity → evidence → impact, drop the rest |
+| Forgetting the provenance marker on an accepted Q1.5 suggestion | Audit relies on the marker to recognize aspirational entries; without it, drift detection breaks |
+| Running Step 1.5 when SUGGEST=off | Skip Step 1.5 entirely when off; do not run-but-suppress |
 
 ## Red Flags
 
