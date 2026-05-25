@@ -45,7 +45,7 @@ editing skill content:
   `ANTHROPIC_*` env-var examples) are fine when they help users identify
   their file or recognize a pattern — that's documentation, not
   prescription.
-- One skill, `skills/workflow/restrict-git-commands`, ships a Claude Code-specific
+- One skill, `skills/workflow/ss-workflow-restrict-git-commands`, ships a Claude Code-specific
   `PreToolUse` hook script as an optional reference layer. Its primary
   SKILL.md still works via instruction on any harness; the hook is a
   drop-in for users who want deterministic enforcement.
@@ -94,7 +94,7 @@ uniform across all of them:
 |---|---|---|
 | `scripts/` | Operate Sublime-Skills itself (install, uninstall) | The user, from a terminal |
 | `skills/spec-driven-development/framework/` | SDD pipeline internals — config readers, validators | SDD skills, via `$SUBLIME_SKILLS_HOME` |
-| `<skill>/scripts/` | Skill-private helpers (e.g. `skills/workflow/restrict-git-commands/scripts/`) | That skill only, or the user copying out |
+| `<skill>/scripts/` | Skill-private helpers (e.g. `skills/workflow/ss-workflow-restrict-git-commands/scripts/`) | That skill only, or the user copying out |
 
 Canonical invocation patterns:
 

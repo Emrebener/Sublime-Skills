@@ -37,7 +37,7 @@ A set of plain CLI scripts covering:
 - **Debugging** — console and network capture, performance traces,
   page-content extraction, screenshots.
 
-### [restrict-git-commands](skills/workflow/restrict-git-commands/)
+### [ss-workflow-restrict-git-commands](skills/workflow/ss-workflow-restrict-git-commands/)
 
 A baseline policy preventing destructive git operations (`push`,
 `reset --hard`, `clean -f`, `branch -D`, `checkout .` / `restore .`) from
@@ -46,7 +46,7 @@ load the skill at session start (or whenever about to run git commands)
 and the agent commits to asking before any irreversible operation, with
 the exact command and consequence named in each ask. A reference Claude
 Code `PreToolUse` hook script is bundled at
-`skills/workflow/restrict-git-commands/scripts/block-dangerous-git.sh` as an
+`skills/workflow/ss-workflow-restrict-git-commands/scripts/block-dangerous-git.sh` as an
 optional drop-in for users who want deterministic harness-level
 enforcement on top of the instruction layer.
 

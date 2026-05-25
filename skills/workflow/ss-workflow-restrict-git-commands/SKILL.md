@@ -1,6 +1,6 @@
 ---
-name: restrict-git-commands
-description: Establishes a policy that destructive git operations (push, reset --hard, clean -f, branch -D, checkout . / restore .) require explicit user authorization before execution. Use at session start to commit to the policy, or whenever about to run a git command. Tool-agnostic via instruction; a Claude Code `PreToolUse` hook script is bundled at $SUBLIME_SKILLS_HOME/skills/workflow/restrict-git-commands/scripts/block-dangerous-git.sh as an optional drop-in for users who want deterministic harness-level enforcement.
+name: ss-workflow-restrict-git-commands
+description: Establishes a policy that destructive git operations (push, reset --hard, clean -f, branch -D, checkout . / restore .) require explicit user authorization before execution. Use at session start to commit to the policy, or whenever about to run a git command. Tool-agnostic via instruction; a Claude Code `PreToolUse` hook script is bundled at $SUBLIME_SKILLS_HOME/skills/workflow/ss-workflow-restrict-git-commands/scripts/block-dangerous-git.sh as an optional drop-in for users who want deterministic harness-level enforcement.
 ---
 
 # Restrict Git Commands
@@ -13,7 +13,7 @@ This skill commits you to a baseline policy: **destructive git operations requir
 
 **Core principle:** Reversibility matters more than convenience. Anything that loses work, rewrites shared history, or affects a remote needs the user's explicit "yes" — every time, every command, no exceptions for "this one's obviously safe."
 
-**Announce at start:** "I'm using the restrict-git-commands skill — destructive git operations require your explicit authorization."
+**Announce at start:** "I'm using the ss-workflow-restrict-git-commands skill — destructive git operations require your explicit authorization."
 
 ## Hard Gates
 
@@ -69,13 +69,13 @@ If the harness has an interactive yes/no question tool, use it. Otherwise a plai
 
 ## Optional: Hard Enforcement (Claude Code only)
 
-This skill works via instruction — it commits you to a policy and trusts you to follow it. For users on Claude Code who want deterministic enforcement that doesn't rely on your compliance, this directory also ships a `PreToolUse` hook script at [`scripts/block-dangerous-git.sh`](scripts/block-dangerous-git.sh) — addressable via `$SUBLIME_SKILLS_HOME/skills/workflow/restrict-git-commands/scripts/block-dangerous-git.sh` — that intercepts and blocks the same commands at the harness level.
+This skill works via instruction — it commits you to a policy and trusts you to follow it. For users on Claude Code who want deterministic enforcement that doesn't rely on your compliance, this directory also ships a `PreToolUse` hook script at [`scripts/block-dangerous-git.sh`](scripts/block-dangerous-git.sh) — addressable via `$SUBLIME_SKILLS_HOME/skills/workflow/ss-workflow-restrict-git-commands/scripts/block-dangerous-git.sh` — that intercepts and blocks the same commands at the harness level.
 
 The hook and the skill are independent. Install both for belt-and-suspenders; install just the skill on harnesses that don't support hooks; install just the hook if you prefer hard enforcement without loading the skill.
 
 **Install (Claude Code only):**
 
-1. Copy `"$SUBLIME_SKILLS_HOME/skills/workflow/restrict-git-commands/scripts/block-dangerous-git.sh"` to `.claude/hooks/block-dangerous-git.sh` (project-scoped) or `~/.claude/hooks/block-dangerous-git.sh` (global).
+1. Copy `"$SUBLIME_SKILLS_HOME/skills/workflow/ss-workflow-restrict-git-commands/scripts/block-dangerous-git.sh"` to `.claude/hooks/block-dangerous-git.sh` (project-scoped) or `~/.claude/hooks/block-dangerous-git.sh` (global).
 2. Make it executable: `chmod +x <path>`.
 3. Add the hook to the matching `settings.json`:
 
