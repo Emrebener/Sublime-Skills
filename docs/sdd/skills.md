@@ -130,28 +130,54 @@ Preflight aborted.
 **Loaded:** by the coordinator at Stage 1
 **Stage:** 1
 
-**Purpose:** Interview the user to build shared understanding of what's being built. Output is in-memory, not on disk. `ss-sdd-writing-specs` renders it next.
+**Purpose:** Build shared understanding of what's being built through a four-phase conversation. Output is in-memory plus a structured end-of-stage summary in the agent's final message; nothing is written to disk in this stage. `ss-sdd-writing-specs` renders the spec next.
+
+**Four phases:**
+- **Phase 1 — Context:** load conventions, scope-check, classify work type (`feature` / `fix`)
+- **Phase 2 — Framing probe:** F1 driver, F2 alternatives, F3 substitute behavior, F4 concrete walkthrough — surfaces the implicit before requirements gathering
+- **Phase 3 — Targeted dimension walk:** every dimension in the 9-dimension coverage checklist ends with a stated answer (or signal-cited N/A); major decisions tagged as ADR candidates
+- **Phase 4 — Synthesis:** stop-and-summarize gate, section-by-section approval (with F1/F3 framing inline), final confirmation, structured end-of-stage summary
+
+**Cross-cutting rules (apply throughout Phases 2–4):**
+- CC-1 — Playback gate (paraphrase non-obvious implications)
+- CC-2 — Contradiction watch (surface and resolve conflicting answers)
+- CC-3 — Adjacent-scenario invitation (ask for a scenario *distinct* from F4 when a dimension is stuck)
+- CC-4 — Mid-conversation scope re-check (re-run Phase 1's scope check on added functionality)
 
 **Conversation rules:**
 - One question per message (no compound questions)
 - Multiple choice with a recommended answer preferred over open-ended when there are clear alternatives
-- Walk through dimensions: purpose, users, scope (in/out), success criteria, key entities, edge cases, constraints, integration
-- For non-obvious major decisions, propose 2-3 alternatives with reasoning; user picks
-- Skip dimensions already obvious from the user's initial description
-- Scope check: surface decomposition if the request describes multiple subsystems
+- Framing probes (F1–F4) skippable only under narrow explicit conditions
+- F2 forcing function: if user considered no alternatives, agent proposes 2–3 and tags the resolved decision as an ADR candidate immediately
 
-**Hard gate:** the skill writes NOTHING to disk. Output is the coordinator's understanding.
+**Hard gate:** the skill writes NOTHING to disk. Output is the coordinator's understanding plus the structured end-of-stage summary in the agent's final message.
 
-**Reads:** project context (via `discover-context.sh`), all that's relevant
+**Reads:** project context (via `discover-context.sh`)
 **Writes:** nothing
 
-**Section-by-section approval:** at the end, the skill summarizes back in sections (goal, users, scope, success, entities, edge cases, decisions). User approves each before moving on.
+**Section-by-section approval:** at the end, the skill summarizes back in sections (goal, users, scope, success, entities, edge cases, decisions). User approves each before moving on. The Goal section is framed with its F1 driver (and F3 substitute, when load-bearing) inline as a parenthetical.
+
+**Structured end-of-stage summary** (the agent's final message to the coordinator):
+
+```
+=== DISCOVERY SUMMARY ===
+short_name, work_type
+framing: driver, alternatives, substitute_behavior, walkthrough
+dimensions: purpose, users, scope_in, scope_out, success, entities, edge_cases, constraints, integration
+major_decisions: [{title, chosen, rejected, reasoning}]
+open_questions: [{question, default, disposition}]
+approved_sections
+=== END SUMMARY ===
+```
+
+The structure is for agent self-discipline and cleaner coordinator state; it is NOT a parse contract with Stage 2. No new dispatch parameters introduced — the summary populates existing in-memory carry and the existing `DECISIONS_CAPTURED` dispatch to Stage 6.
 
 **Common mistakes:**
-- Writing partial spec content during this stage (out of scope; ss-sdd-writing-specs handles it)
-- Open-ended questions when MCQ would work
-- Combining multiple questions into one message
-- Re-asking what an existing ADR already decided
+- Skipping framing probes without an explicit narrow skip condition
+- Free-form `N/A — doesn't apply` for a dimension (must cite a Phase 1 or Phase 2 signal)
+- Re-proposing decisions already resolved at F2
+- Advancing past the §4.1 stop-gate without being able to write the user/trigger/success/failure paragraph
+- Returning a free-form bullet list instead of the §4.4 structured summary
 
 ---
 
