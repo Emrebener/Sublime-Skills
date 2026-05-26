@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 6-skill set used to set up `.sublime-skills/config.yml` and project conventions (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 9-skill set (1 bootstrap coordinator + 1 audit coordinator + 7 per-artifact discovery skills) used to set up `.sublime-skills/config.yml` and the 7 project convention artifacts (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 7 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `coherence-check.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -31,12 +31,14 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 
 **Bootstrap (outside the SDD family — see `skills/project-bootstrap/` directory):**
 - `ss-bs-bootstrapping-project` — one-time project setup coordinator
-- `ss-bs-discovering-constitution` / `ss-bs-discovering-architecture` / `ss-bs-discovering-glossary` / `ss-bs-discovering-domain-model` / `ss-bs-discovering-design` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched)
+- `ss-bs-auditing-project` — sibling coordinator for re-evaluating already-bootstrapped projects (drift detection, prescriptive-by-default, per-stage commits)
+- `ss-bs-discovering-constitution` / `ss-bs-discovering-architecture` / `ss-bs-discovering-testing` / `ss-bs-discovering-glossary` / `ss-bs-discovering-domain-model` / `ss-bs-discovering-design` / `ss-bs-discovering-memory-file` — per-artifact inline conversational skills (loaded into the coordinator's context, not dispatched). All seven support an optional suggestion-pass (`SUGGEST=on`) and an audit mode (`MODE=audit`) used by the audit coordinator.
 
 **Shared scripts:**
 - `discover-context.sh` — find project convention files; reads paths from `.sublime-skills/config.yml`
 - `get-config-value.sh` — read a single scalar value from `.sublime-skills/config.yml`
 - `validate-config.sh` — validate `.sublime-skills/config.yml` structure + path resolution (used by both bootstrap and SDD coordinator)
+- `coherence-check.sh` — cross-artifact structural consistency check across the 7 bootstrap artifacts (invoked by `ss-bs-bootstrapping-project` at end of run and by `ss-bs-auditing-project` at start of run)
 - `validate-spec.sh` — schema-check a spec.md (incl. duplicate FR/SC ID detection)
 - `validate-plan.sh` — schema-check a plan.md (incl. duplicate T### detection)
 - `validate-handoff.sh` — schema-check a handoff doc (incl. unredacted-secret patterns)
@@ -789,18 +791,43 @@ Lives in `skills/project-bootstrap/`. Separate skill family from SDD because the
 
 **Workflow:**
 1. Run `discover-context.sh` to see what already exists.
-2. For each of constitution → architecture → glossary → domain → design: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `ss-bs-discovering-<topic>` skill inline. Each discovering-X skill handles its own code scan, user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
-3. Create `docs/adr/`, `docs/specs/` with stub READMEs.
-4. Copy `skills/project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`.
-5. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
-6. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
-7. Ensure `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` entries (Step 4 creates the file; this step appends any missing entries).
-8. Single commit `chore: initialize SDD project context`.
+2. Suggestion-pass opt-in switch: read `suggest.default` from config; if `ask`, ask the user once whether to also run the prescriptive suggestion pass (`SUGGEST=on`) or just document what exists (`SUGGEST=off`); the third option routes to `ss-bs-auditing-project` instead.
+3. For each of constitution → architecture → testing → glossary → domain → design → memory-file: detect → ask the user (Create if missing; Skip / Extend / Replace if present) → load the matching `ss-bs-discovering-<topic>` skill inline with `SUGGEST=on|off` from Step 2. Each discovering-X skill handles its own code scan, optional Step 1.5 diagnose (only if `SUGGEST=on`), user conversation, draft, tweak-loop (cap 3), and atomic write internally — the coordinator just records the outcome string and moves to the next file.
+4. Create `docs/adr/`, `docs/specs/` with stub READMEs.
+5. Copy `skills/project-bootstrap/scaffolds/config.yml` verbatim to `.sublime-skills/config.yml`. Sub-step 5a handles config migration: if an existing config lacks the new `testing_path` or `suggest:` block (pre-update bootstrap), prompt the user and add them with safe defaults.
+6. Edit config to reflect reality: any skipped convention file gets its `context.<name>_path` set to `null`.
+7. Run `validate-config.sh`; fix-and-retry loop (cap 3) until PASS.
+8. Run `coherence-check.sh` — surface findings verbatim with severity (CRITICAL / WARNING / INFO); user chooses Address / Acknowledge / Show. "Address" loops back into the relevant discovering-X skills in extend mode and re-runs coherence (cap 3 coherence loops).
+9. Ensure `.sublime-skills/.gitignore` contains both `state.json` and `config-local.yml` entries (Step 5 creates the file; this step appends any missing entries).
+10. Single commit `chore: initialize SDD project context`.
+11. Report and direct user to `ss-sdd-coordinator`.
 
 **Reads:** existing project files (via `discover-context.sh` + per-skill reads); EXISTING_CONTENT for extend/replace modes.
-**Writes:** opted-in convention files (written atomically by each discovering-X skill); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; `.sublime-skills/config-local.yml` (empty); `.sublime-skills/.gitignore` (with `state.json` and `config-local.yml` entries); one commit.
+**Writes:** opted-in convention files (written atomically by each discovering-X skill — up to 7: `docs/CONSTITUTION.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md`, and the agent memory file at `memory_file.path`); `docs/adr|specs/README.md` stubs; `.sublime-skills/config.yml`; `.sublime-skills/config-local.yml` (empty); `.sublime-skills/.gitignore` (with `state.json` and `config-local.yml` entries); one commit.
 
-### ss-bs-discovering-constitution / ss-bs-discovering-architecture / ss-bs-discovering-glossary / ss-bs-discovering-domain-model / ss-bs-discovering-design
+### ss-bs-auditing-project
+
+**Type:** Coordinator (inline; user-interactive)
+**Loaded:** manually by the user, OR from `ss-bs-bootstrapping-project`'s Step 2 third option (skip bootstrap and audit instead)
+**Stage:** N/A — re-run on an already-bootstrapped project
+
+**Purpose:** Re-evaluate an already-bootstrapped project for drift, incoherence, and improvement opportunities. Distinct from a bootstrap re-run: coherence runs FIRST (drives the per-stage loop), suggestion pass is always on, drift detection compares artifact vs current code state, commits are per-stage (not bundled).
+
+**Workflow:**
+1. Preflight — verify `.sublime-skills/config.yml` exists and validates; verify at least one artifact exists. If not, halt and redirect to `ss-bs-bootstrapping-project`.
+2. Run `coherence-check.sh` — surface findings verbatim; group by which discovering-X skill would fix each.
+3. Ask the user to pick scope: Fix top N stage-by-stage (Recommended) / I'll pick / Full audit / Skip — just wanted the report.
+4. Build the audit todo list (one item per chosen stage + final coherence re-check + summary).
+5. Per-stage loop: for each picked stage, load the matching `ss-bs-discovering-<topic>` skill with `MODE=audit, SUGGEST=on`. The skill runs its full audit flow (Step 1 scan + Step 1.5 diagnose + Step 1.6 drift check + Step 2 announce + Step 3 Q0 → Q1 → Q1.5 → … + Step 4 draft + Step 5 refine + Step 6 atomic write). On `audited (changes made)`, commit immediately as `audit: update <basename> — <one-line summary>`. On `audited (no changes)` or `skipped`, no commit; just record in the summary.
+6. Run `coherence-check.sh` again; compare to Step 2 findings (resolved / still outstanding / new).
+7. Surface the summary report (conversation-only; never persisted to disk).
+
+**Reads:** `.sublime-skills/config.yml`; existing artifacts at configured paths; current code state (via per-skill drift checks).
+**Writes:** updated convention files (one per stage that produced changes); one commit per stage updated.
+
+**Why a separate coordinator:** audit's flow differs meaningfully from bootstrap (coherence-first, per-stage commits, prescriptive-by-default, no config-copy / dir-creation steps). Combining them into one skill would mean many `if audit` branches. The sibling skill structure is cleaner; both share the same 7 per-file discovery skills via the `MODE=audit` value.
+
+### ss-bs-discovering-constitution / ss-bs-discovering-architecture / ss-bs-discovering-testing / ss-bs-discovering-glossary / ss-bs-discovering-domain-model / ss-bs-discovering-design / ss-bs-discovering-memory-file
 
 **Type:** Inline conversational skills
 **Loaded:** by `ss-bs-bootstrapping-project` into its own context when the per-file loop reaches each slot
@@ -812,23 +839,25 @@ Lives in `skills/project-bootstrap/`. Separate skill family from SDD because the
 |---|---|---|---|
 | `ss-bs-discovering-constitution` | README, CONTRIBUTING, linter/formatter/CI configs, source patterns, security-relevant files | Confirm candidate principles → set MUST/SHALL/SHOULD severity → add intent principles code can't reveal | 3-7 MUST/SHALL/SHOULD principles with one-line rationales each |
 | `ss-bs-discovering-architecture` | Top-level dirs, build files, entry points, infra config (Docker/k8s/terraform), `.env.example` | Confirm component grouping → declare out-of-scope → confirm env-var-only integrations → add non-code facts → resolve cardinality | System summary, Components, Runtime topology, Data stores, External integrations, Boundaries (no diagrams) |
+| `ss-bs-discovering-testing` | Test dirs, runner configs, CI test commands, coverage tooling, mocking patterns, fixtures | Confirm test categories → canonical test commands → mocking philosophy → fixture/factory location. New-project mode: starter-strategy Q&A when no tests exist yet | Test categories, Runner & framework, Coverage, Mocking philosophy, Fixtures & factories, Conventions |
 | `ss-bs-discovering-glossary` | Source identifiers (class/table/route names), inline definitions in comments, README | Pick which ≤30 terms make the cut → declare aliases / multi-naming → refine definitions during tweak loop | 10-30 alphabetical terms, each ≤2 sentences |
 | `ss-bs-discovering-domain-model` | DB schemas/migrations, model/type definitions, test fixtures, state-machine code | Pick which ≤15 entities are load-bearing → confirm lifecycles → resolve cardinality → add workflow exceptions | 3-15 entities with conceptual attributes, relationships (with cardinality), lifecycles (no diagrams) |
 | `ss-bs-discovering-design` | Tailwind config, CSS custom properties, theme/token files, `components/`, design-system deps in `package.json` | (Build path) Confirm vibe / theme intent → set color role rules → confirm component vocabulary → state do's-and-don'ts. (Import path) Verify + preview + confirm a user-supplied file. | Design system: theme, colors, typography, spacing, surfaces, components, do's & don'ts |
+| `ss-bs-discovering-memory-file` | The 6 other artifacts (just written), README first paragraph, run commands from package.json/Makefile/justfile/Taskfile/pyproject | Step 0 detect target file (CLAUDE.md / AGENTS.md / GEMINI.md / .agents.md) → which canonical sections → confirm pointers → free-form conventions → confirm NEVER/MUST list (seeded from constitution) | Project conventions, Domain vocabulary (3-5 + GLOSSARY.md pointer), NEVER/MUST (seeded from constitution), Pointers (linkdump), Commands |
 
-All five skills support `create` / `extend` / `replace` modes from the coordinator. Each enforces hard caps (no diagrams; length limits where applicable; codebase-evidence OR explicit user input for every proposition; ALWAYS uses the harness question tool; one question per turn; multi-choice with recommended options when possible; no external-authority citations).
+All seven skills support `create` / `extend` / `replace` / `audit` modes from the coordinator (audit is used only by `ss-bs-auditing-project`). When invoked with `SUGGEST=on`, each runs an additional Step 1.5 (silent diagnose) and surfaces a Q1.5 question proposing evidence-cited additions to the artifact. Accepted suggestions land with a provenance marker that audit re-evaluates on later runs. Each enforces hard caps (no diagrams; length limits where applicable; codebase-evidence OR explicit user input for every proposition; ALWAYS uses the harness question tool; one question per turn; multi-choice with recommended options when possible; no external-authority citations).
 
 **Outcome strings** reported back to the coordinator:
-- `created` (or for design: `created via build` / `created via import from <path>`)
+- `created` (or for design: `created via build` / `created via import from <path>`; or for testing: `created via new-project starter` when scan found <2 tests)
 - `extended`
 - `replaced`
+- `audited (changes made)` — audit mode only
+- `audited (no changes)` — audit mode only
 - `skipped (declined mid-skill)`
 
-**Why inline (not subagent):** Each convention file mixes code-derivable signal (extractable in one pass) with user-held intent (only drawable out conversationally — which principles matter, which terms are load-bearing, which boundaries are deliberate, what the vibe is). A dispatched subagent returns once and dies; it can't have the back-and-forth needed for the second half. Routing the conversation through the coordinator (subagent returns findings → coordinator paraphrases → user replies → coordinator re-dispatches) wastes turns and drifts intent. So all five stay inline.
+**Why inline (not subagent):** Each convention file mixes code-derivable signal (extractable in one pass) with user-held intent (only drawable out conversationally — which principles matter, which terms are load-bearing, which boundaries are deliberate, what the vibe is). A dispatched subagent returns once and dies; it can't have the back-and-forth needed for the second half. Routing the conversation through the coordinator (subagent returns findings → coordinator paraphrases → user replies → coordinator re-dispatches) wastes turns and drifts intent. So all seven stay inline.
 
-**Writes:** `docs/DESIGN.md` (or `context.design_path` if overridden) directly — `ss-bs-bootstrapping-project` skips its usual Discuss / Write steps for this file.
-
-**Outcomes reported to coordinator:** `created via import from <path>` / `created via build` / `extended via build` / `replaced via build` / `skipped (declined mid-skill)`.
+**Writes:** each skill writes its own target file directly via atomic `<path>.tmp` + `mv` (`docs/CONSTITUTION.md`, `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md`, or the resolved memory-file path) — `ss-bs-bootstrapping-project` and `ss-bs-auditing-project` don't intervene in the per-file Draft / Write steps.
 
 ---
 
@@ -845,6 +874,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
 |---|---|---|
 | `constitution` | `context.constitution_path` | scalar; null = not used |
 | `architecture` | `context.architecture_path` | scalar; null = not used |
+| `testing` | `context.testing_path` | scalar; null = not used |
 | `glossary` | `context.glossary_path` | scalar; null = not used |
 | `domain` | `context.domain_path` | scalar; null = not used |
 | `design` | `context.design_path` | scalar; null = not used |
@@ -867,6 +897,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
   "config_local": ".sublime-skills/config-local.yml" | null,
   "constitution": "docs/CONSTITUTION.md" | null,
   "architecture": "docs/ARCHITECTURE.md" | null,
+  "testing": "docs/TESTING.md" | null,
   "glossary": "docs/GLOSSARY.md" | null,
   "domain": null,
   "design": "docs/DESIGN.md" | null,
@@ -924,6 +955,28 @@ Examples:
 - `3` — usage error
 
 **Limitations:** scalars only, no lists, no nested objects, no multi-line block scalars. This script owns the awk-based YAML extractor that all other config-reading scripts (notably `discover-context.sh`) delegate to. For complex YAML, skills use a proper parser.
+
+### coherence-check.sh
+
+**Location:** `skills/spec-driven-development/framework/coherence-check.sh`
+**Purpose:** Run Tier 1 structural / pointer checks across the 7 bootstrap artifacts. Invoked by `ss-bs-bootstrapping-project` at end of run (Step 8) and by `ss-bs-auditing-project` at start of run (Step 2).
+
+**Checks:**
+- Every `.md` link in any artifact resolves to an existing file → CRITICAL on miss
+- Memory file Pointers section lists every existing artifact → WARNING on miss
+- Every DOMAIN.md entity is defined in GLOSSARY.md → WARNING
+- Every architecture component is mentioned in TESTING.md → INFO
+- Constitution principles citing evidence files → those files exist → CRITICAL on miss
+- Constitution principles don't contradict each other (heuristic: MUST throw vs MUST use Result) → WARNING
+- Suggestion-pass provenance markers older than 6 months → INFO (informational, supports audit)
+
+**Output format:** one block per finding (severity, title, context, fix) on stdout; final summary line `coherence-check: N findings (X CRITICAL, Y WARNING, Z INFO)` or `coherence-check: PASS (0 findings)`.
+
+**Exit codes:** 0 (no findings), 1 (findings present), 2 (config not found), 3 (usage error), 4 (internal error — python3 missing or YAML unparseable).
+
+**Requires:** python3 + PyYAML (no awk fallback; coherence parsing needs accurate YAML handling).
+
+**Findings are surfaced verbatim to the user** by the invoking coordinator (bootstrap or audit) — never summarized. The user decides how to act: Address findings now (loops back into the relevant discovery skills in extend mode), Acknowledge and commit/proceed as-is, or Show details for one finding. Address is capped at 3 coherence loops to prevent stubborn findings from trapping the user.
 
 ### validate-spec.sh
 
@@ -1033,9 +1086,21 @@ project-bootstrap family (outside SDD pipeline; user-invoked manually)
 │       ↓ loads inline (one per convention file, sequential):
 │   ├── ss-bs-discovering-constitution   (inline, conversational)
 │   ├── ss-bs-discovering-architecture   (inline, conversational)
+│   ├── ss-bs-discovering-testing        (inline, conversational)
 │   ├── ss-bs-discovering-glossary       (inline, conversational)
 │   ├── ss-bs-discovering-domain-model   (inline, conversational)
-│   └── ss-bs-discovering-design         (inline, conversational — Import path or Build path)
+│   ├── ss-bs-discovering-design         (inline, conversational — Import path or Build path)
+│   └── ss-bs-discovering-memory-file    (inline, conversational)
+│
+└── ss-bs-auditing-project (coordinator — sibling; re-run on bootstrapped projects)
+        ↓ loads inline (per picked stage, with MODE=audit SUGGEST=on):
+    ├── ss-bs-discovering-constitution   (inline, conversational)
+    ├── ss-bs-discovering-architecture   (inline, conversational)
+    ├── ss-bs-discovering-testing        (inline, conversational)
+    ├── ss-bs-discovering-glossary       (inline, conversational)
+    ├── ss-bs-discovering-domain-model   (inline, conversational)
+    ├── ss-bs-discovering-design         (inline, conversational — Import path or Build path)
+    └── ss-bs-discovering-memory-file    (inline, conversational)
 ```
 
 ---
