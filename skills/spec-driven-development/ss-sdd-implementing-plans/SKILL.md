@@ -55,18 +55,18 @@ Do NOT make subagents re-read the plan file. You pass them the full text inline.
 
 ## Step 2: Initialize or Sync State and Todos
 
-**Read the current `state.json` first** — this skill runs on both fresh starts and resumes, and resume state MUST be preserved.
+**Read the current `state.json` first.** Step 2 is idempotent on entry: if `state.tasks` is already populated (e.g., a prior iteration of this skill ran in the same conversation), preserve it; if not, initialize it from the plan.
 
 ### 2a. Sync the tasks map
 
 Compare the plan's task list (T001, T002, ...) against `state.tasks`:
 
-- **If `state.tasks` is empty or absent** → fresh start. Initialize every task as `"pending"`.
-- **If `state.tasks` has entries** → resume. **Do NOT overwrite existing statuses.** Apply this merge:
+- **If `state.tasks` is empty or absent** → initialize every task as `"pending"`.
+- **If `state.tasks` has entries** → **do NOT overwrite existing statuses.** Apply this merge:
   - For each task in the plan: if it already has a status in `state.tasks`, keep it. If not, add it as `"pending"`.
   - For any key in `state.tasks` that's no longer in the plan (rare — usually only if the plan was re-rendered with renumbered tasks): leave it alone but log a warning to the controller's report ("orphan task in state").
 
-Resulting tasks map example on resume:
+Resulting tasks map example with mid-stage state preserved:
 
 ```json
 "tasks": {
@@ -89,12 +89,12 @@ Match each new todo's initial status to `state.tasks`: `completed` / `in_progres
 
 ### 2c. Pick the starting task
 
-- If any task is `"in_progress"`: that's where the prior session was interrupted. **Re-dispatch from the start of that task** (the implementer is a fresh subagent; partial work is either committed or lost — re-running from scratch is safe).
+- If any task is `"in_progress"`: that's the task the previous implementer subagent was working on before it died (returned BLOCKED, was interrupted by the user, etc.). **Re-dispatch from the start of that task** — the implementer is a fresh subagent; partial work is either committed or lost, so re-running from scratch is safe.
 - Otherwise: start with the first `"pending"` task in plan order.
 
 ## Step 3: Per-Task Loop
 
-Starting from the task identified by Step 2c (either the in-progress task on resume, or the first pending task on a fresh start), iterate forward in plan order. **Skip any task already marked `"completed"`** in `state.tasks` — do not re-run them.
+Starting from the task identified by Step 2c, iterate forward in plan order. **Skip any task already marked `"completed"`** in `state.tasks` — do not re-run them.
 
 For each task in order:
 

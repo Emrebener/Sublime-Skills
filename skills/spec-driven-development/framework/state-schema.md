@@ -61,7 +61,7 @@ These are absent from the preflight shell and become required once `ss-sdd-writi
 |---|---|---|---|
 | `plan_path` | string | Stage 8 | Repo-relative path to `plan.md`. |
 | `adr_results` | array of objects | Stage 6 | `[{ "id": "ADR-NNNN", "title": string, "status": "Proposed"|"Accepted"|..., "path": string }, ...]`. Empty array if no ADRs created. |
-| `branch_name` | string | Stage 12 | The branch the user committed to at Stage 12. Read by Stage 17 (`ss-sdd-finishing`) to know which branch to merge into `main` and delete. Survives a restart between Stages 12 and 17. |
+| `branch_name` | string | Stage 12 | The branch the user committed to at Stage 12. Read by Stage 17 (`ss-sdd-finishing`) to know which branch to merge into `main` and delete. |
 | `test_status` | string | Stage 14 | One of: `passed`, `passed_after_fixes`, `skipped_mcp_unavailable`, `skipped_user_choice`, `failed_escalated`, or `null` if Stage 14 hasn't run. |
 | `fix_iterations` | integer | Stage 14 | How many test-fix iterations ran (0-3). |
 | `final_review_completed` | boolean | After Stage 13 final review | Set `true` by `ss-sdd-implementing-plans` when the cross-cutting final code-quality review passes. |
@@ -132,7 +132,7 @@ mv state.json.tmp state.json
 
 Atomicity matters: a half-written `state.json` is unrecoverable. The `mv` is atomic on POSIX filesystems (within the same filesystem); the `.tmp` file ensures partial writes never replace the previous state.
 
-## Reference example (mid-implementation, resume case)
+## Reference example (mid-implementation snapshot)
 
 This is a typical state during Stage 13 with 3 tasks done, 1 in progress, 3 pending:
 

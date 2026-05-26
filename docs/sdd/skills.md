@@ -55,7 +55,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 **Loaded:** by the user at the start of every SDD session
 **Stage:** drives all 18 stages
 
-**Purpose:** The single entry point. Reads `.sublime-skills/config.yml` (via preflight) and walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary. On a fresh user invocation it starts at Stage 0; on re-entry within the same conversation it picks up from `current_stage` (the LLM uses conversation context — there's no test-and-ask resume ceremony).
+**Purpose:** The single entry point. Reads `.sublime-skills/config.yml` (via preflight) and walks the pipeline. Loads phase-skills inline when they're inline-driven; dispatches subagents in fresh context when they're subagent-driven. Updates the state file at every stage boundary. A run starts at Stage 0 and advances through stages within a single conversation — conversation context tells the coordinator where it is, and the state file is the data-carrier between stages and the orchestration record for per-task subagents, not a resume mechanism.
 
 **Key rules:**
 - Never advances past a user-approval gate (Stages 7, 11) without explicit user yes
@@ -279,7 +279,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 **After each accepted answer:**
 1. Append `- Q: ... → A: ...` to the Clarifications log section (created if missing) — always, regardless of body-edit disposition
 2. Pick a disposition: **Substantive change** (edit the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
-3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; per-answer save is what lets a resumed grill pick up cleanly
+3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; atomic per-answer writes keep each answer durable on its own
 4. Move to next question
 
 **Stop conditions:**
@@ -470,7 +470,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 **Continuous execution:** no pausing between tasks for human check-in. Only stops on BLOCKED, cap hit, plan-is-wrong, or all-tasks-complete.
 
-**Resume safety:** on entry, the skill reads existing `state.tasks` and merges with the plan's task list — **never overwrites** existing `completed` / `in_progress` statuses. Starts from the first `in_progress` task (re-dispatching from scratch, which is safe since the implementer is a fresh subagent and partial work is either committed or lost) or the first `pending` task if none in-progress. Completed tasks are skipped.
+**Idempotent on entry:** the skill reads existing `state.tasks` and merges with the plan's task list — **never overwrites** existing `completed` / `in_progress` statuses. Starts from the first `in_progress` task (its prior implementer subagent died before reporting completion; re-dispatching is safe since the implementer is a fresh subagent and partial work is either committed or lost) or the first `pending` task if none in-progress. Completed tasks are skipped.
 
 **Per-task state updates:**
 - At task start: `tasks[T###]: "in_progress"` (atomic write)

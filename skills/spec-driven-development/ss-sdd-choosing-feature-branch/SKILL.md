@@ -14,7 +14,7 @@ Stage 12 of the SDD pipeline. By this point the spec, plan, and ADRs have all be
 3. Batch-commits the SDD planning artifacts in two thematic, path-scoped commits.
 4. Persists `branch_name` into the state file so Stage 17 (`ss-sdd-finishing`) can merge and delete it.
 
-After this skill, the pipeline resumes normal per-stage commits in Stage 13 (implementation) and beyond. At Stage 17, the branch chosen here will be merged into `main` (no-ff) and deleted.
+After this skill, the pipeline returns to normal per-stage commits in Stage 13 (implementation) and beyond. At Stage 17, the branch chosen here will be merged into `main` (no-ff) and deleted.
 
 **Core principle:** One opinionated workflow, not a buffet. Auto-decide whenever the situation is unambiguous; prompt only when it isn't.
 
@@ -99,7 +99,7 @@ Apply this rule in order:
 
 ### Case A — `CURRENT == SUGGESTED` (already on the derived branch)
 
-Stay silently. The user is either resuming after an interrupted run or deliberately building on top of an earlier partial implementation. No prompt, no checkout. Proceed to Step 3.
+Stay silently. The user is deliberately building on top of an earlier partial implementation on this branch. No prompt, no checkout. Proceed to Step 3.
 
 ### Case B — `CURRENT == "main"` (the happy path)
 
@@ -185,9 +185,9 @@ git commit -m "docs(adr): N decisions for <FEATURE_ID>"
 
 If either commit fails:
 
-- **Hook rejection / signing failure / missing identity:** ABORT with `commit_failed`. Show the error verbatim. The user fixes the underlying issue and re-invokes the coordinator (which can resume from Stage 12 since the state file is on disk; `stages_completed` does NOT yet include `branch_chosen`).
+- **Hook rejection / signing failure / missing identity:** ABORT with `commit_failed`. Show the error verbatim. The user fixes the underlying issue and tells the coordinator to continue — Stage 12 re-runs because `branch_chosen` isn't yet in `stages_completed`.
 - **NEVER bypass with `--no-verify`, `--no-gpg-sign`, or amend the previous commit.** Per the Commit Failure Protocol in `ss-sdd-coordinator`.
-- **NEVER amend.** If Commit 1 succeeds but Commit 2 fails, the partial commit stays in git. Fix the underlying issue and re-invoke the coordinator; it routes back to Stage 12 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
+- **NEVER amend.** If Commit 1 succeeds but Commit 2 fails, the partial commit stays in git. Fix the underlying issue and tell the coordinator to continue; it routes back to Stage 12 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
 
 ## Step 4: Update State and Return to Coordinator
 
@@ -229,14 +229,14 @@ ss-sdd-choosing-feature-branch aborted.
 - Message: <user-facing message>
 ```
 
-The coordinator surfaces the abort to the user and exits the pipeline. `.sublime-skills/state.json` on disk reflects whatever stage Step 4 reached; resuming the coordinator picks up at Stage 12 again.
+The coordinator surfaces the abort to the user and halts the pipeline. `.sublime-skills/state.json` on disk reflects whatever stage Step 4 reached; continuing the coordinator re-runs Stage 12 (because `branch_chosen` isn't yet in `stages_completed`).
 
 ## Common Mistakes
 
 | Mistake | Fix |
 |---|---|
 | Prompting the user when on `main` and the derived branch doesn't exist | NEVER — that's the silent happy path; just `git checkout -b`. |
-| Prompting when already on the derived branch | NEVER — silent stay; that's the resume / build-on-top path. |
+| Prompting when already on the derived branch | NEVER — silent stay; that's the build-on-top path. |
 | Skipping the merge+delete warning text in the Case C prompt | NEVER — the warning is the only safeguard against deleting `develop` (or similar) at Stage 17. |
 | Forgetting to persist `branch_name` to state | Stage 17 reads it; without it, the merge target is unknown. |
 | Using `git add .` or `git add -A` | NEVER — only path-scoped adds. The user has pre-existing dirty files that must stay untouched. |

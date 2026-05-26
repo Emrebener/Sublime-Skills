@@ -1,6 +1,6 @@
 # Spec-Driven Development (SDD) — Documentation
 
-A reliable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 21 coordinated skills (ss-sdd-coordinator + 20 phase/subagent skills) plus 6 shared scripts and 2 state-schema files. A per-feature state file makes interrupted runs resumable within the same conversation.
+A reliable, AI-friendly workflow for taking a feature idea from rough description to implemented code, with an 18-stage pipeline driven by 21 coordinated skills (ss-sdd-coordinator + 20 phase/subagent skills) plus 6 shared scripts and 2 state-schema files. A per-feature state file carries data between stages and coordinates the per-task subagents at Stage 13.
 
 This document set is the canonical reference. The skill files under `skills/spec-driven-development/<skill>/SKILL.md` are the operational specs that the AI executes; these docs are the human-readable explanations of how everything fits together.
 
@@ -26,7 +26,7 @@ finishing (`git merge --no-ff` to `main`, safe-delete the feature branch, `rm` s
 
 Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + per-task spec-compliance review + per-task code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
 
-Interrupted runs are resumable inside the same conversation: a single global state file at `.sublime-skills/state.json` tracks current stage and per-task progress. It's permanently gitignored — local-only orchestration metadata, created by Stage 2 and deleted by Stage 17. The coordinator checks for an existing state file on every invocation and offers to resume.
+A single global state file at `.sublime-skills/state.json` carries data between stages — the structured outputs each subagent writes back (ADR list, handoff path, per-task statuses, etc.) and the per-task coordination record `ss-sdd-implementing-plans` shares with its implementer subagents. It's permanently gitignored — local-only orchestration metadata, created by Stage 0 (preflight) as a minimal shell and deleted by Stage 17 (finishing). Not a resume mechanism: SDD runs end-to-end in one conversation.
 
 ---
 
@@ -35,7 +35,7 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 1. **[pipeline.md](pipeline.md)** — every stage of the 18-stage pipeline explained in detail. Inputs, outputs, mechanism (inline vs subagent), failure handling.
 2. **[skills.md](skills.md)** — reference for all 21 skills, the 6 shared scripts, and the canonical state schema. What each one does, when it's invoked, what it reads, what it writes.
 3. **[artifacts.md](artifacts.md)** — full format specifications for every artifact: spec, plan, ADRs, handoff document. With templates and worked examples.
-4. **[state-and-config.md](state-and-config.md)** — state file schema (every field, who owns it), resume protocol, the `.sublime-skills/config.yml` schema with all defaults and overrides.
+4. **[state-and-config.md](state-and-config.md)** — state file schema (every field, who owns it), lifecycle, the `.sublime-skills/config.yml` schema with all defaults and overrides.
 5. **[operations.md](operations.md)** — subagent dispatch mechanics, validation scripts, project conventions (TDD discipline, `[NO-TDD]` criteria, diagram prohibitions), and troubleshooting common issues.
 6. **[rationale.md](rationale.md)** — design rationale. Why a thin coordinator + many skills, why no external dependencies, why abort-only preflight, comparisons to spec-kit/brainstorming/kiro.
 
@@ -66,7 +66,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 9. Update the memory file if applicable
 10. Merge the feature branch into `main` with `--no-ff` and safe-delete it on success (local only — no push)
 
-**Resuming an interrupted run:** just invoke `ss-sdd-coordinator` again. It checks for an existing state file at the start of every invocation and asks whether to resume.
+**If a stage halts mid-run** (e.g., Stage 12 batch-commit hook rejection, Stage 17 merge conflict): the coordinator surfaces the error verbatim and leaves the state file in place. Fix the underlying issue, then tell the coordinator to continue — Stage 12 and Stage 17 are both idempotent on the second pass. Cross-conversation resume is NOT supported: if you start a new conversation, any leftover state file is treated as orphan and removed by preflight.
 
 ---
 
@@ -121,7 +121,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 ## Key design properties at a glance
 
 - **Self-contained.** No runtime dependencies on external skill families (superpowers, kiro, spec-kit, etc.).
-- **Resumable.** A gitignored state file at `.sublime-skills/state.json` lets an interrupted conversation pick up where it left off (re-invoke `ss-sdd-coordinator`; it offers to resume).
+- **In-conversation only.** SDD runs end-to-end inside a single conversation; conversation context tells the coordinator where it is. The gitignored state file at `.sublime-skills/state.json` is the data-carrier between stages and the orchestration record for per-task subagents — not a resume mechanism.
 - **Coordinator is thin.** It's a state machine + dispatcher; all real work lives in dedicated phase-skills or subagents.
 - **Fresh context per task.** Per-task implementation uses fresh subagents (implementer + 2 reviewers). The coordinator's context stays clean.
 - **Abort-fast preflight.** No magic cleanup. If the repo isn't in a fit state, the user fixes it manually.

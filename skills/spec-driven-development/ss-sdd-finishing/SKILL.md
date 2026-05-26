@@ -24,7 +24,7 @@ No push, no PR, no test re-run. Push is the user's call; tests already ran (or w
 
 - Do NOT proceed if `state.stages_completed` doesn't contain `implementation_complete`
 - Do NOT proceed if the state file is malformed or unreadable
-- Do NOT `rm` the state file until the merge succeeds and the branch is safely deleted. If the merge halts, state stays so the coordinator can resume.
+- Do NOT `rm` the state file until the merge succeeds and the branch is safely deleted. If the merge halts, state stays so Stage 17 can be re-run after the user resolves the issue.
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - NEVER use `git branch -D` (force-delete). Always `git branch -d` (safe-delete) — if it refuses, the branch isn't fully merged and we need to investigate, not destroy.
 - NEVER `git push`, `gh pr create`, or any remote operation. Local-only by design.
@@ -100,7 +100,7 @@ BRANCH=$(jq -r '.branch_name' .sublime-skills/state.json)
 git checkout main
 ```
 
-If `git checkout main` fails (e.g., working-tree conflicts with the user's dirty files, or `main` doesn't exist locally): halt, surface the error verbatim, leave the state file in place. The user resolves manually and re-invokes the coordinator.
+If `git checkout main` fails (e.g., working-tree conflicts with the user's dirty files, or `main` doesn't exist locally): halt, surface the error verbatim, leave the state file in place. The user resolves manually and tells the coordinator to continue.
 
 ```bash
 git merge --no-ff "$BRANCH" -m "Merge branch '$BRANCH'"
@@ -112,10 +112,10 @@ If the merge exits non-zero (conflicts, hook rejection, signing failure):
 
 - **Halt.** Surface git's stdout/stderr verbatim.
 - **Do NOT delete the branch.** Do NOT `git merge --abort` automatically — that throws away the user's diagnostic context. Leave the working tree as-is.
-- **Do NOT `rm` the state file.** State stays so re-invocation resumes Stage 17.
-- Tell the user: resolve the conflict (or hook failure) and complete the merge commit yourself, then re-invoke the coordinator. Or `git merge --abort` and investigate, then re-invoke.
+- **Do NOT `rm` the state file.** State stays so Stage 17 can be re-run after the user resolves the issue.
+- Tell the user: resolve the conflict (or hook failure) and complete the merge commit yourself, then ask the coordinator to continue. Or `git merge --abort` and investigate, then continue.
 
-### Resume idempotence
+### Idempotent re-run after a manual fix
 
 Re-running Stage 17 after a manually-completed merge:
 
@@ -163,7 +163,7 @@ After deletion: SDD run is done. You're on `main`, the merge commit is in histor
 
 | Mistake | Fix |
 |---|---|
-| `rm`ing the state file before the merge succeeds | NEVER — state stays so resume works on merge failure. |
+| `rm`ing the state file before the merge succeeds | NEVER — state stays so Stage 17 can be re-run after a merge failure. |
 | Re-running the test suite | NEVER — Stage 14 (feature testing) was the test gate. |
 | Asking the user whether to merge / delete / leave | NEVER — the workflow is opinionated; the only prompt is the "tests aren't passing, finish anyway?" gate at Step 1. |
 | Using `git branch -D` (force-delete) | NEVER. `-d` (safe) only. If it refuses, halt; don't destroy. |
@@ -176,7 +176,7 @@ After deletion: SDD run is done. You're on `main`, the merge commit is in histor
 
 ## Red Flags
 
-- About to `rm` the state file before confirming the merge succeeded → STOP; state survives merge failures so the next run resumes
+- About to `rm` the state file before confirming the merge succeeded → STOP; state survives merge failures so Stage 17 can be re-run
 - About to type `git branch -D` → STOP; use `-d` (safe-delete)
 - About to `git merge --abort` automatically → STOP; surface conflict and leave the tree
 - About to `git push` or `gh pr create` → STOP; local-only

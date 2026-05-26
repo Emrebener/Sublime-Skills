@@ -1,6 +1,6 @@
 # State and Configuration
 
-This document covers two things that aren't artifacts in the user-facing sense but are critical to the pipeline working: the per-feature **state file** that tracks pipeline progress and enables resumption, and the per-repo `.sublime-skills/config.yml` **configuration file** that lets users override defaults.
+This document covers two things that aren't artifacts in the user-facing sense but are critical to the pipeline working: the per-feature **state file** that carries data between stages and coordinates subagents, and the per-repo `.sublime-skills/config.yml` **configuration file** that lets users override defaults.
 
 ---
 
@@ -8,7 +8,7 @@ This document covers two things that aren't artifacts in the user-facing sense b
 
 ### What it is
 
-A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds the orchestration record the coordinator and per-task subagents share within a conversation. Cross-conversation resume is not supported; any leftover state file from a dead prior conversation is silently removed by preflight at the next fresh run.
+A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds the orchestration record the coordinator and per-task subagents share within a conversation, plus the structured outputs each subagent writes back (ADR list, handoff path, per-task statuses, etc.). It is NOT a resume mechanism — SDD runs end-to-end inside a single conversation, where conversation context tells the coordinator where it is. Any leftover state file from a dead prior conversation is silently removed by preflight at the next fresh run.
 
 ### Lifecycle
 
@@ -23,7 +23,7 @@ A JSON file at `.sublime-skills/state.json` — a single global file representin
 | 14 (Testing) | Updated with `test_status` and `fix_iterations`. No state commit. |
 | 15 (Handoff) | Updated with `handoff_path`. No state commit. |
 | 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. No state commit (memory file itself is committed if updated). |
-| 17 (Finishing) | Read for `branch_name`. Stage 17 runs `git checkout main && git merge --no-ff $branch_name && git branch -d $branch_name` (halt on any failure; state stays for resume). On success, state.json is **deleted** via plain `rm`. No commit. |
+| 17 (Finishing) | Read for `branch_name`. Stage 17 runs `git checkout main && git merge --no-ff $branch_name && git branch -d $branch_name` (halt on any failure; state stays so the user can re-run Stage 17 after resolving). On success, state.json is **deleted** via plain `rm`. No commit. |
 
 ### Atomic write pattern
 
@@ -50,7 +50,7 @@ See `framework/state-schema.md` for:
 - Field types and enum values
 - Field ownership (who writes what, when)
 - Full Stage Name Mapping table including `stages_skipped` enum
-- Reference example (mid-implementation resume case)
+- Reference example (mid-implementation snapshot)
 
 Worked examples in this document are still accurate; if you spot drift, file it as a bug against `framework/state-schema.md` first.
 
@@ -78,47 +78,23 @@ From Stage 13 onward, commits happen per stage by the active skill, alongside th
 
 The planning artifacts (spec.md, plan.md, ADRs) still need protection through Stages 2-11 — they're untracked, so the same `git stash` / `git checkout` warning applies to them.
 
-### Resume protocol
+### Why the file exists
 
-The coordinator's first action on every invocation is `[ -f .sublime-skills/state.json ]`:
+SDD runs end-to-end inside one conversation. The coordinator never "exits and re-enters" — conversation context already tells it which stage it's in. So the state file is not a resume mechanism. It exists for two concrete reasons:
 
-**Missing** — fresh start. Confirm intent ("Start a new feature?") and proceed to Stage 0.
+1. **Subagent orchestration.** Dispatched subagents (reviewers, ADR maintainer, per-task implementers, tester, handoff writer, memory-file maintainer) die after they return. The coordinator records each subagent's structured outputs into state (`adr_results`, `tasks` transitions, `handoff_path`, `memory_file_*`, `reviewer_pushbacks`, etc.) so later stages and later subagents see them.
+2. **Per-task coordination at Stage 13.** Each task is a fresh implementer subagent. The `tasks` map is how `ss-sdd-implementing-plans` decides which task to dispatch next: a task at `"in_progress"` (its subagent died before reporting completion) is re-dispatched from the start; `"pending"` tasks run in plan order; `"completed"` tasks are skipped.
 
-**Found** — verify referenced files still exist (the state's `spec_path` and `plan_path` under `docs/specs/<feature_id>/`); if any are missing, prompt the user to discard state or abort. Otherwise ask "Resume `<feature_id>` at `<current_stage>`?". On yes, jump to the appropriate stage based on `current_stage`. On no, prompt "Discard this state and start fresh, or abort?" — discard runs `rm .sublime-skills/state.json` then proceeds to Stage 0; abort halts.
+That's the whole purpose. Cross-conversation resume, cross-machine recovery, multi-user handoff, and recovery from destructive git operations are explicitly out of scope.
 
-The state file is in-session orchestration record-keeping. It enables resuming an interrupted run when the user re-invokes `ss-sdd-coordinator` shortly after. It is not designed for cross-machine recovery, multi-user handoff, or recovery from arbitrary destructive git operations.
+### Halt-and-continue cases
 
-### Mid-stage interruption
+Two stages can halt the pipeline mid-run after partially modifying the working tree, in which case state stays on disk so the user can resolve the underlying issue and tell the coordinator to continue:
 
-The coordinator's `current_stage` field indicates the stage that's IN PROGRESS. After completion, it advances to the next stage and adds the completion marker to `stages_completed`.
+- **Stage 12 (`ss-sdd-choosing-feature-branch`) — commit failure.** Hook rejection, signing failure, missing identity. State has `current_stage: "choosing_branch"` and `branch_chosen` is NOT yet in `stages_completed`, so continuing re-runs Stage 12.
+- **Stage 17 (`ss-sdd-finishing`) — merge failure.** Merge conflict, hook rejection, or signing failure on the merge commit. The skill leaves the working tree as-is and does NOT delete the state file; continuing re-runs Stage 17, which is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date").
 
-If the session dies between "stage starts" and "stage completes":
-- `current_stage` still shows the in-progress stage
-- `stages_completed` doesn't yet include that stage
-- On resume, the coordinator re-runs that stage from the start
-
-Re-running a stage is safe because:
-- Stage 2 (ss-sdd-writing-specs): re-renders the spec.md (idempotent given the same understanding)
-- Stage 3/9 (reviewers): re-dispatches the reviewer (subagent is fresh anyway)
-- Stage 4 (grill): the user can decide to skip if previous grill already happened
-- Stage 6 (ADRs): subagent checks for duplicates against existing ADRs
-- Stage 8 (ss-sdd-writing-plans): re-renders the plan.md
-- Stage 12 (ss-sdd-choosing-feature-branch): batch-commit failures halt the pipeline; the user resolves and re-invokes
-- Stage 13 (implementation): `tasks` map tells the loop which tasks are done
-
-### Mid-task interruption (Stage 13)
-
-If Stage 13 was interrupted mid-task:
-- `current_stage`: `implementing`
-- `tasks`: shows `T###: "in_progress"` for the task that was running
-- `stages_completed`: doesn't include `implementation_complete`
-
-On resume:
-- Coordinator notes T### is in_progress
-- Re-dispatches T### from the start (fresh implementer subagent — context isolation guarantees safety)
-- Continues the loop
-
-Per-task work is fully isolated; re-dispatching is safe. No need for fine-grained per-step state.
+Both paths are "user resolves, asks the coordinator to continue" — same conversation, no resume ceremony.
 
 ---
 
@@ -340,19 +316,18 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
 }
 ```
 
-**What the next invocation sees:**
+**What `ss-sdd-implementing-plans` does on this state when it iterates:**
 
-1. Coordinator checks for `.sublime-skills/state.json`; finds it.
-2. Coordinator confirms with user: "Resume `003-user-auth` at `implementing`?"
-3. On yes: coordinator loads `ss-sdd-implementing-plans`. The skill notes T004 is in_progress, re-dispatches T004 with a fresh implementer subagent.
-4. T004 completes, coordinator marks it complete in state file, moves on to T005.
+1. The skill reads `state.tasks` and sees T001-T003 `completed`, T004 `in_progress`, T005-T007 `pending`.
+2. T004 was the task whose implementer subagent died before reporting completion. The skill re-dispatches T004 from the start with a fresh implementer subagent (per-task isolation makes this safe — partial work is either committed or lost).
+3. On T004 completion, the skill marks it `completed` in state and continues to T005 in plan order.
 
-No re-reading the entire history; the state file is enough.
+The `tasks` map is the contract between the skill and the per-task subagents — that's how the next task gets picked up after each subagent dies.
 
 ---
 
 ## Validating state file integrity
 
-The state file is the contract that lets the coordinator resume — if it's malformed the coordinator can't reliably continue. The schema in `framework/state-schema.md` / `state-schema.json` defines what valid means: required fields present, enum values from the documented sets, stage progression consistent (e.g., `current_stage: "implementing"` implies `plan_approved` is in `stages_completed`).
+The state file is the contract between the coordinator and its subagents — if it's malformed, the coordinator can't reliably hand work to the next subagent. The schema in `framework/state-schema.md` / `state-schema.json` defines what valid means: required fields present, enum values from the documented sets, stage progression consistent (e.g., `current_stage: "implementing"` implies `plan_approved` is in `stages_completed`).
 
 In practice, malformed state is rare — every writer uses the atomic `.tmp → mv` pattern, so a half-written file never replaces the previous good one. If it does happen (the user hand-edited the file, or some external tool corrupted it), the coordinator surfaces the issue to the user rather than guessing. Repair is the user's call, not the coordinator's.

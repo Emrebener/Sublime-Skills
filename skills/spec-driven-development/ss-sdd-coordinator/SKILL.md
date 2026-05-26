@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-coordinator
-description: Use as the entry point for spec-driven feature development. Drives the full pipeline from preflight through finishing — discovery, spec, reviews, ADRs, plan, reviews, per-task implementation, optional feature testing, finishing. Tracks progress in a per-feature state file so an interrupted run can be resumed from the same conversation.
+description: Use as the entry point for spec-driven feature development. Drives the full pipeline from preflight through finishing — discovery, spec, reviews, ADRs, plan, reviews, per-task implementation, optional feature testing, finishing. Carries data between stages via a per-feature state file that the coordinator and the per-task subagents share.
 ---
 
 # SDD Coordinator
@@ -34,7 +34,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 
 ## The Pipeline
 
-`current_stage` is the value the coordinator writes while in the stage; `stages_completed` is what it appends after the stage finishes. Use these for both forward advance and resume mapping.
+`current_stage` is the value the coordinator writes while in the stage; `stages_completed` is what it appends after the stage finishes. These track position in the pipeline as it advances.
 
 | # | Stage | Mechanism | Optional? | `current_stage` | `stages_completed` |
 |---|---|---|---|---|---|
@@ -57,7 +57,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask, default yes** (auto-skipped if no memory file configured/detected) | `memory_file` | `memory_file_maintained` |
 | 17 | Merge to `main`, delete branch, cleanup | Inline via `ss-sdd-finishing` (`git merge --no-ff` + safe-delete, then `rm` state) | No | `finishing` | `finished` |
 
-A fresh run starts at Stage 0; on re-entry within the same conversation, continue from `current_stage` (read it from state.json). State updates happen at stage boundaries — never mid-stage.
+A run starts at Stage 0 and advances through stages within a single conversation. State updates happen at stage boundaries — never mid-stage. The state file is not a resume mechanism: it's the data-carrier the coordinator and per-task subagents share, plus the record of subagent outputs (`adr_results`, `handoff_path`, `tasks` map, etc.). Cross-conversation resume is not supported — conversation context tells you where you are.
 
 ## State File Schema
 
@@ -181,15 +181,15 @@ Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a
 
 Load `ss-sdd-choosing-feature-branch`. Pass it: `feature_id` and `short_name`. The skill reads the current branch itself (`git branch --show-current`) since the decision rule depends on it; it also reads `state.work_type` and `branching.branch_pattern` from config. The state file at `.sublime-skills/state.json` is read and written by the skill but not committed.
 
-The skill applies an opinionated rule: silent stay when already on the derived branch (resume / build-on-top); silent `git checkout -b` when on `main` and the derived branch is free; collision-prompt when on `main` and the derived branch already exists; ambiguity-prompt (with a mandatory "merged + deleted at Stage 17" warning) when on any other branch. Then it path-scope batch-commits the planning artifacts in two thematic commits (spec + plan / ADRs), and persists `branch_name` into state so Stage 17 knows what to merge.
+The skill applies an opinionated rule: silent stay when already on the derived branch (build-on-top of partial work); silent `git checkout -b` when on `main` and the derived branch is free; collision-prompt when on `main` and the derived branch already exists; ambiguity-prompt (with a mandatory "merged + deleted at Stage 17" warning) when on any other branch. Then it path-scope batch-commits the planning artifacts in two thematic commits (spec + plan / ADRs), and persists `branch_name` into state so Stage 17 knows what to merge.
 
-On abort (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves and re-invokes the coordinator.
+On abort (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves the underlying issue and tells you to continue — Stage 12 re-runs because `branch_chosen` isn't yet in `stages_completed`.
 
 After success: append `branch_chosen` to `stages_completed`. Advance to Stage 13.
 
 ### Stage 13 — Implementation (sub-pipeline)
 
-Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is owned by that skill — initialized/synced on entry, updated per task. On resume into Stage 13, `ss-sdd-implementing-plans` handles per-task resumption (continuing an `in_progress` task or picking up the first `pending` one); the coordinator just loads it.
+Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is owned by that skill — initialized on entry, updated per task. The map is the orchestration record between the skill and the per-task subagents (each subagent dies after returning, so the skill picks the next task by reading state); the coordinator just loads the skill.
 
 **Continuous execution:** Stage 13 does NOT pause between tasks for human check-in. Only stop when: a task returns BLOCKED that can't be resolved by the coordinator (e.g., needs user input); a review loop hits its 3-iteration cap; the plan itself appears wrong; or all tasks complete. Coordinator-driven pauses between tasks waste run time and break the per-task isolation.
 
@@ -257,7 +257,7 @@ Record outcome in state: `memory_file_updated: true | false`. If updated, also r
 
 Load `ss-sdd-finishing`. It validates state, prints the summary, then closes the loop by `git checkout main && git merge --no-ff $branch_name` and `git branch -d $branch_name` on success. Finally it deletes the state file via plain `rm`.
 
-If the merge fails (conflicts, hook rejection, signing failure): the skill halts and surfaces git's output verbatim, leaves the working tree as-is, and leaves the state file in place. The user resolves the conflict (or completes the merge commit themselves) and re-invokes the coordinator — Stage 17 is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date").
+If the merge fails (conflicts, hook rejection, signing failure): the skill halts and surfaces git's output verbatim, leaves the working tree as-is, and leaves the state file in place. The user resolves the conflict (or completes the merge commit themselves) and tells you to continue — Stage 17 is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date").
 
 After finishing: SDD run is done. The user is on `main`, the merge commit is in history, the feature branch is gone. No push — that's the user's call.
 
@@ -281,7 +281,7 @@ Compact rule table for the three failure modes. Full per-mode handling lives in 
 | Failure | When it fires | Absolute rules | Action |
 |---|---|---|---|
 | **Commit failure** | `git commit` returns non-zero at Stage 12 batch commits, Stage 13 task commits, or Stage 16 memory commit | Never `--no-verify`, `--no-gpg-sign`, `--force`. Never amend a published commit. | Retry once **only** when the cause is clear and auto-fixable (e.g., formatter modified files; re-stage path-scoped, re-commit). Otherwise halt and surface git's output verbatim. |
-| **Merge failure** | `git merge --no-ff <branch_name>` returns non-zero at Stage 17 (conflicts, hook rejection, signing failure) | Never `--no-verify`/`--no-gpg-sign`. Never auto-`git merge --abort`. Never `git branch -D`. Never delete `.sublime-skills/state.json` before the merge succeeds. | Halt and surface git's output verbatim; leave the working tree as-is. User resolves manually and re-invokes — Stage 17 is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date"). |
+| **Merge failure** | `git merge --no-ff <branch_name>` returns non-zero at Stage 17 (conflicts, hook rejection, signing failure) | Never `--no-verify`/`--no-gpg-sign`. Never auto-`git merge --abort`. Never `git branch -D`. Never delete `.sublime-skills/state.json` before the merge succeeds. | Halt and surface git's output verbatim; leave the working tree as-is. User resolves manually and tells you to continue — Stage 17 is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date"). |
 | **Subagent failure** | Dispatched subagent times out, crashes, returns malformed output, or skips required fields (any of Stages 3, 5, 6, 9, 10, 13 reviewers, 14 tester, 15 handoff, 16 memory) | Max one retry per failure mode. Never substitute the coordinator's own work for the failed subagent's. Never run retries in parallel. | Retry once. If still failing, surface to user with four options: retry again with adjusted prompt / skip (optional stages only) / abort the run / provide-result-manually (user pastes the expected output and coordinator continues). |
 
 When in doubt about edge cases, follow operations.md.

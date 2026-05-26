@@ -35,7 +35,7 @@ Subagent stages run with no inherited conversation context; the coordinator buil
 
 ## Pipeline entry point
 
-`ss-sdd-coordinator` is an LLM-driven state machine: on a fresh user invocation it starts at Stage 0; on re-entry within the same conversation it picks up from `current_stage` (read from `.sublime-skills/state.json`) — there's no test-and-ask resume ceremony, because the conversation context already tells the coordinator where it is.
+`ss-sdd-coordinator` is an LLM-driven state machine that runs end-to-end inside a single conversation. It starts at Stage 0 and advances through stages sequentially; conversation context tells it where it is, so there's no resume ceremony. The state file at `.sublime-skills/state.json` exists to carry data between stages and coordinate subagents — not to recover an interrupted run.
 
 The coordinator drives progress through three sequential todo lists, each replacing the previous: (1) **pre-implementation** for Stages 0–12, built at Stage 0; (2) **per-task implementation** for Stage 13, where `ss-sdd-implementing-plans` replaces list 1 with one todo per plan task; (3) **post-implementation** for Stages 14–17, built when `ss-sdd-implementing-plans` returns. Each list always includes its optional stages upfront — when the user opts out at a gate, the coordinator marks that todo `completed` and adds the stage to `stages_skipped`. This keeps each list focused on the work at hand rather than carrying stale stage bullets across the longest stage.
 
@@ -250,9 +250,9 @@ On `yes`: load `ss-sdd-grilling-specs`. The skill:
 2. Builds an internal queue of prioritized questions across categories (goal sharpness, story priority rationale, acceptance testability, FR coverage, SC measurability, entity completeness, edge case depth, constraint rigor, integration risk, constitution/ADR fit, out-of-scope explicitness).
 3. Asks questions one at a time, each with a recommended answer.
 4. **After every accepted answer:**
-   - Always adds a Clarifications log entry in the spec (audit trail and resume anchor)
+   - Always adds a Clarifications log entry in the spec (audit trail)
    - Picks a disposition: **Substantive change** (edits the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
-   - **Saves the spec immediately (atomic)** even when only the Clarifications log changed — that's the per-answer durable record that lets a resumed grill pick up cleanly
+   - **Saves the spec immediately (atomic)** even when only the Clarifications log changed — atomic per-answer writes keep each answer durable on its own
 5. Stops when: user says done, all high-impact areas resolved, OR hits the cap (default 10 questions; configurable; hard ceiling 20).
 
 **Why inline (not subagent)?** Grilling is a multi-turn user conversation. Subagents can't have back-and-forth with the user — they take a prompt and return a result. So this stage runs in the coordinator's session.
@@ -438,7 +438,7 @@ Possibilities:
 
 The skill applies an opinionated rule against the current branch (`git branch --show-current`):
 
-- **`CURRENT == <derived-name>`** (e.g., already on `feat/<short-name>`): **silent stay.** Resume of a prior run, or deliberate build-on-top of a partial implementation.
+- **`CURRENT == <derived-name>`** (e.g., already on `feat/<short-name>`): **silent stay.** The user is deliberately building on top of an earlier partial implementation on this branch.
 - **`CURRENT == "main"`** and the derived branch doesn't exist: **silent `git checkout -b <derived-name>`.** The happy path.
 - **`CURRENT == "main"`** and the derived branch already exists: prompt — switch to existing (default) / pick a different name / abort.
 - **Anything else** (e.g., `feat/some-other-feature`, `develop`): prompt — stay on current / create derived from current / abort. The prompt includes a mandatory **"merged to `main` and deleted at Stage 17"** warning on both proceeding options, since picking "stay" on a long-lived integration branch would delete it at Stage 17.
@@ -461,7 +461,7 @@ git commit -m "docs(adr): N decisions for NNN-short-name"
 
 After commits, update `state.json` atomically with `current_stage: implementing`, `branch_chosen` appended to `stages_completed`, and `branch_name: "<chosen branch>"` (read by Stage 17 to know what to merge). Return to the coordinator.
 
-**On abort** (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves (e.g., delete the conflicting branch, fix a pre-commit hook) and re-invokes the coordinator.
+**On abort** (`branch_creation_failed` / `checkout_failed` / `user_declined` / `commit_failed`): surface and halt. The user resolves (e.g., delete the conflicting branch, fix a pre-commit hook) and tells the coordinator to continue — Stage 12 re-runs because `branch_chosen` isn't yet in `stages_completed`.
 
 ---
 
@@ -472,7 +472,7 @@ After commits, update `state.json` atomically with `current_stage: implementing`
 
 The skill drives the per-task loop. For each task in plan order:
 
-**On entry:** the skill reads existing state. If `tasks` has any entries (resume case), it merges with the plan's task list — preserving `completed` and `in_progress` statuses — instead of overwriting them. It then starts at the first `in_progress` task, or the first `pending` task if none in-progress. Completed tasks are skipped.
+**On entry:** the skill reads existing state. Step 2 is idempotent: if `tasks` is empty, initialize every task as `"pending"`; if `tasks` already has entries (a prior iteration of this skill ran in the same conversation), preserve `completed` and `in_progress` statuses and merge new plan tasks as `"pending"`. It then starts at the first `in_progress` task (its prior implementer subagent died before reporting completion — re-dispatch is safe), or the first `pending` task if none in-progress. Completed tasks are skipped.
 
 1. **Mark task in-progress**: state file updates `tasks[T###]: "in_progress"` (atomic write).
 
@@ -668,7 +668,7 @@ Stage 17 closes the source-control loop with a fixed local-only workflow:
    git branch -d "$branch_name"   # safe-delete; refuses if not fully merged
    ```
 
-   On merge failure (conflicts, hook rejection, signing failure): halt and surface git's output verbatim. Do NOT auto-`git merge --abort`. Do NOT delete the branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit or `git merge --abort` and investigate), then re-invokes the coordinator. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes.
+   On merge failure (conflicts, hook rejection, signing failure): halt and surface git's output verbatim. Do NOT auto-`git merge --abort`. Do NOT delete the branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit or `git merge --abort` and investigate), then tells the coordinator to continue. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes.
 
    On `git branch -d` failure (branch unexpectedly not fully merged): halt and surface; do NOT escalate to `git branch -D`.
 
@@ -684,7 +684,7 @@ After Stage 17: SDD is done. The user is on `main`, the merge commit is in histo
 
 ## Stage-transition rules (across the whole pipeline)
 
-- **State updates happen at stage boundaries, not mid-stage.** This makes interruption-recovery deterministic: if the state file says `current_stage: "implementing"` and `tasks: {T003: "in_progress"}`, the resume knows exactly what to do (continue T003).
+- **State updates happen at stage boundaries, not mid-stage.** This keeps the orchestration record consistent: if the state file says `current_stage: "implementing"` and `tasks: {T003: "in_progress"}`, the implementer-dispatch loop knows exactly which task is next (re-dispatch T003).
 - **Atomic writes** for every state file update: write to `state.json.tmp`, then `mv state.json.tmp state.json`.
 - **Commits ride along** with stage transitions when there's a spec/plan/code change to commit. The state file is never committed — `.sublime-skills/state.json` is gitignored, so state deltas live entirely on disk and have no git history.
 
@@ -698,20 +698,21 @@ The pipeline is forward-flowing by default, but you can iterate:
 
 - **Plan changes during implementation (Stage 13)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator surfaces to the user. The user may want to revise the plan and re-enter Stage 8, or override the issue manually.
 
-- **Mid-implementation spec changes**: rare but possible. Treat as: pause Stage 13, revise spec inline (re-validate), revise plan inline (re-validate), then resume Stage 13 from where it left off. The state file's `tasks` map is preserved.
+- **Mid-implementation spec changes**: rare but possible. Treat as: pause Stage 13, revise spec inline (re-validate), revise plan inline (re-validate), then continue Stage 13 from where it left off. The state file's `tasks` map is preserved.
 
 The pipeline doesn't prescribe a clean "loop back to earlier stage" mechanism for every case — that's deliberate. Real iteration is messier than a strict state machine accommodates, and the coordinator's judgment (plus user input on big calls) handles it.
 
 ---
 
-## Resume semantics in detail
+## What the state file is for
 
-The coordinator's resume protocol covers two cases:
+SDD runs end-to-end in one conversation, so there's no resume protocol. The state file at `.sublime-skills/state.json` exists for two concrete reasons:
 
-- **Mid-stage interruption**: the state file's `current_stage` shows the in-progress stage; `stages_completed` doesn't yet include that stage. On re-invocation, the coordinator asks whether to resume and (on yes) re-runs that stage from the start — the stages's work is idempotent-ish (re-writing a spec.md or re-dispatching a reviewer is safe).
+- **Subagent orchestration.** Dispatched subagents die after they return; the coordinator records their structured outputs (`adr_results`, `tasks` transitions, `handoff_path`, `memory_file_*`, `reviewer_pushbacks`, etc.) into state so later stages and later subagents see them.
+- **Per-task coordination at Stage 13.** Each task is a fresh implementer subagent; the `tasks` map is how `ss-sdd-implementing-plans` decides which task to dispatch next (a task at `"in_progress"` means its prior subagent died before reporting completion — re-dispatch from the start, since per-task work is fully isolated).
 
-- **Mid-task interruption (Stage 13)**: the `tasks` map shows `T003: "in_progress"`. The coordinator re-dispatches T003 from the start. Per-task work is fully isolated; re-dispatching is safe.
+Two stages — Stage 12 (batch commit) and Stage 17 (`git merge --no-ff`) — can halt the pipeline mid-run; state stays on disk so the user can resolve the underlying issue and tell the coordinator to continue. Both stages are naturally idempotent on the second pass.
 
-Resume is designed for picking up an interrupted run inside the same conversation (or shortly after, with `state.json` on disk as the bridge). Cross-machine resumption, multi-run juggling, and branch-mismatch recovery are explicitly out of scope — they're rare in practice and add complexity that doesn't pay for itself.
+Cross-conversation resume, cross-machine recovery, multi-run juggling, and branch-mismatch recovery are explicitly out of scope.
 
 See [state-and-config.md](state-and-config.md) for the full state file schema and lifecycle.

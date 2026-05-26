@@ -73,7 +73,7 @@ Earlier versions of preflight tried to be helpful: auto-commit dirty files, auto
 
 - **"Helpful" magic backfires.** Auto-stashing dirty files seems convenient until the user's stash conflicts on restore.
 - **User intent is opaque.** Dirty files might be in-progress work, accidentally-edited files, or merge conflicts. The coordinator can't tell.
-- **Aborting forces explicit intent.** When the user re-invokes after cleaning up, they've consciously decided what to do with their working tree.
+- **Aborting forces explicit intent.** When the user runs the coordinator again after cleaning up, they've consciously decided what to do with their working tree.
 - **Safety > speed.** A 30-second clean-up by the user beats hours of debugging "where did my changes go?"
 
 The downside is friction. First-time users will find it annoying ("just stash for me!"). We accept that — the friction is the point. It teaches the user that SDD requires a clean entry state, and they'll soon habitually `git stash` or `git commit` before invoking the coordinator.
@@ -135,7 +135,7 @@ Alternatives considered and rejected:
 
 Why the committed-state arguments don't hold under the project's actual design philosophy:
 
-- **Durability across interruptions** — moot. Same-conversation resume (the only supported case; see the minimalism principle) needs only the on-disk file. Cross-session, cross-machine, and post-reboot recovery are explicitly NOT supported.
+- **Durability across interruptions** — moot. SDD runs end-to-end inside one conversation; there's no resume case to make durable. The state file just needs to live on disk during the run as the data-carrier between stages. Cross-session, cross-machine, and post-reboot recovery are explicitly NOT supported.
 - **Auditability** — marginal. The state-progression chore commits were never read by anyone; they were pure noise.
 - **Squash-merge eats the noise** — not a benefit, just a neutralizer of cost. If state is never committed, there's no noise to eat.
 
@@ -269,7 +269,7 @@ Why this works without becoming brittle:
 
 - The merge strategy is a constant (`--no-ff`), not a configurable. No surprise behavior.
 - Safe-delete (`git branch -d`, not `-D`) is a second safety net — git refuses if the branch isn't fully merged, so we'd halt rather than destroy work in a weird intermediate state.
-- The merge step is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date"), so resume after a manual conflict resolution just works.
+- The merge step is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date"), so continuing Stage 17 after a manual conflict resolution just works.
 - Push is still the user's call. SDD never touches the remote.
 
 Branch creation still happens at Stage 12 (`ss-sdd-choosing-feature-branch`), not preflight — by then the spec and plan exist and `short_name` is known, so the feature branch can be derived from `branch_pattern`. Preflight stays branch-agnostic on purpose: starting SDD on an existing feature branch (to build on top of a partial implementation) is a supported path, and Stage 12's silent "already on derived name" case handles it.
@@ -319,14 +319,14 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 | ADR step | None | Stage 6, dedicated skill |
 | Optional grill | None | Stage 4, dedicated skill |
 | 2nd review | None | Optional Stages 5 + 10 |
-| State / resume | Harness todo tool for tasks, no explicit cross-session state | state.json in git, explicit resume protocol |
+| State file | Harness todo tool for tasks, no explicit state file | Gitignored `state.json` as data-carrier between stages + per-task orchestration record (no resume protocol — same-conversation only) |
 | Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 14 with browser/DB MCP awareness |
 | Handoff doc | None | Stage 15, dedicated skill |
 | Self-containment | Family of skills that depend on each other (and on some that aren't always available) | No external skill dependencies |
 
 We borrowed extensively: the per-task implementer + two-stage review, the implementer status protocol (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), the one-question-at-a-time conversation style, "continuous execution between tasks" rule, the finishing 4 options.
 
-We added: the ADR step, the optional grill, the 2nd review pass, dedicated feature testing with MCP awareness, the handoff doc, explicit state file + resume protocol, abort-only preflight.
+We added: the ADR step, the optional grill, the 2nd review pass, dedicated feature testing with MCP awareness, the handoff doc, an explicit state file for between-stage data and per-task orchestration, abort-only preflight.
 
 ### vs Kiro-skill (feiskyer)
 
@@ -337,7 +337,7 @@ We added: the ADR step, the optional grill, the 2nd review pass, dedicated featu
 | Diagrams | Mermaid in design docs | Prohibited |
 | Per-task gating | STOP after every task; wait for user | Continuous execution; user only involved at approval gates |
 | Subagent isolation | None | Per-task fresh subagents |
-| State / resume | Detected via filesystem (`.kiro/specs/` presence) | Explicit state file |
+| State file | Detected via filesystem (`.kiro/specs/` presence) | Explicit gitignored `state.json` (data-carrier between stages; not a resume mechanism) |
 
 We borrowed: EARS format option, requirement-to-task traceability (we call it `**Requirements:** FR-###` instead of `_Requirements: 1.1_`).
 
@@ -350,7 +350,7 @@ SDD takes the Superpowers shape (spec → plan → implementation with reviews),
 - ADR maintenance as a first-class stage
 - Optional grill for spec hardening
 - Handoff doc generation for continuity
-- Explicit state file + resume protocol
+- Explicit state file for between-stage data and per-task orchestration (no resume protocol — same-conversation only)
 - Receiving-review-findings skill for consistent handling across stages
 - Abort-only preflight for safety
 - Validation scripts (`validate-*.sh`) for schema correctness

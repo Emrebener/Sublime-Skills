@@ -166,7 +166,7 @@ Surface to user explicitly with the full history. Format:
 > 1. **Iterate with my guidance** — you tell me exactly how to address each finding; I apply your edits literally (no further evaluation), commit, and we move on without another auto-review
 > 2. **Override the reviewer** — you say why each finding doesn't actually apply; I record each push-back in `reviewer_pushbacks` (with your reason) and we advance to the next stage
 > 3. **Accept the current state** — proceed despite unresolved findings; I record them in `reviewer_pushbacks` as 'accepted with known issues' and advance
-> 4. **Abort the stage** — pause the SDD run; you investigate manually and re-invoke when ready"
+> 4. **Abort the stage** — pause the SDD run; you investigate manually and tell me to continue when ready"
 
 Wait for user's selection. Whatever they choose:
 - Update `.sublime-skills/state.json`:

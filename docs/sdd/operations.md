@@ -270,7 +270,7 @@ Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task co
 | Nothing to commit | Investigate: check `git status` and `git log -1`. If intended files are already committed, treat as success. Otherwise halt. |
 | File not found in `git add` | The previous stage's writer may have failed silently. Verify the expected file exists; if not, the prior stage didn't complete properly. |
 | Stage 12 partial batch commit (Commit 1 succeeded, Commit 2 failed) | Halt. Surface to user with both commit outputs and the partial state (Commit 1 is already in history). Do NOT auto-revert; the user decides whether to amend, add a follow-up commit, or reset. |
-| Stage 17 `git merge --no-ff` failure (conflicts, hook rejection, signing failure on the merge commit) | Halt. Surface git's stdout/stderr verbatim. Leave the working tree as-is (do NOT auto-`git merge --abort`). Do NOT delete the feature branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit, or `git merge --abort` and investigate) and re-invokes the coordinator. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes. |
+| Stage 17 `git merge --no-ff` failure (conflicts, hook rejection, signing failure on the merge commit) | Halt. Surface git's stdout/stderr verbatim. Leave the working tree as-is (do NOT auto-`git merge --abort`). Do NOT delete the feature branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit, or `git merge --abort` and investigate) and tells the coordinator to continue. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes. |
 | Stage 17 `git branch -d` failure (branch not fully merged, despite the merge step succeeding) | Halt. Surface the error. Do NOT escalate to `git branch -D`. Do NOT `rm` the state file. This means the branch is in an unexpected state; the user investigates. |
 
 **Hard rules — never violate:**
@@ -480,17 +480,17 @@ The short name matches the spec directory's short name (after the spec is create
 ### "Preflight aborted — not_a_git_repo"
 
 **Cause:** the current directory isn't inside a git repository.
-**Fix:** initialize one and re-invoke: `git init && git commit --allow-empty -m "Initial commit"`. SDD requires git to commit pipeline artifacts.
+**Fix:** initialize one and run the coordinator again: `git init && git commit --allow-empty -m "Initial commit"`. SDD requires git to commit pipeline artifacts.
 
 ### "Preflight aborted — detached_head"
 
 **Cause:** HEAD is detached (no current branch). SDD requires a named branch to commit to.
-**Fix:** switch to a branch (`git checkout <branch>`) or create one (`git checkout -b <new>`), then re-invoke.
+**Fix:** switch to a branch (`git checkout <branch>`) or create one (`git checkout -b <new>`), then run the coordinator again.
 
 ### "Preflight aborted — user_declined"
 
 **Cause:** you said "no" to the dirty-tree confirmation, or to a feature-branch decision later in Stage 12.
-**Fix:** clean up the working tree (or accept it), then re-invoke. SDD can run on top of dirty work; the confirmation is just a heads-up.
+**Fix:** clean up the working tree (or accept it), then run the coordinator again. SDD can run on top of dirty work; the confirmation is just a heads-up.
 
 ### `validate-spec.sh` or `validate-plan.sh` failing
 
@@ -538,7 +538,7 @@ The cap is hard — the coordinator does NOT dispatch a 3rd auto-iteration under
 
 **Cause:** the implementer can't satisfy the reviewer; the plan or task is likely wrong.
 **Fix:** the coordinator escalates to the user. Options:
-- Revise the task in the plan and resume
+- Revise the task in the plan and continue
 - Override the reviewer (document why in state file)
 - Skip the task and address it later as a separate concern
 
@@ -548,7 +548,7 @@ The cap is hard — the coordinator does NOT dispatch a 3rd auto-iteration under
 **Fix:** the coordinator surfaces the manual test plan to you. Options:
 - Run the manual tests yourself, report results to the coordinator
 - Skip testing entirely (`stages_skipped` gets `testing`)
-- Pause SDD, configure the missing MCP, then resume
+- Pause SDD, configure the missing MCP, then continue
 
 **The coordinator MUST NOT test the feature itself**, even if it has Bash and Playwright access. Testing is delegated.
 
@@ -573,7 +573,7 @@ The atomic write pattern (write to `.tmp` then `mv`) makes this rare — typical
 ### "I want to revise the spec mid-implementation"
 
 **Cause:** an implementation task revealed a spec gap or wrong assumption.
-**Fix:** pause Stage 13 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then resume Stage 13 from where you left off. The `tasks` map is preserved.
+**Fix:** pause Stage 13 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then continue Stage 13 from where you left off. The `tasks` map is preserved.
 
 There's no clean "loop back to earlier stage" mechanism for this — it's deliberately a judgment call.
 
@@ -584,7 +584,7 @@ There's no clean "loop back to earlier stage" mechanism for this — it's delibe
 
 If you genuinely need multiple concurrent runs (rare), use git worktrees — each worktree has its own `.sublime-skills/state.json` and they're naturally isolated.
 
-### Resume after a long time
+### Picking up a feature in a fresh conversation
 
 SDD does not support cross-conversation resume. If you want to continue work on a feature whose pipeline ran in a prior conversation, start a new SDD run and reference the existing spec/plan/ADRs that landed on disk (or the handoff doc from Stage 15, if you generated one). Any leftover state file from the prior conversation will be cleared by preflight as an orphan.
 

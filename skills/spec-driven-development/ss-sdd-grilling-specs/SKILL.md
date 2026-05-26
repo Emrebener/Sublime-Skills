@@ -129,7 +129,7 @@ After every accepted answer, take these steps before asking the next question.
 
 ### 5a. Log it (always)
 
-The Clarifications log is the audit trail and the resume anchor — it runs for every accepted answer, regardless of whether the body changes.
+The Clarifications log is the audit trail — it runs for every accepted answer, regardless of whether the body changes.
 
 1. Add (or extend) a `## Clarifications` section just below the Goal section if it doesn't exist
 2. Add (or extend) a `### Session YYYY-MM-DD` subheading for today's grill
@@ -167,7 +167,7 @@ If the substantive change contradicts earlier wording, **replace the contradicte
 
 ### 5d. Save atomically
 
-Write the full new spec content to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. Do this even when only the Clarifications log changed — that's the per-answer durable record that lets a resumed grill pick up cleanly. Don't batch multiple answers before saving.
+Write the full new spec content to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. Do this even when only the Clarifications log changed — atomic per-answer writes keep each answer durable on its own. Don't batch multiple answers before saving.
 
 **Do NOT commit.** Spec edits accumulate uncommitted; the `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits the final spec alongside the plan and ADRs.
 
@@ -201,7 +201,7 @@ Grill complete.
 |---|---|
 | Asking without processing the answer per Step 5 | Log it, decide on body-edit disposition, save, then move on |
 | Manufacturing a body edit because the rule used to say "must update" when the honest answer is "no change needed" | Log the Q&A and move on — "confirms as correct" is a valid disposition |
-| Batching multiple answers before saving | A mid-grill interruption loses them — save per answer |
+| Batching multiple answers before saving | Each answer should be durable on its own — save per answer |
 | Asking about plan-level details (function names, file paths) | Out of scope; move on |
 | Going past the cap | Hard ceiling at 20. If the spec still feels weak, it needs a rewrite |
 | Leaving the contradicted earlier wording in place | Edit it out; the clarification replaces it |
