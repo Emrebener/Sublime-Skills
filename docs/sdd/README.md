@@ -44,7 +44,7 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 ## Quickstart
 
 **First-time setup on a project:** invoke `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family) manually. It walks you through each convention file via five inline conversational `ss-bs-discovering-<topic>` skills (constitution / architecture / glossary / domain-model / design) and scaffolds:
-- `docs/constitution.md` (optional project-wide principles)
+- `docs/CONSTITUTION.md` (optional project-wide principles)
 - `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
 - `.sublime-skills/config.yml` (copied from `skills/project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
 - `docs/adr/`, `docs/specs/` directories with README stubs
@@ -77,7 +77,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 │   ├── .gitignore                         # gitignores state.json + config-local.yml
 │   └── state.json                         # written in Stage 2, deleted in Stage 17 (gitignored)
 ├── docs/
-│   ├── constitution.md                    # optional, project principles
+│   ├── CONSTITUTION.md                    # optional, project principles
 │   ├── ARCHITECTURE.md                    # optional, repo-level
 │   ├── GLOSSARY.md                        # optional
 │   ├── DOMAIN.md                          # optional

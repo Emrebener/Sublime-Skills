@@ -96,7 +96,7 @@ Walk through these dimensions (in roughly this order, skipping any that are alre
 **Rules:**
 - One question at a time
 - Prefer multiple choice with a recommended answer (e.g., "A) ... [recommended because ...] B) ... C) ...") over open-ended when the choice has clear alternatives
-- Honor the project context — if `constitution.md` says "all APIs must use OAuth2", don't ask "which auth method?"
+- Honor the project context — if `CONSTITUTION.md` says "all APIs must use OAuth2", don't ask "which auth method?"
 - Skip dimensions that are obviously not applicable (e.g., "key entities" for a config-only feature)
 - Stop when you have enough to write a spec — overly thorough discovery is friction
 

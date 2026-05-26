@@ -163,7 +163,7 @@ Use the `ss-sdd-reviewing-specs` skill.
 
 SPEC_PATH: docs/specs/NNN-<short-name>/spec.md
 CONTEXT_FILES:
-  - docs/constitution.md (if present)
+  - docs/CONSTITUTION.md (if present)
   - docs/adr/0001-*.md (and any other prior ADRs)
   - ARCHITECTURE.md (if present)
   - GLOSSARY.md (if present)

@@ -161,7 +161,7 @@ Reasons:
 - **Less governance ceremony.** Constitution requires authoring, versioning, propagation. ADRs are written one at a time.
 - **`ss-bs-bootstrapping-project` does offer constitution authoring.** It's an opt-in artifact (with a dedicated `ss-bs-discovering-constitution` inline skill). Users who want it can add it; the pipeline reads it when present.
 
-The pipeline reads constitution.md if it exists (in stages where alignment matters). It's just not required, and we don't have a separate `maintaining-constitution` skill — yet.
+The pipeline reads CONSTITUTION.md if it exists (in stages where alignment matters). It's just not required, and we don't have a separate `maintaining-constitution` skill — yet.
 
 If a project starts repeating the same guidance in every spec, that's the signal to add a constitution. The bootstrap skill makes it easy. We can add a `maintaining-constitution` skill later if patterns emerge.
 

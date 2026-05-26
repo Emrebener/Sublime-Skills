@@ -142,7 +142,7 @@ Mirror of the scaffold file. Each key is explicit — there is **no** auto-fallb
 # have one." There is no auto-fallback to other locations — if you move
 # a file, update this block.
 context:
-  constitution_path: docs/constitution.md
+  constitution_path: docs/CONSTITUTION.md
   architecture_path: docs/ARCHITECTURE.md
   glossary_path: docs/GLOSSARY.md
   domain_path: docs/DOMAIN.md

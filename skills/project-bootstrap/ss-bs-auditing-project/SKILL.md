@@ -134,7 +134,7 @@ Record the chosen stages list. If "Skip", jump to Step 7 (summary report) immedi
 Question: "Which stages would you like to audit?"
 
 Multi-select from:
-  - Constitution (docs/constitution.md)
+  - Constitution (docs/CONSTITUTION.md)
   - Architecture (docs/ARCHITECTURE.md)
   - Testing (docs/TESTING.md)
   - Glossary (docs/GLOSSARY.md)

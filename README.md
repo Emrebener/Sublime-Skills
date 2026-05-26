@@ -165,7 +165,7 @@ at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
 Shared scripts at `skills/spec-driven-development/framework/`:
 - `discover-context.sh` — reads project convention file paths from
-  `.sublime-skills/config.yml` (`constitution.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
+  `.sublime-skills/config.yml` (`CONSTITUTION.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
   `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can
   load relevant context from a single source of truth.
 - `validate-config.sh` — validates `.sublime-skills/config.yml` end-to-end (YAML

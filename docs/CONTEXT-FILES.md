@@ -4,7 +4,7 @@ Bootstrap covers 7 artifacts (constitution, architecture, testing, glossary, dom
 
 ---
 
-## 1. `docs/constitution.md` — the rules layer
+## 1. `docs/CONSTITUTION.md` — the rules layer
 
 **Owner skill:** `ss-bs-discovering-constitution`
 **Authority:** Highest. MUST/SHALL/SHOULD principles cited by SDD reviewers.

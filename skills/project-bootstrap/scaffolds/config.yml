@@ -8,7 +8,7 @@
 # these and returns the path back to skills that consult them. There is
 # no auto-fallback — null means "this project doesn't have one."
 context:
-  constitution_path: docs/constitution.md       # project-wide principles (MUST/SHALL rules)
+  constitution_path: docs/CONSTITUTION.md       # project-wide principles (MUST/SHALL rules)
   architecture_path: docs/ARCHITECTURE.md       # system structure overview
   testing_path: docs/TESTING.md                 # test strategy (frameworks, fixtures, coverage)
   glossary_path: docs/GLOSSARY.md               # canonical domain vocabulary

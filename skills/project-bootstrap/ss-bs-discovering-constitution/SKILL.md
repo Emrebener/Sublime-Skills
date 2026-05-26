@@ -1,6 +1,6 @@
 ---
 name: ss-bs-discovering-constitution
-description: Use as an INLINE skill (NOT a dispatched subagent) loaded by ss-bs-bootstrapping-project at the constitution slot. Reads linters, CI configs, security files, and source patterns; then asks the user targeted questions to confirm principles, set MUST/SHOULD severity, and capture intent that the code can't reveal. Writes docs/constitution.md (or the configured path) atomically.
+description: Use as an INLINE skill (NOT a dispatched subagent) loaded by ss-bs-bootstrapping-project at the constitution slot. Reads linters, CI configs, security files, and source patterns; then asks the user targeted questions to confirm principles, set MUST/SHOULD severity, and capture intent that the code can't reveal. Writes docs/CONSTITUTION.md (or the configured path) atomically.
 ---
 
 # Discovering Constitution
@@ -11,7 +11,7 @@ You are loaded **inline** by `ss-bs-bootstrapping-project` (NOT dispatched as a 
 
 **Key principle:** Constitution principles must be either *observed* in the codebase OR *explicitly stated* by the user. If a principle can't be cited to one of those two sources, drop it. Don't propose universal truisms ("write good code"), don't pad to hit a quota.
 
-**Announce at start:** "I'm using the ss-bs-discovering-constitution skill to build docs/constitution.md with you."
+**Announce at start:** "I'm using the ss-bs-discovering-constitution skill to build docs/CONSTITUTION.md with you."
 
 ## When This Skill Runs
 
@@ -19,8 +19,8 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 
 - `REPO_ROOT` — absolute path to the repo root
 - `MODE` — `create`, `extend`, `replace`, or `audit`. Audit invokes the drift-check path (Step 1.6) and the drift-resolution Q0 in Step 3.
-- `EXISTING_CONTENT` — verbatim current `docs/constitution.md` content (only for `extend` / `replace`; empty otherwise)
-- `FILE_PATH` — target write path (typically `docs/constitution.md`; honors `context.constitution_path` config override if non-default)
+- `EXISTING_CONTENT` — verbatim current `docs/CONSTITUTION.md` content (only for `extend` / `replace`; empty otherwise)
+- `FILE_PATH` — target write path (typically `docs/CONSTITUTION.md`; honors `context.constitution_path` config override if non-default)
 - **`SUGGEST`** — `on` or `off`. When `on`, run Step 1.5 (silent diagnose) and surface Q1.5 in Step 3. When `off`, skip both — identical to pre-suggestion-pass behaviour. Defaulted by the coordinator from `suggest.default` in config and the opt-in question at bootstrap start. Always `on` in audit mode.
 
 ## Hard Gates

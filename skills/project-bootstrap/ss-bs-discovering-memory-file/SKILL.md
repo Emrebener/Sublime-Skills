@@ -203,7 +203,7 @@ For each category below, scan within what Step 1 already read (no extra file rea
 - **Missing pointers to artifacts that exist.** `EXISTING_CONTENT` has no pointer to an artifact that is present on disk. Evidence: artifact path + the absence of any mention in `EXISTING_CONTENT`.
 - **Stale entries contradicting current code.** A convention line in `EXISTING_CONTENT` says one thing (e.g., "uses Jest") but an artifact says the opposite (e.g., TESTING.md says "Vitest"). Evidence: the memory-file quote + the artifact path + the contradicting line.
 - **Items better enforced as hooks than held in memory.** A rule like "always run tests before commit" is unreliable as a memory line that agents might miss; a pre-commit hook would enforce it deterministically. Evidence: the memory-file line verbatim.
-- **Rules that belong in the constitution rather than in memory.** A MUST/NEVER line in memory doesn't appear in `docs/constitution.md` and is strong enough to be a constitution principle. Evidence: the memory-file line + the fact that constitution either lacks it or covers it more weakly.
+- **Rules that belong in the constitution rather than in memory.** A MUST/NEVER line in memory doesn't appear in `docs/CONSTITUTION.md` and is strong enough to be a constitution principle. Evidence: the memory-file line + the fact that constitution either lacks it or covers it more weakly.
 
 ### 1.5b. Compile candidate suggestions in memory
 
@@ -333,7 +333,7 @@ If the user picks none, treat as "no suggestions accepted" and proceed to Q2. Ac
 Question: "Which artifacts should be pointed to from the memory file?"
 
 Multi-select, pre-checked for all that exist on disk:
-  - "docs/constitution.md" (if exists)
+  - "docs/CONSTITUTION.md" (if exists)
   - "docs/ARCHITECTURE.md" (if exists)
   - "docs/TESTING.md" (if exists)
   - "docs/GLOSSARY.md" (if exists)
@@ -492,7 +492,7 @@ Key terms:
 
 ## Pointers
 
-- [Constitution](docs/constitution.md) — principles
+- [Constitution](docs/CONSTITUTION.md) — principles
 - [Architecture](docs/ARCHITECTURE.md) — system shape
 - [Testing](docs/TESTING.md) — test strategy
 - [Glossary](docs/GLOSSARY.md) — vocabulary

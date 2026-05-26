@@ -20,7 +20,7 @@ Outputs JSON. Example:
   "repo_root": "/abs/path/to/repo",
   "config": ".sublime-skills/config.yml",
   "config_local": ".sublime-skills/config-local.yml",
-  "constitution": "docs/constitution.md",
+  "constitution": "docs/CONSTITUTION.md",
   "architecture": "docs/ARCHITECTURE.md",
   "glossary": "docs/GLOSSARY.md",
   "domain": null,

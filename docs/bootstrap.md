@@ -88,7 +88,7 @@ The coordinator uses these signals to drive Step 2a (detection) and Step 2b (the
 
 Before the per-file loop, the coordinator builds a visible todo list via the harness's todo/task tool:
 
-1. Constitution (`docs/constitution.md`)
+1. Constitution (`docs/CONSTITUTION.md`)
 2. Architecture (`docs/ARCHITECTURE.md`)
 3. Testing (`docs/TESTING.md`)
 4. Glossary (`docs/GLOSSARY.md`)
@@ -115,7 +115,7 @@ Iteration order is fixed: **constitution → architecture → testing → glossa
 
 For each file: check the cached discovery output. Default paths:
 
-- Constitution: `docs/constitution.md`
+- Constitution: `docs/CONSTITUTION.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Testing: `docs/TESTING.md`
 - Glossary: `docs/GLOSSARY.md`
@@ -403,7 +403,7 @@ The root `.gitignore` is NOT modified by this skill.
 ## Step 8: Commit
 
 ```bash
-git add docs/constitution.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
+git add docs/CONSTITUTION.md docs/ARCHITECTURE.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         docs/adr/ docs/specs/ \
         .sublime-skills/config.yml [.gitignore]
 git commit -m "chore: initialize SDD project context"
@@ -425,7 +425,7 @@ The coordinator emits a final summary:
 SDD bootstrap complete.
 
 Convention files:
-- docs/constitution.md — <created | extended | replaced | skipped (file exists) | skipped (declined)>
+- docs/CONSTITUTION.md — <created | extended | replaced | skipped (file exists) | skipped (declined)>
 - docs/ARCHITECTURE.md — <...>
 - docs/GLOSSARY.md — <...>
 - docs/DOMAIN.md — <...>
@@ -477,7 +477,7 @@ The bootstrap's job ends where SDD's begins. Once `.sublime-skills/config.yml` i
 The SDD pipeline reads the bootstrap's output at several points:
 
 - **`ss-sdd-coordinator` entry**: runs Stage 0 (`ss-sdd-preflight`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `ss-bs-bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required. Once every check passes, preflight creates `.sublime-skills/state.json` as a minimal shell (silently removing any orphan file from a dead prior pipeline first).
-- **`ss-sdd-discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `constitution.md` if any of these exist.
+- **`ss-sdd-discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `CONSTITUTION.md` if any of these exist.
 - **`ss-sdd-reviewing-specs` and `ss-sdd-reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`ss-sdd-writing-specs` and `ss-sdd-writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
 

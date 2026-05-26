@@ -56,7 +56,7 @@ Check well-known locations:
 - **Domain glossary** — the project's real names for things. Check the repo root for `CONTEXT.md`, `GLOSSARY.md`, `DOMAIN.md`, then `docs/` for the same names. If those miss, glob once for `*glossary*` / `*domain-model*` (case-insensitive). Use canonical terms in your candidates; don't invent synonyms.
 - **Architecture decision records (ADRs)** — past architecture decisions and their rationale. Check `docs/adr/`, `docs/architecture/decisions/`, `adr/`. If those miss, glob once for `*adr*`. Read the ones relevant to the area you're reviewing; they record decisions you should not blindly re-litigate.
 - **Architecture overview** — the project's existing high-level structure. Check `ARCHITECTURE.md`, `docs/ARCHITECTURE.md`. Tells you what the project considers settled before you propose to move things around.
-- **Constitution / principles** — non-negotiable project rules. Check `constitution.md`, `docs/constitution.md`. Any refactor you propose must respect the listed principles.
+- **Constitution / principles** — non-negotiable project rules. Check `CONSTITUTION.md`, `docs/CONSTITUTION.md`. Any refactor you propose must respect the listed principles.
 
 Stop after one glob per input. If nothing turns up for a given input, proceed without it — don't hunt exhaustively.
 

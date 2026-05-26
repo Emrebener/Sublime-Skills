@@ -865,7 +865,7 @@ All five skills support `create` / `extend` / `replace` modes from the coordinat
   "repo_root": "/abs/path",
   "config": ".sublime-skills/config.yml" | null,
   "config_local": ".sublime-skills/config-local.yml" | null,
-  "constitution": "docs/constitution.md" | null,
+  "constitution": "docs/CONSTITUTION.md" | null,
   "architecture": "docs/ARCHITECTURE.md" | null,
   "glossary": "docs/GLOSSARY.md" | null,
   "domain": null,

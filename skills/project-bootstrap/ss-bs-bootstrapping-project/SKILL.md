@@ -64,7 +64,7 @@ Cache the JSON output. For each convention file: the corresponding key (`constit
 
 Before starting the per-file loop, build the progress todo list with the harness's todo/task tool. Use these items:
 
-1. Constitution (`docs/constitution.md`)
+1. Constitution (`docs/CONSTITUTION.md`)
 2. Architecture (`docs/ARCHITECTURE.md`)
 3. Testing (`docs/TESTING.md`)
 4. Glossary (`docs/GLOSSARY.md`)
@@ -119,7 +119,7 @@ Iterate convention files in this order: **constitution, architecture, testing, g
 From the cached discovery output, check if the file at the default path (or configured path, if config already exists) is present.
 
 Default paths the scaffold will set:
-- Constitution: `docs/constitution.md`
+- Constitution: `docs/CONSTITUTION.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - Testing: `docs/TESTING.md`
 - Glossary: `docs/GLOSSARY.md`
@@ -169,7 +169,7 @@ REPO_ROOT:        <absolute path to repo root>
 MODE:             create | extend | replace
 SUGGEST:          on | off  ← from Step 2
 EXISTING_CONTENT: (only for extend / replace — the verbatim current file content)
-FILE_PATH:        <target path — e.g., docs/constitution.md, docs/ARCHITECTURE.md,
+FILE_PATH:        <target path — e.g., docs/CONSTITUTION.md, docs/ARCHITECTURE.md,
                    docs/TESTING.md, docs/GLOSSARY.md, docs/DOMAIN.md, docs/DESIGN.md,
                    or whatever the config'd context.<name>_path resolves to>
 ```
@@ -391,7 +391,7 @@ Both `.sublime-skills/config.yml` and `.sublime-skills/.gitignore` itself are co
 ## Step 10: Commit
 
 ```bash
-git add docs/constitution.md docs/ARCHITECTURE.md docs/TESTING.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
+git add docs/CONSTITUTION.md docs/ARCHITECTURE.md docs/TESTING.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         <memory-file-path-from-step-3> \
         docs/adr/ docs/specs/ \
         .sublime-skills/config.yml .sublime-skills/.gitignore
@@ -410,7 +410,7 @@ Use the standard project commit conventions if `git log` shows a different style
 SDD bootstrap complete.
 
 Convention files:
-- docs/constitution.md — <created | extended | replaced | skipped (file exists) | skipped (declined)>
+- docs/CONSTITUTION.md — <created | extended | replaced | skipped (file exists) | skipped (declined)>
 - docs/ARCHITECTURE.md — <...>
 - docs/TESTING.md — <...>
 - docs/GLOSSARY.md — <...>
