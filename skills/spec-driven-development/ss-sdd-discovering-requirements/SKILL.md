@@ -342,6 +342,62 @@ No new dispatch parameters are introduced; the summary populates existing in-mem
 | `open_questions` | Coordinator's choice: either include in the in-memory understanding passed to Stage 2 (so the writer can route them into the spec's Open Questions / Assumptions sections per the existing spec format), or surface to the user for resolution before Stage 2. No new dispatch parameter. |
 | `approved_sections` | Confirmation marker. Used only as evidence that Phase 4 ran to completion. |
 
+## Cross-cutting rules
+
+Four rules apply throughout Phases 2–4. Each has a name, a trigger, and a short rule body. Apply them as their triggers fire — they aren't sequential steps.
+
+### CC-1 — Playback gate
+
+**Trigger:** after any user answer that carries a non-obvious implication.
+
+**Rule:** before asking the next question, paraphrase the *implication* (not just the answer). Form: "So — <implication>, meaning <consequence>. Right?" Wait for confirmation before moving on.
+
+**Non-obvious implications include:**
+- The answer narrows scope in a way the user may not have noticed (e.g., "exports only" → implies no import path)
+- The answer commits to a tradeoff (latency, infra cost, etc.)
+- The answer assumes something about another part of the system
+- The answer interacts with a constitution/ADR principle
+
+**Does NOT trigger playback:**
+- Direct factual answers to direct questions ("Are there multiple roles?" / "Just admins.") — nothing to paraphrase
+- Confirming a recommendation ("yes, A") — the recommendation already stated the implication
+
+**Application:** especially aggressive during Phase 2. Framing answers reshape the entire feature; a misread framing answer is the most expensive miss in discovery.
+
+### CC-2 — Contradiction watch
+
+**Trigger:** any time the user's most recent answer implies a different system than a prior answer.
+
+**Rule:** surface the contradiction explicitly and resolve before continuing. Format:
+
+> "Earlier you said <X, which implies system A>; just now you said <Y, which implies system B>. These point at different designs — which is load-bearing?"
+
+You do NOT guess which the user meant. You do NOT silently update one earlier answer to match the latest. Resolving a contradiction is part of the answer-processing loop, not a new question against any budget.
+
+**Common contradiction shapes:** real-time vs batch, single-user vs multi-tenant, stateless vs stateful, internal vs external users.
+
+### CC-3 — Adjacent-scenario invitation
+
+**Trigger:** when two or more clarifying exchanges on the same Phase 3 dimension have not yielded a stated answer.
+
+**Rule:** switch from abstract to concrete by asking for a scenario **adjacent to, but distinct from**, the F4 walkthrough already on the table. The new scenario must vary at least one axis: a different user role, a different trigger, an edge case the F4 scenario didn't cover, or a failure path. You MUST reference F4 explicitly so the user doesn't experience it as your forgetting:
+
+> "You already walked me through <F4 scenario summary>. Let me try one that's adjacent — what if the user were <different role>, or it happened <different trigger>, or <something failed>? Walk me through that one."
+
+**Distinct from Phase 2's F4:** F4 is preventative, runs once upfront, and establishes the baseline scenario. CC-3 is a reactive recovery tool *only* when a Phase 3 dimension is stuck on abstractions, and it must produce a *different* scenario than F4. Re-asking F4 verbatim is forbidden.
+
+**Skip condition:** if you cannot identify an adjacent scenario meaningfully distinct from F4 (rare; usually means the feature is genuinely narrow), fall back to other CC rules and the §3.4 graceful-unknown protocol; do not fire CC-3 just because the trigger condition was met.
+
+### CC-4 — Mid-conversation scope re-check
+
+**Trigger:** the user adds independent functionality mid-discovery — language like "oh, and it should also…" or "while we're at it, can it also…" or a new capability that doesn't extend an existing requirement.
+
+**Rule:** pause the current line of questioning and re-run Phase 1's scope check (§1.2) on the expanded request. Two outcomes:
+
+- **Still one feature:** added functionality genuinely extends the same user journey or domain object. Continue discovery with the added scope folded in.
+- **Now multiple features:** apply Phase 1's decomposition recommendation:
+  > "What you're now describing is two independent features — [original] and [added]. I recommend specifying these separately. Want to capture [added] as a follow-up spec and stay focused on [original]?"
+
 ## Common Mistakes
 
 | Mistake | Fix |
