@@ -71,7 +71,7 @@ Run:
 "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/discover-context.sh"
 ```
 
-Parse the JSON output. Check that at least one of the 7 paths resolves to an existing file (the 6 context artifact paths plus the `memory_file.path`).
+Read the `discover-context.sh` JSON output for the 6 context artifact paths. Additionally, read `memory_file.path` directly from `.sublime-skills/config.yml` (the memory-file path lives in its own config block, not in `context.*`). Check that at least one of these 7 paths resolves to an existing file.
 
 If 0 artifacts exist, ask:
 

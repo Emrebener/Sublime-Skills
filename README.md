@@ -150,7 +150,7 @@ and safe-search level. The SearXNG endpoint is configured via the
 ### Spec-driven development
 
 A 21-skill family for running structured, spec-driven feature development
-end-to-end (plus a separate 6-skill `skills/project-bootstrap/` family for
+end-to-end (plus a separate 9-skill `skills/project-bootstrap/` family for
 one-time project setup — see below). The pipeline: **preflight → discover
 → spec → reviews → ADRs → plan → reviews → per-task implementation →
 optional feature testing → handoff doc → memory file → finish**. Coordinated

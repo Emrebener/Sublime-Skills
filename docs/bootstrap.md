@@ -48,15 +48,16 @@ Coherence is also the first step of `ss-bs-auditing-project` (the sibling skill 
 |---|---|---|---|
 | 1 | Detect existing setup | Coordinator runs `discover-context.sh` | No |
 | 1.5 | Build progress todo list | Coordinator uses harness todo tool | No |
-| 2 | Per-file loop (×7) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
-| 3 | Create `docs/adr/`, `docs/specs/` | Coordinator (`mkdir` + stub READMEs) | Yes |
-| 4 | Copy config scaffold + create local overlay + create gitignore | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml` + heredoc-write of `.gitignore` if missing) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`, `.sublime-skills/.gitignore`) |
-| 5 | Edit config to reflect skipped files | Coordinator (targeted in-place edits) | Yes (modifies `.sublime-skills/config.yml`) |
-| 6 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
-| 7 | Cross-artifact coherence check | Coordinator runs `coherence-check.sh`; surfaces findings | No (advisory; user decides action) |
-| 8 | `.gitignore` housekeeping | Coordinator (re-run safety net — ensures `.sublime-skills/.gitignore` has both `state.json` and `config-local.yml`) | Possibly (`.sublime-skills/.gitignore`) |
-| 9 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
-| 10 | Report | Coordinator (final summary message) | No |
+| 2 | Suggestion-pass opt-in switch | One preference question that threads `SUGGEST` into every discovery skill | No |
+| 3 | Per-file loop (×7) | Coordinator routes; `discovering-X` skill does the work | Yes (one file per discovering-X, atomic) |
+| 4 | Create `docs/adr/`, `docs/specs/` | Coordinator (`mkdir` + stub READMEs) | Yes |
+| 5 | Copy config scaffold + create local overlay + create gitignore | Coordinator (`cp` from scaffolds/ + `touch` of `config-local.yml` + heredoc-write of `.gitignore` if missing) | Yes (`.sublime-skills/config.yml`, `.sublime-skills/config-local.yml`, `.sublime-skills/.gitignore`) |
+| 6 | Edit config to reflect skipped files | Coordinator (targeted in-place edits) | Yes (modifies `.sublime-skills/config.yml`) |
+| 7 | Validate config | Coordinator runs `validate-config.sh`; fix-and-retry (cap 3) | No (read-only check) |
+| 8 | Cross-artifact coherence check | Coordinator runs `coherence-check.sh`; surfaces findings | No (advisory; user decides action) |
+| 9 | `.gitignore` housekeeping | Coordinator (re-run safety net — ensures `.sublime-skills/.gitignore` has both `state.json` and `config-local.yml`) | Possibly (`.sublime-skills/.gitignore`) |
+| 10 | Single commit | Coordinator (`git add` specific files + `git commit`) | Yes (one commit) |
+| 11 | Report | Coordinator (final summary message) | No |
 
 **No subagent dispatches anywhere in the bootstrap.** All seven discovering-X skills load inline.
 
@@ -207,7 +208,7 @@ All seven `ss-bs-discovering-<topic>` skills share the same six-step inline patt
 └─────────────────────────────────────────────────────┘
 ```
 
-**Key rules across all five skills:**
+**Key rules across all seven skills:**
 
 - ALWAYS use the harness's interactive question tool for yes/no and multi-choice questions. Never plain-text prompts that force free-form typing.
 - ONE question per turn. No bundling.
@@ -379,7 +380,7 @@ to:
 | `3` | Usage error | Halt — coordinator bug. |
 
 Validator checks include:
-- All required keys present (`context.<name>_path` for all five, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`)
+- All required keys present (`context.<name>_path` for all six including `testing_path`, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`; also validates the `suggest:` block)
 - No unknown keys (catches schema drift)
 - Each context path is either `null` or points to an actual existing file (orphan paths fail)
 
@@ -480,7 +481,7 @@ The SDD pipeline reads the bootstrap's output at several points:
 - **`ss-sdd-reviewing-specs` and `ss-sdd-reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`ss-sdd-writing-specs` and `ss-sdd-writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
 
-If the user never bootstraps (or bootstraps with all five files Skipped), SDD still works — it just operates without project-specific context. The pipeline doesn't require any convention file to exist; they're additive.
+If the user never bootstraps (or bootstraps with all seven files Skipped), SDD still works — it just operates without project-specific context. The pipeline doesn't require any convention file to exist; they're additive.
 
 ---
 
@@ -500,7 +501,7 @@ Bootstrap is not always worth running.
 - You're adopting SDD on an existing project and want to capture its current shape before changing things.
 - A team is joining the project and would benefit from explicit principles, architecture, vocabulary.
 
-The bootstrap is **fast** — most users finish all five files in 15-30 minutes depending on how much they want to refine. The cost-benefit is favorable for any project worth ~1 day of work or more.
+The bootstrap is **fast** — most users finish all seven files in 15-30 minutes depending on how much they want to refine. The cost-benefit is favorable for any project worth ~1 day of work or more.
 
 ---
 

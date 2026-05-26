@@ -153,28 +153,9 @@ For each candidate principle, hold:
 
 Keep this list to ≤10 candidates internally — you'll trim to 7 with the user.
 
-## Step 1.6: Drift Check (only if `MODE=audit`)
-
-Compare each entry in `EXISTING_CONTENT` against current code state. The goal is to detect principles that have gone stale.
-
-### 1.6a. Drift categories for constitution
-
-- **Evidence-file removed.** A principle's `**Evidence:**` field cites `<path>` (e.g. `.eslintrc.json`); that file no longer exists. Evidence: the principle title + the missing path.
-- **Evidence-rule weakened or removed.** A principle cites a lint rule "no-any: error"; current `.eslintrc.json` shows `no-any: warn` or omits it. Evidence: the principle + the current rule state.
-- **Code now contradicts a stated principle.** A MUST principle says "API handlers MUST validate via Zod"; current `src/api/*.ts` shows N handlers without Zod calls. Evidence: handler counts.
-- **Provenance re-evaluation.** Each principle marked "Added via bootstrap suggestion pass (YYYY-MM-DD)" → has the underlying evidence (the unenforced pattern) been remedied?
-  - If the original evidence pattern is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
-  - If the original evidence pattern is GONE (the code has changed to match the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
-
-### 1.6b. Compile drift findings in memory
-
-Each finding: `kind` (evidence-file-removed / rule-weakened / code-contradicts-principle / aspiration-met / aspiration-still-pending), `entry` (the principle being challenged), `evidence` (file paths or counts showing the current code state).
-
-No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
-
 ## Step 1.5: Silent Diagnose (only if `SUGGEST=on`)
 
-If `SUGGEST=off`, skip this step entirely and proceed to Step 2.
+If `SUGGEST=off`, skip this step entirely and proceed to Step 1.6 (if audit) or Step 2.
 
 Diagnose looks for principles that the project's evidence suggests *should* exist but currently don't. Every diagnose finding must cite specific file paths or counts.
 
@@ -200,6 +181,25 @@ Drop unsupported candidates. If more than 5 candidates remain after dropping uns
 3. Impact (changes that prevent bugs > consistency improvements)
 
 Surface the top 5. If 0 candidates remain, Q1.5 is skipped silently.
+
+## Step 1.6: Drift Check (only if `MODE=audit`)
+
+Compare each entry in `EXISTING_CONTENT` against current code state. The goal is to detect principles that have gone stale.
+
+### 1.6a. Drift categories for constitution
+
+- **Evidence-file removed.** A principle's `**Evidence:**` field cites `<path>` (e.g. `.eslintrc.json`); that file no longer exists. Evidence: the principle title + the missing path.
+- **Evidence-rule weakened or removed.** A principle cites a lint rule "no-any: error"; current `.eslintrc.json` shows `no-any: warn` or omits it. Evidence: the principle + the current rule state.
+- **Code now contradicts a stated principle.** A MUST principle says "API handlers MUST validate via Zod"; current `src/api/*.ts` shows N handlers without Zod calls. Evidence: handler counts.
+- **Provenance re-evaluation.** Each principle marked "Added via bootstrap suggestion pass (YYYY-MM-DD)" → has the underlying evidence (the unenforced pattern) been remedied?
+  - If the original evidence pattern is STILL present, the suggestion is still aspirational — flag as INFO drift "still not enforced after N days".
+  - If the original evidence pattern is GONE (the code has changed to match the aspiration), flag as INFO drift "aspiration met — provenance marker can be removed and entry promoted to normal".
+
+### 1.6b. Compile drift findings in memory
+
+Each finding: `kind` (evidence-file-removed / rule-weakened / code-contradicts-principle / aspiration-met / aspiration-still-pending), `entry` (the principle being challenged), `evidence` (file paths or counts showing the current code state).
+
+No cap on drift findings — every observable drift is surfaced. The user resolves each in Q0.
 
 ## Step 2: Announce Findings
 
