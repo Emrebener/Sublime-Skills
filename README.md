@@ -104,7 +104,7 @@ All `gh` CLI interaction goes through the `ss-agile-managing-issues`
 reference skill, which covers the full `gh issue` surface plus milestone
 management (which `gh` only exposes via `gh api`).
 
-#### [ss-agile-advancing-milestones](skills/agile/ss-agile-advancing-milestones/)
+#### [ss-agile-advancing-milestones](skills/agile-ralph-loop/ss-agile-advancing-milestones/)
 
 The coordinator. Auto-selects the current milestone (lowest-numbered open
 one), picks the next logical issue, drives it through implementation +
@@ -113,14 +113,14 @@ per invocation; ends in one of three terminal states (merged-one-issue,
 all-milestones-closed, milestone-stuck). Designed for repeated invocation
 by an outer wrapper.
 
-#### [ss-agile-implementing-an-issue](skills/agile/ss-agile-implementing-an-issue/)
+#### [ss-agile-implementing-an-issue](skills/agile-ralph-loop/ss-agile-implementing-an-issue/)
 
 Subagent skill. Implements a single GitHub issue on an already-checked-out
 feature branch — coordinator briefs with the issue body and acceptance
 criteria; implementer codes, commits locally, reports back. Does not pick
 issues, open PRs, or merge.
 
-#### [ss-agile-polishing-an-issue](skills/agile/ss-agile-polishing-an-issue/)
+#### [ss-agile-polishing-an-issue](skills/agile-ralph-loop/ss-agile-polishing-an-issue/)
 
 Subagent skill. Polishes the implementer's diff — naming, comments,
 structure, error messages, dead-code removal — within the scope of the
@@ -128,7 +128,7 @@ existing diff. Has NO veto power, NEVER blocks the merge; "no changes" is
 a valid outcome. Also does a lightweight acceptance-criteria sanity check
 and flags possibly-unmet items as info.
 
-#### [ss-agile-managing-issues](skills/agile/ss-agile-managing-issues/)
+#### [ss-agile-managing-issues](skills/agile-ralph-loop/ss-agile-managing-issues/)
 
 Pure reference skill for the `gh` CLI's `gh issue` surface plus milestone
 management via `gh api`. Loaded by autonomous agile skills; insists on
