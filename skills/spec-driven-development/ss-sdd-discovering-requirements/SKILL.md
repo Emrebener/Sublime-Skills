@@ -7,7 +7,7 @@ description: Use during the discovery stage of an SDD pipeline run, after ss-sdd
 
 ## Overview
 
-Turn a rough idea into a shared, complete understanding through conversation. This stage produces no files on disk — only alignment. The agent's final message to the coordinator is a fixed-shape structured summary (Step 4.4); the `ss-sdd-writing-specs` skill turns that alignment into the spec document at the next stage.
+Turn a rough idea into a shared, complete understanding through conversation. This stage produces no files on disk — only alignment. The agent's final message to the coordinator is a fixed-shape structured summary (§4.4); the `ss-sdd-writing-specs` skill turns that alignment into the spec document at the next stage.
 
 Discovery runs in **four phases**:
 - **Phase 1 — Context:** load project conventions, scope-check, classify work type.
@@ -23,12 +23,12 @@ Four **cross-cutting rules** apply throughout Phases 2–4: CC-1 playback gate, 
 
 ## Hard Gates
 
-- Do NOT write any spec, plan, or implementation artifact to disk in this stage. The terminal state of this skill is "user has approved a shared understanding"; the agent's final message to the coordinator is the structured end-of-stage summary (Step 4.4), which lives in conversation, not on disk.
+- Do NOT write any spec, plan, or implementation artifact to disk in this stage. The terminal state of this skill is "user has approved a shared understanding"; the agent's final message to the coordinator is the structured end-of-stage summary (§4.4), which lives in conversation, not on disk.
 - Do NOT propose more than one question per message. Even when topics relate, split them.
 - Do NOT proceed past a section the user hasn't approved.
 - Do NOT skip a framing probe (F1–F4) for any reason other than the narrow, explicit skip conditions listed in Phase 2.
 - Do NOT advance to Phase 4 synthesis without every Phase 3 dimension having a stated answer — a sentence or two, or an explicit `N/A — <Phase 1 or Phase 2 signal>`. Free-form `N/A — doesn't apply` is rejected.
-- Do NOT pass the Phase 4 stop-and-summarize self-check if you cannot, right now, write a single paragraph naming (a) the primary user, (b) their trigger, (c) what success looks like, and (d) the top 3 ways the feature can fail. If you can't, return to Phase 3 and drill the missing dimension(s).
+- Do NOT pass the Phase 4 stop-and-summarize self-check if you cannot, right now, write a single paragraph naming (a) the primary user, (b) their trigger, (c) what success looks like, and (d) the top 3 ways this could go wrong. If you can't, return to Phase 3 and drill the missing dimension(s).
 
 ## Checklist
 
@@ -242,7 +242,7 @@ Before summarizing back to the user, run this self-check:
 
 > Can I, right now, write a single paragraph that names: (a) who the primary user is, (b) what triggers them to use this, (c) what success looks like for them, and (d) the top 3 ways this could go wrong?
 >
-> If yes — proceed to Step 4.2.
+> If yes — proceed to §4.2.
 > If no — return to Phase 3 and drill the missing dimension(s). Do not summarize.
 
 A second sub-check runs alongside: every dimension from Phase 3 must have its stated answer (or signal-cited N/A) in your in-memory understanding. If any dimension is still in a "we'll figure it out" state, that's a return-to-Phase-3 signal regardless of the paragraph check.
