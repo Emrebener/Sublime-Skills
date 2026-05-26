@@ -88,33 +88,72 @@ The abort matrix:
 ## Stage 1 — Discovering requirements
 
 **Skill:** `ss-sdd-discovering-requirements` (inline)
-**Output:** shared understanding of the feature, held in the coordinator's conversation context.
+**Output:** shared understanding of the feature held in the coordinator's conversation context, plus a structured end-of-stage summary in the agent's final message.
 
-This is the conversational stage. The skill drives a Q&A with the user — one question per message, multiple choice preferred where applicable, with a recommended answer when there's a clear best choice.
+This is the conversational stage. The skill drives a Q&A with the user — one question per message, multiple choice preferred where applicable, with a recommended answer when there's a clear best choice. It runs in **four phases** with four **cross-cutting rules** applied throughout.
 
-The skill walks through (and skips dimensions already covered by the user's initial description):
+### Phase 1 — Context
 
-| Dimension | What gets discussed |
+Loads project conventions (constitution / ADRs / architecture / glossary / domain / README) via `framework/discover-context.sh`. Runs the initial scope check — if the request describes multiple independent subsystems, recommends decomposition into separate SDD runs. Classifies work type (`feature` or `fix`); inferred from initial input, asked only if ambiguous.
+
+### Phase 2 — Framing probe
+
+Four fixed probes, in order, each skippable only under narrow explicit conditions:
+
+| # | Probe | Purpose |
+|---|---|---|
+| F1 | Driver / timing — "What's prompting this now?" | Distinguishes urgency from background priority |
+| F2 | Alternatives considered — "What did you consider, why this?" | Catches single-option framings; forcing function: if user considered none, agent proposes 2–3 before continuing, and the resolved decision is tagged as an ADR candidate immediately |
+| F3 | Substitute behavior — "What do users do today without this?" | Reveals real stakes and the true substitute |
+| F4 | Concrete walkthrough — "Walk me through one real scenario" | Forces commitment to specifics; establishes the baseline scenario |
+
+Framing answers reshape the entire feature; CC-1 (playback gate) is applied aggressively here. Decisions resolved at F2 are tagged as ADR candidates and Phase 3 will not re-propose them.
+
+### Phase 3 — Targeted dimension walk
+
+The skill walks the 9-dimension coverage checklist:
+
+| Dimension | What gets covered |
 |---|---|
-| Purpose | What problem is being solved, for whom |
-| Users | Roles, journeys, motivations |
-| Scope (in) | The smallest valuable slice |
-| Scope (out) | What's deferred or out of bounds |
-| Success | Measurable outcomes |
-| Key entities | Domain objects involved (if any) |
-| Edge cases | Negative paths, boundary conditions |
-| Constraints | Tech stack, performance, security, compliance |
-| Integration | External systems, APIs, dependencies |
+| Purpose | Problem and who feels it |
+| Users | Roles + triggers |
+| Scope (in) | Smallest valuable slice |
+| Scope (out) | Explicit deferrals |
+| Success | At least one measurable outcome |
+| Key entities | Domain objects (if any) |
+| Edge cases | Top 3 failure modes |
+| Constraints | Tech/perf/security/compliance |
+| Integration | External dependencies + failure modes |
 
-**Major design decisions** with non-obvious tradeoffs are presented as 2-3 options with the skill's recommendation and reasoning. The user picks one. These decisions become candidates for ADRs in Stage 6.
+Every dimension must end Phase 3 with a stated answer or `N/A — <Phase 1 or Phase 2 signal>`. Free-form N/A is rejected. Depth per dimension is driven by signals from Phase 1 (constitution / ADRs) and Phase 2 (especially F4's walkthrough), not by a fixed quota.
 
-**Scope check:** if the user's request actually describes multiple independent subsystems, the skill surfaces this early and recommends decomposition into separate SDD runs.
+**Major design decisions** with non-obvious tradeoffs are presented as 2–3 options with the skill's recommendation and reasoning. The user picks. The chosen decision (with rejected options and reasoning) is tagged as an ADR candidate for Stage 6.
 
-**Project context loading:** the skill runs `framework/discover-context.sh` to find any project convention files (constitution, ADRs, ARCHITECTURE.md, glossary, domain model). If present, it loads them and uses the project's domain vocabulary throughout the conversation.
+**Graceful-unknown protocol:** if a dimension can't be resolved after reasonable drilling, the skill surfaces it as an Open Question with a proposed default and lets the user pick (accept the default / defer to Assumptions / defer to a follow-up spec). This is the recovery mechanism that prevents the Phase 4 stop gate from looping.
 
-**Final confirmation:** when discovery is sufficient, the skill summarizes back in sections (goal, users, scope, success, entities, edge cases, decisions). The user approves each section before moving on.
+### Phase 4 — Synthesis
 
-**Hard gate:** the skill writes nothing to disk. The output is shared understanding in the coordinator's context. Stage 2 turns that understanding into the formal spec artifact.
+Four sub-steps:
+
+- **Stop-and-summarize gate (NEW):** the agent runs a self-check before summarizing — "can I write a single paragraph naming the primary user, their trigger, what success looks like, and the top 3 ways this could go wrong?" If no, return to Phase 3.
+- **Section-by-section approval:** sections are presented in order (Goal & problem → Users & flows → Scope → Success → Key entities → Edge cases & constraints → Major decisions), each with explicit user approval required before moving on. The Goal section is framed with its F1 driver (and F3 substitute, when load-bearing) inline as a parenthetical, so framing drift is cheap to spot.
+- **Final confirmation:** the agent restates the one-paragraph summary and asks "ready to write this up?"
+- **Structured end-of-stage summary:** the agent's final message to the coordinator is a fixed-shape block (`=== DISCOVERY SUMMARY === / === END SUMMARY ===`) covering `short_name`, `work_type`, `framing` (driver/alternatives/substitute_behavior/walkthrough), `dimensions` (all 9), `major_decisions` (ADR candidates with chosen / rejected / reasoning), `open_questions` (with disposition), and `approved_sections`. The structured shape exists for the agent's own self-discipline (forces every dimension to be actually stated) and for cleaner coordinator state; it is **not** a parse contract with Stage 2. The coordinator's existing in-memory handoff to Stage 2 and existing `DECISIONS_CAPTURED` dispatch to Stage 6 absorb the structured material via the same channels as today; no new dispatch parameters are introduced.
+
+### Cross-cutting rules
+
+Apply throughout Phases 2–4 as their triggers fire (not sequential steps). Full definitions in the skill's SKILL.md.
+
+| Rule | Trigger |
+|---|---|
+| CC-1 — Playback gate | After any non-obvious user answer; paraphrase the implication before the next question |
+| CC-2 — Contradiction watch | When two user answers imply different systems; surface and resolve |
+| CC-3 — Adjacent-scenario invitation | When a Phase 3 dimension is stuck on abstractions after ≥2 exchanges; ask for a scenario *distinct* from F4 |
+| CC-4 — Mid-conversation scope re-check | When the user adds independent functionality mid-discovery; re-run Phase 1's scope check |
+
+### Hard gate
+
+The skill writes nothing to disk. The output is shared understanding in the coordinator's context plus the structured end-of-stage summary in the agent's final message. Stage 2 turns that understanding into the formal spec artifact.
 
 ---
 
