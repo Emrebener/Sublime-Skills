@@ -69,16 +69,9 @@ The coordinator persists these fields at stage boundaries (atomic: write `.tmp`,
 
 Through Stages 2–11, SDD writes the planning artifacts (spec.md, plan.md, ADRs) but does NOT commit them — they sit uncommitted in the working tree. `ss-sdd-choosing-feature-branch` at Stage 12 batch-commits them on the chosen branch in two thematic, path-scoped commits (`docs(<feature_id>): spec and plan` + `docs(adr): N decisions for <feature_id>`). From Stage 13 onward, code commits happen per task (Stage 13) or per stage (Stage 16 when the memory file is updated). Stage 14 commits only via the in-loop fixer subagent on test FAIL; Stage 15 makes no commit (handoff lives outside the repo); Stage 17 produces one commit (the `--no-ff` merge on `main`) and then deletes the state file via plain `rm`. `.sublime-skills/state.json` is gitignored and is never committed at any stage. In stage descriptions below, "**No commit (Stage 12 batches)**" is shorthand for this rule.
 
-## User-Requested Changes Classification
+## User-Requested Changes at Approval Gates
 
-Used at Stages 7 (spec approval) and 11 (plan approval). When the user requests changes instead of approving, classify before applying. Default to light-touch when unsure; if it grows substantive mid-edit, stop and reclassify.
-
-| Change type | Examples | Handling |
-|---|---|---|
-| **Light-touch** | Typo, wording, tightening an FR, adding an edge case, ADR text adjustment, plan task wording | Apply inline via `ss-sdd-receiving-review-findings` discipline. Re-validate. Re-ask for approval. |
-| **Substantive — re-discovery** | Decomposition needed, fundamental requirement change, whole story added/removed | Do NOT edit inline. Reset `current_stage` to `discovering`; re-invoke `ss-sdd-discovering-requirements`. |
-| **Substantive — ADR overhaul** | An ADR needs replacing, new ADR-worthy decisions emerge (Stage 7 only) | Re-dispatch `ss-sdd-maintaining-adrs` after any spec changes. |
-| **Substantive — plan rework** | Phases need restructuring, big chunks of tasks rewritten (Stage 11 only) | Re-enter Stage 8 (`ss-sdd-writing-plans`); the prior plan is overwritten in place. |
+Used at Stages 7 (spec approval) and 11 (plan approval). When the user requests changes instead of approving, apply the edits inline to the relevant file(s) — spec, ADRs, or plan — re-run the matching validator (`validate-spec.sh` at Stage 7, `validate-plan.sh` at Stage 11), then re-ask for approval. Loop until the user approves. There is no iteration cap and no classification step — the pipeline does not backtrack to earlier stages. If a user's feedback is too big to apply inline (e.g., they realize this is the wrong feature entirely), tell them so and let them decide whether to abandon and start fresh.
 
 ## Per-Stage Driving Instructions
 
@@ -155,7 +148,7 @@ Tell user:
 
 **On Approve:** edit each ADR's `Status: Proposed` → `Status: Accepted` (file edits only). Advance. **No commit (Stage 12 batches).**
 
-**On Request changes:** classify per the [User-Requested Changes Classification](#user-requested-changes-classification) subsection above, then apply.
+**On Request changes:** apply per the [User-Requested Changes at Approval Gates](#user-requested-changes-at-approval-gates) subsection above — edit spec and/or ADRs inline, re-run `validate-spec.sh`, re-ask.
 
 ### Stage 8 — Writing the Plan
 
@@ -175,7 +168,7 @@ Tell user: "Plan ready: docs/specs/NNN-<short-name>/plan.md. Approve to choose a
 
 **On Approve:** advance to Stage 12. **No commit (Stage 12 batches).**
 
-**On Request changes:** classify per the [User-Requested Changes Classification](#user-requested-changes-classification) subsection above, then apply.
+**On Request changes:** apply per the [User-Requested Changes at Approval Gates](#user-requested-changes-at-approval-gates) subsection above — edit `plan.md` inline, re-run `validate-plan.sh`, re-ask.
 
 ### Stage 12 — Settle Feature Branch + Batch Commit
 

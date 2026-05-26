@@ -336,15 +336,10 @@ The coordinator tells the user:
 
 All artifact updates from approval (ADR status flips, any inline spec edits from "request changes") stay uncommitted in the working tree. Stage 12 (`ss-sdd-choosing-feature-branch`) batch-commits them on the chosen branch.
 
-The user reads the files and responds. Possibilities:
+The user reads the files and responds. Two possibilities:
 
 - **Approve** (default flow): the coordinator flips every ADR file's status from `Proposed` to `Accepted` (file edits only — uncommitted), advances to Stage 8.
-- **Request changes**: classify before applying.
-  - **Light-touch edit** (typo, wording, tightening an FR, adding an edge case, ADR text adjustment): apply inline using `ss-sdd-receiving-review-findings` discipline, re-run validator, re-ask.
-  - **Substantive — re-discovery needed** (decomposition, fundamental requirement change, story added/removed, big rethink): do NOT edit inline. Confirm with user, then reset `current_stage` to `discovering` and re-enter Stage 1. The new discovery may produce a revised spec that supersedes the current one.
-  - **Substantive — ADR overhaul** (an ADR needs replacing, or new ADR-worthy decisions emerge): re-dispatch `ss-sdd-maintaining-adrs` after any spec changes; the subagent handles supersession.
-  - If unsure, default to light-touch and apply inline; if it becomes clear the change is substantive, stop and reclassify.
-- **Reject and abandon**: coordinator exits the pipeline; user decides what to do with the work-in-progress branch.
+- **Request changes**: the coordinator applies the requested edits inline to spec and/or ADRs, re-runs `validate-spec.sh`, and re-asks for approval. Loops until approved. The pipeline does not backtrack to earlier stages and there is no iteration cap. If the user's feedback is too big to apply inline (e.g., they realize this is the wrong feature entirely), the coordinator says so and the user decides whether to abandon and start a fresh session.
 
 **Why flip on approval:** leaving ADRs `Proposed` after a shipped feature creates stale statuses users forget to update. If a particular ADR genuinely needs more deliberation, the right move is **Request changes** on that ADR — not shipping a still-Proposed decision.
 
@@ -417,15 +412,10 @@ The coordinator tells the user:
 > "Plan ready for review: docs/specs/NNN-<short-name>/plan.md
 > Approve to choose a feature branch and start implementation, or request changes."
 
-Possibilities:
+Two possibilities:
 
 - **Approve**: advance to Stage 12 (`ss-sdd-choosing-feature-branch`). No commit here — artifacts remain uncommitted through Stage 11.
-- **Request changes**: classify before applying, same protocol as Stage 7's "Request changes" branch.
-  - **Light-touch edit** (task wording, fixing a path, tightening a step): apply inline using `ss-sdd-receiving-review-findings` discipline, re-run `validate-plan.sh`, re-ask.
-  - **Substantive — plan rework** (phases need restructuring, big chunks of tasks rewritten): re-enter Stage 8 (`ss-sdd-writing-plans`); the prior plan is overwritten in place.
-  - **Substantive — spec gap** (the plan reveals a missing FR or unclear scope): return to the relevant spec stage. Practically rare — Stage 9 should catch most of these.
-  - If unsure, default to light-touch; if it becomes clear the change is substantive, stop and reclassify.
-- **Reject and abandon**: coordinator exits.
+- **Request changes**: the coordinator applies the requested edits inline to `plan.md`, re-runs `validate-plan.sh`, and re-asks for approval. Loops until approved. Same shape as Stage 7: no backtracking to earlier stages, no iteration cap. If the user's feedback is too big to apply inline, the coordinator says so and the user decides whether to abandon and start a fresh session.
 
 **Hard gate:** no Stage 12 without approval.
 
@@ -692,15 +682,15 @@ After Stage 17: SDD is done. The user is on `main`, the merge commit is in histo
 
 ## What if you need to revise mid-pipeline?
 
-The pipeline is forward-flowing by default, but you can iterate:
+The pipeline is strictly forward-flowing — there is no backtracking to earlier stages. Issues surfaced after a stage has completed are fixed inline within the current stage's loop, re-validated with the matching script, and the loop continues. If a fix is too big to apply inline, the run is abandoned and the user starts a fresh session.
 
-- **Spec changes during plan review (Stage 9-10)**: if the plan reviewer surfaces a spec gap, the coordinator can apply minor edits to the spec inline (re-running the spec validator) without going back through Stage 3. For substantive spec changes, the coordinator returns to Stage 8 (ss-sdd-writing-plans) after the spec is updated — Stage 7 was already approved; the spec change is treated as a fix not a redo unless the user requests otherwise.
+- **Spec changes during plan review (Stage 9-10)**: if the plan reviewer surfaces a spec gap, the coordinator edits the spec inline (re-running `validate-spec.sh`) and continues the plan-review loop. No return to earlier stages.
 
-- **Plan changes during implementation (Stage 13)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator surfaces to the user. The user may want to revise the plan and re-enter Stage 8, or override the issue manually.
+- **Plan changes during implementation (Stage 13)**: if a task surfaces a plan-level issue (e.g., a required file doesn't exist as the plan said it would), the coordinator edits the plan inline (re-running `validate-plan.sh`) and continues the per-task loop. If the issue can't be resolved by an inline edit, surface to the user, who decides whether to abandon.
 
-- **Mid-implementation spec changes**: rare but possible. Treat as: pause Stage 13, revise spec inline (re-validate), revise plan inline (re-validate), then continue Stage 13 from where it left off. The state file's `tasks` map is preserved.
+- **Mid-implementation spec changes**: rare but possible. Pause Stage 13, edit the spec inline (re-validate), edit the plan inline (re-validate), then continue Stage 13 from where it left off. The state file's `tasks` map is preserved.
 
-The pipeline doesn't prescribe a clean "loop back to earlier stage" mechanism for every case — that's deliberate. Real iteration is messier than a strict state machine accommodates, and the coordinator's judgment (plus user input on big calls) handles it.
+The "no backtracking" rule is deliberate. Backtracking through a multi-skill pipeline with state files is error-prone for both the coordinator and the skills, and the everyday case is small tweaks — which inline editing handles cleanly. Big rethinks are rare enough that "abandon and start fresh" is the right escape valve.
 
 ---
 

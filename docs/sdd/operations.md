@@ -575,7 +575,7 @@ The atomic write pattern (write to `.tmp` then `mv`) makes this rare — typical
 **Cause:** an implementation task revealed a spec gap or wrong assumption.
 **Fix:** pause Stage 13 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then continue Stage 13 from where you left off. The `tasks` map is preserved.
 
-There's no clean "loop back to earlier stage" mechanism for this — it's deliberately a judgment call.
+The pipeline is strictly forward-flowing — there is no backtracking to earlier stages. If the inline fix is too big to apply this way, abandon and start a fresh session.
 
 ### Existing state when starting a fresh feature
 
