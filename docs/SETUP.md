@@ -1,18 +1,19 @@
 # Setup (personal, fish + Linux)
 
-Repo lives at `~/Projeler/Sublime-Skills/` (version-controlled). Skills can
-be symlinked from there into Claude Code's `~/.claude/skills/` or Codex's
-`~/.codex/skills/` so the chosen harness picks them up globally. Slash
-commands are Claude Code-specific and symlink into `~/.claude/commands/`.
-The framework scripts stay at their real location; skills address them via
+Repo lives at `~/Projeler/Sublime-Skills/` (version-controlled). Skills are
+symlinked from there into Claude Code's `~/.claude/skills/` and Codex's
+`~/.codex/skills/` so both harnesses pick them up globally. Slash commands
+are Claude Code-specific and symlink into `~/.claude/commands/`. The
+framework scripts stay at their real location; skills address them via
 `$SUBLIME_SKILLS_HOME`.
 
 Three orthogonal pieces:
 
-1. **Claude Code skill discovery** — symlinks into `~/.claude/skills/` (handled by `scripts/install-claude.fish`)
-2. **Claude Code slash command discovery** — symlinks into `~/.claude/commands/` (handled by the same script)
-3. **Codex skill discovery** — symlinks into `~/.codex/skills/` (handled by `scripts/install-codex.fish`)
-4. **Script + scaffold resolution** — `$SUBLIME_SKILLS_HOME` env var pointing at the real repo (manual, one-time)
+1. **Claude Code skill + slash command discovery** — symlinks into `~/.claude/skills/` and `~/.claude/commands/`
+2. **Codex skill discovery** — symlinks into `~/.codex/skills/`
+3. **Script + scaffold resolution** — `$SUBLIME_SKILLS_HOME` env var pointing at the real repo (manual, one-time)
+
+Both harnesses are handled by a single script (`scripts/install.fish`).
 
 ## 1. Set `SUBLIME_SKILLS_HOME`
 
@@ -36,38 +37,29 @@ The var must point at the **real repo root**, not a symlinked location —
 the framework scripts at `skills/spec-driven-development/framework/*.sh` are only
 present in the real tree, never in `~/.claude/skills/` or `~/.codex/skills/`.
 
-## 2. Install skills and commands for Claude Code
+## 2. Install skills and commands
 
 ```fish
-$SUBLIME_SKILLS_HOME/scripts/install-claude.fish
-# Linked 35 skills, 2 commands.
+$SUBLIME_SKILLS_HOME/scripts/install.fish
+# Claude Code: linked 40 skills, 2 commands.
+# Codex:       linked 40 skills.
 ```
 
-The script is idempotent — re-run any time:
+The script installs for both Claude Code and Codex unconditionally — the
+target dirs are cheap, and whichever harness you actually use will pick
+them up. It is **idempotent** — re-run any time:
 
 - After a `git pull` that brings in new skills or commands
 - After adding or renaming a skill locally
 - Whenever a symlink might have drifted
 
 Existing symlinks are updated in place via `ln -sfn`; new ones are created;
-dead symlinks (target removed upstream) are pruned at the end.
+dead symlinks (target removed or renamed upstream) are pruned at the end.
+This is the right tool for fixing drift — after a rename, the old
+basename's symlink becomes dangling and gets swept by the prune step on
+the next install run.
 
-## 3. Install skills for Codex
-
-```fish
-$SUBLIME_SKILLS_HOME/scripts/install-codex.fish
-# Linked 35 skills.
-```
-
-This links every leaf skill directory into `~/.codex/skills/`, which is
-Codex's central skill location on this machine. Codex does not use the
-Claude Code slash command files under `commands/`, so this script leaves
-them alone.
-
-The script is idempotent for the same reasons as the Claude Code installer:
-re-run it after pulls, local skill additions, renames, or symlink drift.
-
-## 4. Verify end-to-end
+## 3. Verify end-to-end
 
 From any directory (not the repo):
 
@@ -90,15 +82,19 @@ discoverable from `~/.codex/skills/`.
 
 ```fish
 $SUBLIME_SKILLS_HOME/scripts/uninstall.fish
-# Removes every Sublime-Skills symlink from ~/.claude/{skills,commands}/
-# Leaves the repo and the env var line untouched.
+# Claude Code: removed 40 skill symlink(s), 2 command symlink(s).
+# Codex:       removed 40 skill symlink(s).
 ```
+
+The uninstall script scans `~/.claude/skills/`, `~/.claude/commands/`,
+and `~/.codex/skills/`, and removes every symlink whose target resolves
+under `$SUBLIME_SKILLS_HOME`. Unlike a naive "remove what the current
+repo defines" approach, this also catches orphans left over from
+past renames or deletions. Real directories and non-Sublime symlinks
+are left alone.
 
 To fully uninstall, also remove the `set -gx SUBLIME_SKILLS_HOME ...` line
 from `~/.config/fish/config.fish` manually.
-
-There is no Codex uninstall wrapper yet; remove this repo's symlinks from
-`~/.codex/skills/` if needed.
 
 ## Why this layout
 
@@ -109,28 +105,35 @@ There is no Codex uninstall wrapper yet; remove this repo's symlinks from
 - Framework + skill-private scripts addressed via `$SUBLIME_SKILLS_HOME` → no cwd assumptions, no symlinks to maintain for any script tree
 - Scaffold (`skills/project-bootstrap/scaffolds/config.yml`) addressed the same way → bootstrap copies it from the real repo regardless of where you invoke it from
 
-## Appendix: what `install-claude.fish` actually does
+## Appendix: what `install.fish` actually does
 
 If you want to inspect or run the loops manually instead of via the script,
 they're roughly:
 
 ```fish
-# Skills — one symlink per leaf skill dir
+# Claude Code: skills — one symlink per leaf skill dir
 mkdir -p ~/.claude/skills
 for skill in $SUBLIME_SKILLS_HOME/skills/*/*/SKILL.md
     set dir (dirname $skill)
     ln -sfn $dir ~/.claude/skills/(basename $dir)
 end
 
-# Commands — one symlink per .md file (flat namespace)
+# Claude Code: slash commands — one symlink per .md file (flat namespace)
 mkdir -p ~/.claude/commands
 for cmd in $SUBLIME_SKILLS_HOME/commands/*.md
     ln -sfn $cmd ~/.claude/commands/(basename $cmd)
 end
 
+# Codex: skills only
+mkdir -p ~/.codex/skills
+for skill in $SUBLIME_SKILLS_HOME/skills/*/*/SKILL.md
+    set dir (dirname $skill)
+    ln -sfn $dir ~/.codex/skills/(basename $dir)
+end
+
 # Prune any symlinks whose targets no longer exist
-find ~/.claude/skills ~/.claude/commands -maxdepth 1 -xtype l -delete
+find ~/.claude/skills ~/.claude/commands ~/.codex/skills -maxdepth 1 -xtype l -delete
 ```
 
 The script wraps these with input validation (env var is set, points at a
-real Sublime-Skills checkout) and a final count report.
+real Sublime-Skills checkout) and a per-harness count report.

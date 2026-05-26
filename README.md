@@ -615,15 +615,17 @@ The scripts themselves locate sibling helpers via `$0` and the user's project
 via `git rev-parse --show-toplevel`, so neither the script directory layout
 nor the project's location matters once `SUBLIME_SKILLS_HOME` is set.
 
-To expose the skills globally, run the installer for your harness:
+To expose the skills globally, run the installer — one command covers
+both Claude Code (skills + slash commands) and Codex (skills only):
 
 ```fish
-# Claude Code: skills plus slash commands
-$SUBLIME_SKILLS_HOME/scripts/install-claude.fish
-
-# Codex: skills only
-$SUBLIME_SKILLS_HOME/scripts/install-codex.fish
+$SUBLIME_SKILLS_HOME/scripts/install.fish
 ```
+
+The script is idempotent — re-run it after a git pull, a local skill
+rename, or any other change that might have drifted the symlinks.
+A matching `uninstall.fish` removes every Sublime-Skills symlink from
+both harnesses.
 
 See `docs/SETUP.md` for the personal machine setup, symlink targets, and
 uninstall notes.
