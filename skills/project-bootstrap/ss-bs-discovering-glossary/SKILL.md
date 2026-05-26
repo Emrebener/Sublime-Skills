@@ -28,7 +28,6 @@ You're invoked when the user picked **Create / Extend / Replace** for glossary. 
 - ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text only for genuinely open prompts (aliases, definition refinements).
-- Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed glossary — text only.
 - Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT propose generic programming terms (function, class, database, API) — domain-specific only.
 - Do NOT exceed 30 terms in the final draft — quality over quantity.

@@ -28,7 +28,6 @@ You're invoked when the user picked **Create / Extend / Replace** for constituti
 - ALWAYS use the harness's interactive question tool for every yes/no or multi-choice question. Do NOT default to plain-text prompts that force the user to type a free-form answer when a structured choice exists.
 - Ask ONE question per turn. Never bundle multiple unrelated questions in a single ask. The user reads one thing, decides one thing, moves on.
 - Lead with multi-choice + a recommended option whenever the choice has clear alternatives. Free-form text input is reserved for genuinely open prompts (project-specific intent principles, alias notes, etc.).
-- Do NOT use Mermaid, C4, PlantUML, or any other diagram syntax in the proposed constitution — text only.
 - Do NOT dispatch subagents. You're inline — you do the work.
 - Do NOT propose principles unsupported by codebase evidence OR explicit user input. Every principle traces to one or the other.
 - Do NOT exceed 7 principles in the final draft — fewer load-bearing ones beat a long list.
