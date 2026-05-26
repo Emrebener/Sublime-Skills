@@ -110,6 +110,47 @@ If genuinely ambiguous (e.g., "improve the login flow" could be either a UX feat
 
 Record the classification in your in-memory output. Do not labor on this — it's a single bit that only affects the suggested branch name.
 
+## Phase 2 — Framing probe
+
+Runs after Phase 1, before Phase 3 (the dimension walk). Purpose: surface what the user isn't saying — implicit drivers, assumptions, alternatives — before requirements gathering locks the framing in.
+
+Four fixed probes, asked in order. Each can be **skipped only when the user's initial input already answered it unambiguously** — no other shortcut.
+
+### The probes
+
+| # | Probe | What it surfaces |
+|---|---|---|
+| F1 | **Driver / timing.** "What's prompting this now — what changed, what deadline or incident is in play, or is something blocking other work?" | Underlying driver. Distinguishes "nice-to-have we keep deferring" from "load-bearing for Q3 launch." Strictly about *why now*, not stakes. |
+| F2 | **Alternatives considered.** "What other approaches did you consider, and what made you land here?" | Whether the user has filtered options or is treating the first idea as the only idea. If they say "I didn't consider any," the **forcing function** fires (see below). |
+| F3 | **Substitute behavior.** "If we don't build this, what does the affected user do instead — workaround, suffer, leave?" | What the user does in absence of the feature. Distinct from F1 (timing); this is purely about the substitute. If the answer is "nothing, they just live with it," that's a strong signal to deprioritize or rescope. |
+| F4 | **Concrete walkthrough.** "Walk me through one real scenario, start to finish — a specific user, a specific moment, what they do and what they expect to happen." | Forces commitment to specifics. Catches abstract framings that hide unanswered questions. Establishes the baseline scenario that Phase 3 and CC-3 build on. |
+
+### Protocol
+
+- **One probe per message.** No combining.
+- **No recommendations on framing probes.** Framing answers come from the user; you have no basis to recommend "why now."
+- **Each answer is logged in your in-memory understanding** — not written to disk (the no-artifacts hard gate applies).
+- **Apply CC-1 (playback gate) aggressively here.** Framing answers are where misunderstanding is cheapest to catch and most expensive to leave.
+- **F2 forcing function.** If the user says they didn't consider alternatives, you MUST propose 2–3 before continuing to F3. Any decision the user resolves at F2 is **immediately tagged as an ADR candidate** in your in-memory understanding (same treatment as a major decision surfaced in Phase 3 §3.3). Phase 3 will not re-propose the same fork.
+- **F4 is the bridge to Phase 3.** The concrete walkthrough naturally exposes which dimensions matter most for this feature.
+
+### Skip conditions (explicit, narrow)
+
+A probe is skipped only when:
+
+| Probe | Skip only when |
+|---|---|
+| F1 | The user's initial input contained an explicit driver/timing framing (deadline, incident, blocker for other work) |
+| F2 | The user's initial input named alternatives they rejected |
+| F3 | The user's initial input explicitly stated what users currently do without the feature (workaround/suffer/leave) |
+| F4 | The user's initial input *already was* a concrete scenario with specific users and specific actions |
+
+"I think I can guess" is not a valid skip condition. When skipping, record the skip reason in your in-memory understanding so the Phase 4 summary can cite it.
+
+### Non-overlap with Phase 3
+
+The framing probe does NOT replace the Purpose dimension in Phase 3. The probe surfaces *why* and *what's behind the ask*; the Purpose dimension pins down the problem statement for the spec. They feed each other.
+
 ## Step 4: Conversational Discovery
 
 Walk through these dimensions (in roughly this order, skipping any that are already clear from the user's description):
