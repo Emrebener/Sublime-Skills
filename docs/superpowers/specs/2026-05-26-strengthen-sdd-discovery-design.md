@@ -11,28 +11,28 @@
 
 The SDD pipeline (`ss-sdd-coordinator`) drives an 18-stage flow from preflight through finishing. Stage 1 — Discovering Requirements — is the only conversational stage that aligns the agent and the user before any artifact is written. Every later stage (spec writing, reviews, ADR maintenance, planning, implementation) depends on the shared understanding Stage 1 produces. A weak Stage 1 propagates weakness through the entire pipeline.
 
-An audit of the existing skill surfaced 9 findings. The 4 highest-impact gaps are:
+An audit of the existing skill surfaced 9 findings (referred to throughout this doc as D1–D9 to avoid collision with the Phase 2 probe labels F1–F4). The 4 highest-impact gaps are:
 
-1. **No mid-conversation playback loop.** The only restatement happens at the end (section-by-section approval). By then, dimensions interlock and corrections force re-doing other sections.
-2. **No probe for the implicit / unsaid.** The dimensions surface what the user *says*, not what the user assumes, why now, what alternatives they rejected, or what happens if the feature isn't built.
-3. **The 9 dimensions are flat and generic.** Same depth for trivial dimensions as for load-bearing ones; no signal-driven prioritization.
-4. **Handoff to Stage 2 is unstructured.** The spec writer re-interprets a bulleted summary from conversation context, allowing drift.
+- **D1.** No mid-conversation playback loop. The only restatement happens at the end (section-by-section approval). By then, dimensions interlock and corrections force re-doing other sections.
+- **D2.** No probe for the implicit / unsaid. The dimensions surface what the user *says*, not what the user assumes, why now, what alternatives they rejected, or what happens if the feature isn't built.
+- **D3.** The 9 dimensions are flat and generic. Same depth for trivial dimensions as for load-bearing ones; no signal-driven prioritization.
+- **D9.** Handoff to Stage 2 is unstructured. The agent's report to the coordinator is a free-form 4-bullet list, with no guarantee every dimension was actually stated.
 
-Five additional findings (concrete-example prompt, contradiction handling, completeness signal, mid-conversation scope re-check, graceful-unknown protocol) round out the picture. All nine are addressed by this design.
+Five additional findings (D4 concrete-example prompt, D5 contradiction handling, D6 alternatives probe, D7 completeness signal, D8 mid-conversation scope re-check; plus the graceful-unknown protocol absorbed into D7) round out the picture. All nine are addressed by this design.
 
 ## Goals
 
-- Make discovery's clarification work **enforceable** rather than aspirational — every new rigor has a named, numbered home.
+- Make discovery's clarification work **named and visible** rather than implicit — every new rigor has a numbered, triggered home in the SKILL.md. (Honest scope: this raises the ceiling for compliant agents; it does not externally enforce on non-compliant ones. Only the Phase 4 stop-gate is structurally checkable. The rest is discipline-by-naming.)
 - Catch framing mistakes at the **cheapest possible moment** (before the spec is written).
-- Reduce spec drift caused by **unstructured handoff** from Stage 1 to Stage 2.
-- Keep the skill **minimal** — no new files, no new config keys, no new pipeline stages, no breaking changes to other skills.
+- Tighten the agent's **report to the coordinator** at end-of-stage from a free-form bullet list to a fixed-shape structured summary — for the agent's own self-discipline (forces every dimension to be stated) and for cleaner coordinator state, not as a parse contract with Stage 2.
+- Keep the skill **minimal** — no new files, no new config keys, no new top-level pipeline stages, no breaking changes to other skills.
 
 ## Non-goals
 
 - Restructuring the SDD pipeline at the stage level (still 18 stages, Stage 1 still mandatory and artifact-free).
-- Editing `ss-sdd-grilling-specs` or `ss-sdd-writing-specs`. If stronger discovery makes the grill find less, that's a happy outcome — not a reason to rewrite the grill. The Stage 2 writer may benefit from an explicit "Consuming the discovery digest" subsection later; that's a follow-up if proven needed in practice.
+- Editing `ss-sdd-grilling-specs` or `ss-sdd-writing-specs`. If stronger discovery makes the grill find less, that's a happy outcome — not a reason to rewrite the grill. The Stage 2 writer is **explicitly not** updated to parse the new structured summary; the coordinator still passes in-memory understanding to Stage 2 as today. A future "Consuming the discovery summary" subsection in Stage 2 is a candidate follow-up if drift is observed in practice; we are not making the design's value depend on it.
 - Adding tunable config keys (no question caps, no toggles for the framing probe).
-- Touching the coordinator skill — its Stage 1 description is a single sentence pointing at this skill; no edit needed.
+- Touching the coordinator skill's SKILL.md — its Stage 1 description is a single sentence pointing at this skill; no edit needed. The coordinator's existing in-memory handoff behavior (carries ADR-candidate decisions, passes DECISIONS_CAPTURED to Stage 6) is preserved unchanged — the new structured summary simply gives the coordinator richer in-memory state to draw from.
 
 ---
 
@@ -57,7 +57,7 @@ The 9-dimension coverage table is preserved verbatim as the spine of Phase 3. It
 
 Unchanged from the current skill. Three sub-steps:
 
-1. **Load project context** — runs `framework/discover-context.sh` and Reads any returned files (constitution, ADRs, architecture, glossary, domain, README fallback).
+1. **Load project context** — runs `framework/discover-context.sh` and reads any returned files via the harness's read mechanism (constitution, ADRs, architecture, glossary, domain, README fallback).
 2. **Scope check** — assesses whether the request is one feature or multiple. Recommends decomposition into separate SDD runs if multiple.
 3. **Determine work type** — classifies as `feature` or `fix`. Inferred from initial input; asked only if genuinely ambiguous.
 
@@ -75,9 +75,9 @@ Four fixed probes, asked in this order. Each can be **skipped only when the user
 
 | # | Probe | What it surfaces |
 |---|---|---|
-| F1 | **Why now?** "What's prompting this now — what changed, or what's the cost of not building it?" | Underlying driver. Distinguishes "nice-to-have we keep deferring" from "load-bearing for Q3 launch." Reshapes priority and scope. |
+| F1 | **Driver / timing.** "What's prompting this now — what changed, what deadline or incident is in play, or is something blocking other work?" | Underlying driver. Distinguishes "nice-to-have we keep deferring" from "load-bearing for Q3 launch." Reshapes priority and scope. Strictly about *why now*, not stakes. |
 | F2 | **Alternatives considered.** "What other approaches did you consider, and what made you land here?" | Surfaces whether the user has already filtered options or is treating the first idea as the only idea. If they say "I didn't consider any," the agent flags this and proposes 2-3 alternatives before continuing. |
-| F3 | **Cost of inaction.** "If we don't build this, what does the affected user do instead — workaround, suffer, leave?" | Reveals real stakes and the true substitute. If the answer is "nothing, they just live with it," that's a strong signal to deprioritize or rescope. |
+| F3 | **Substitute behavior.** "If we don't build this, what does the affected user do instead — workaround, suffer, leave?" | What the user does in absence of the feature. Distinct from F1 (which is about timing); this is purely about the substitute. If the answer is "nothing, they just live with it," that's a strong signal to deprioritize or rescope. |
 | F4 | **Concrete walkthrough.** "Walk me through one real scenario, start to finish — a specific user, a specific moment, what they do and what they expect to happen." | Forces commitment to specifics. Catches abstract framings that hide unanswered questions. |
 
 ### Protocol
@@ -86,16 +86,16 @@ Four fixed probes, asked in this order. Each can be **skipped only when the user
 - **No recommendations on framing probes.** Framing answers come from the user; the agent has no basis to recommend "why now."
 - **Each answer is logged in the agent's in-memory understanding**, not written to disk (consistent with the "no artifacts in Phase 1" hard gate — Stage 1 produces no files at all).
 - **The playback gate (CC-1) applies most aggressively here** — framing answers are where misunderstanding is cheapest to catch and most expensive to leave.
-- **F2 has a forcing function.** If the user says they didn't consider alternatives, the agent **must** propose 2-3 before continuing to F3. This is the framing-rescue moment.
+- **F2 has a forcing function.** If the user says they didn't consider alternatives, the agent **must** propose 2-3 before continuing to F3. This is the framing-rescue moment. **Any decision resolved at F2 is immediately tagged as an ADR candidate** in the agent's in-memory understanding (same treatment as a major decision surfaced in Phase 3 Step 5) — Phase 3 will not re-propose the same fork.
 - **F4 is the bridge to Phase 3.** The concrete walkthrough naturally exposes which dimensions matter most.
 
 ### Skip conditions (explicit, narrow)
 
 | Probe | Skip only when |
 |---|---|
-| F1 | The user's initial input contained an explicit "we need this because X" or a deadline/incident framing |
+| F1 | The user's initial input contained an explicit driver/timing framing (deadline, incident, blocker for other work) |
 | F2 | The user's initial input named alternatives they rejected |
-| F3 | The user's initial input explicitly framed the cost of inaction |
+| F3 | The user's initial input explicitly stated what users currently do without the feature (workaround/suffer/leave) |
 | F4 | The user's initial input *already was* a concrete scenario with specific users and specific actions |
 
 "I think I can guess" is not a valid skip condition.
@@ -112,7 +112,7 @@ This phase is the heart of discovery — where the spec's content is actually sh
 
 ### The coverage rule
 
-Every dimension below must end Phase 3 with a **stated answer** — a sentence or two the agent can recite. A dimension that genuinely doesn't apply ends with an explicit *"N/A — <one-line reason>"* statement. There is no third option (no "skipped," no "we'll get to it"). This is the rule the Phase 4 stop gate verifies.
+Every dimension below must end Phase 3 with a **stated answer** — a sentence or two the agent can recite. A dimension that genuinely doesn't apply ends with an explicit *"N/A — <one-line reason citing a Phase 1 or Phase 2 signal>"* statement. The cited signal is mandatory: free-form "N/A — doesn't apply here" is rejected. Examples of well-formed N/As: *"N/A — F4 walkthrough involved no persistent data"*; *"N/A — constitution forbids external integrations for this layer"*; *"N/A — F3 substitute behavior is purely manual; no integration surface."* There is no third option (no "skipped," no "we'll get to it"). This is the rule the Phase 4 stop gate verifies.
 
 | Dimension | What "stated answer" looks like |
 |---|---|
@@ -189,34 +189,41 @@ Sections (unchanged from current skill): Goal & problem → Users & flows → Sc
 
 Identical to the current Step 7. The agent states the one-paragraph summary from the stop-gate self-check and asks "Ready to write this up?" Wait for explicit confirmation.
 
-### Step 4.4 — Structured handoff digest
+### Step 4.4 — Structured end-of-stage report to the coordinator
 
-The current Step 8 returns a bulleted list. The sharpened version returns a **fixed-shape block** so Stage 2 consumes it without re-interpreting:
+The current Step 8 returns a free-form bulleted list. The sharpened version returns a **fixed-shape structured summary** in the agent's final message to the coordinator. The structure is not a parse contract with any downstream skill — Stage 2 still receives in-memory understanding from the coordinator as today. Its value is:
+
+- **Agent self-discipline.** A fixed schema forces every dimension to be *actually stated* (or explicitly N/A with a cited signal). It is impossible to wave through "we covered scope" without writing the scope.
+- **Coordinator state cleanliness.** The coordinator absorbs the same fields it carries today (`short_name`, `work_type`, ADR-candidate decisions) plus framing/dimension content. Cleaner inputs to the downstream stages it dispatches.
+
+**No new file is written.** The structured summary lives in the agent's final message to the coordinator, exactly where today's free-form bullet list lives. This preserves the Phase 1 "no artifacts" hard gate — the gate is about not pre-writing the spec/plan/code, not about whether a stage's report to the coordinator has structure.
+
+Shape:
 
 ```
-=== DISCOVERY HANDOFF ===
+=== DISCOVERY SUMMARY ===
 short_name: <kebab-case>
 work_type: feature | fix
 
 framing:
-  driver:           <one sentence — answer to F1 "why now">
-  alternatives:     <list of alternatives considered + why rejected, OR
-                    "user did not consider; agent proposed X/Y/Z; user chose <pick>">
-  cost_of_inaction: <one sentence — answer to F3>
-  walkthrough:      <one short paragraph — answer to F4>
+  driver:               <one sentence — answer to F1 (timing/trigger)>
+  alternatives:         <list of alternatives considered + why rejected, OR
+                        "user did not consider; agent proposed X/Y/Z; user chose <pick>">
+  substitute_behavior:  <one sentence — answer to F3 (what user does without it)>
+  walkthrough:          <one short paragraph — answer to F4>
 
 dimensions:
-  purpose:     <stated answer | N/A: reason>
-  users:       <stated answer | N/A: reason>
+  purpose:     <stated answer | N/A: <Phase-1-or-2-signal>>
+  users:       <stated answer | N/A: <signal>>
   scope_in:    <bullet list>
   scope_out:   <bullet list>
-  success:     <stated answer with measurable outcome | N/A: reason>
-  entities:    <stated answer | N/A: reason>
+  success:     <stated answer with measurable outcome | N/A: <signal>>
+  entities:    <stated answer | N/A: <signal>>
   edge_cases:  <bullet list of top failure modes>
-  constraints: <stated answer | N/A: reason>
-  integration: <stated answer | N/A: reason>
+  constraints: <stated answer | N/A: <signal>>
+  integration: <stated answer | N/A: <signal>>
 
-major_decisions:    # each becomes an ADR candidate at Stage 6
+major_decisions:    # ADR candidates — including any decisions resolved at F2
   - title:    <short title>
     chosen:   <chosen option>
     rejected: [<option 1>, <option 2>]
@@ -228,14 +235,23 @@ open_questions:     # from Phase 3's graceful-unknown protocol
     disposition: accepted_default | deferred_to_assumptions | deferred_to_followup_spec
 
 approved_sections: [goal, users, scope, success, entities, edge_cases, decisions]
-=== END HANDOFF ===
+=== END SUMMARY ===
 ```
 
-**Why this shape:**
-- Still in-conversation context (no new file written — preserves the Phase 1 "no artifacts" hard gate).
-- Stage 2's `ss-sdd-writing-specs` already has structure to consume; a structured digest reduces drift versus re-interpreting bullets.
-- The `major_decisions` block feeds Stage 6 directly — each entry is one ADR candidate with everything the maintainer needs.
-- The `framing` block gives Stage 2 the "why" it can use in the spec's Goal section — a signal currently lost between discovery and spec-writing.
+### Coordinator handling of summary fields
+
+The coordinator's existing Stage 1 contract (per `ss-sdd-coordinator/SKILL.md`) is to carry the discovery outputs in-memory and pass them to Stages 2, 6, etc. The new structured summary doesn't add new dispatch parameters — it gives the coordinator richer in-memory state to draw from. Mapping:
+
+| Summary field | How the coordinator uses it (unchanged contracts) |
+|---|---|
+| `short_name`, `work_type` | Passed to `ss-sdd-writing-specs` (Stage 2) which persists them into the state file — unchanged from today. |
+| `framing.*` | Carried in coordinator's in-memory context. Stage 2 receives the same in-memory understanding it does today (now slightly richer); how Stage 2 uses framing material in the spec's Goal/Problem section is unchanged — that's Stage 2's existing prerogative, not a new contract. |
+| `dimensions.*` | Same as today — coordinator's in-memory understanding of the agreed content, passed to Stage 2. |
+| `major_decisions` | Populates the existing `DECISIONS_CAPTURED` dispatch parameter the coordinator already passes to `ss-sdd-maintaining-adrs` (Stage 6). Today this is free-form "list of decisions the coordinator flagged during discovery"; now it has shape (title/chosen/rejected/reasoning) — same dispatch parameter, richer payload. Stage 6's contract still says "Zero ADRs is a valid outcome"; nothing about Stage 6 changes. |
+| `open_questions` | Coordinator's choice: either include in the in-memory understanding passed to Stage 2 (so the writer can route them into the spec's Open Questions / Assumptions sections per the existing spec format) or surface to the user for resolution before Stage 2. No new dispatch parameter; no Stage 2 contract change. |
+| `approved_sections` | Confirmation marker for the coordinator. Used only as evidence that Phase 4 ran to completion. |
+
+The key invariant: **no downstream skill gets a new dispatch parameter or a new field to parse.** Everything either feeds existing parameters (`DECISIONS_CAPTURED`) or rides the existing in-memory carry. Stage 2 not knowing about the summary's structure is fine — that's by design.
 
 ---
 
@@ -273,15 +289,17 @@ The agent does **not** guess which the user meant. Does **not** silently update 
 
 **Common contradiction shapes:** real-time vs batch, single-user vs multi-tenant, stateless vs stateful, internal vs external users.
 
-### CC-3 — Concrete-example invitation
+### CC-3 — Adjacent-scenario invitation
 
-**Trigger:** When two or more clarifying exchanges on the same dimension have not yielded a stated answer.
+**Trigger:** When two or more clarifying exchanges on the same Phase 3 dimension have not yielded a stated answer.
 
-**Rule:** Switch from abstract to concrete. Ask the user to walk through one specific scenario, end to end. Example:
+**Rule:** Switch from abstract to concrete by asking for a scenario **adjacent to, but distinct from**, the F4 walkthrough already on the table. The new scenario must vary at least one axis: a different user role, a different trigger, an edge case the F4 scenario didn't cover, or a failure path. The agent **must reference F4 explicitly** so the user doesn't experience it as the agent forgetting:
 
-> "Let me try this differently — walk me through one concrete moment: a specific user, what they're doing right before they hit this, what they expect to happen, what they see."
+> "You already walked me through <F4 scenario summary>. Let me try one that's adjacent — what if the user were <different role>, or it happened <different trigger>, or <something failed>? Walk me through that one."
 
-**Distinct from Phase 2's F4:** F4 is preventative and runs once upfront; CC-3 is a reactive recovery tool when a Phase 3 dimension gets stuck on abstractions.
+**Distinct from Phase 2's F4:** F4 is preventative, runs once upfront, and establishes the baseline scenario. CC-3 is a reactive recovery tool *only* when a Phase 3 dimension is stuck on abstractions, and it must produce a *different* scenario than F4. Re-asking F4 verbatim is forbidden.
+
+**Skip condition:** if the agent cannot identify an adjacent scenario meaningfully distinct from F4 (rare; usually means the feature is genuinely narrow), fall back to other CC rules and the graceful-unknown protocol; do not fire CC-3 just because the trigger condition was met.
 
 ### CC-4 — Mid-conversation scope re-check
 
@@ -296,17 +314,19 @@ The agent does **not** guess which the user meant. Does **not** silently update 
 
 ## Findings traceability
 
+Findings are labeled D1–D9 to avoid collision with Phase 2 probes F1–F4.
+
 | Finding | Where addressed |
 |---|---|
-| F1 — No mid-conversation playback | CC-1 (Playback gate) |
-| F2 — No probe for implicit/unsaid | Phase 2 framing probe (F1, F3) |
-| F3 — Flat, generic dimensions | Phase 3 coverage rule + depth rule |
-| F4 — No concrete-example prompt | Phase 2 F4 (preventative) + CC-3 (reactive) |
-| F5 — No contradiction protocol | CC-2 (Contradiction watch) |
-| F6 — No "what did you consider and reject?" | Phase 2 F2 (merged with F2 above) |
-| F7 — No completeness signal | Phase 4 stop-and-summarize gate |
-| F8 — Scope re-check is one-shot | CC-4 (Mid-conversation scope re-check) |
-| F9 — Unstructured handoff to Stage 2 | Phase 4 structured handoff digest |
+| D1 — No mid-conversation playback | CC-1 (Playback gate) |
+| D2 — No probe for implicit/unsaid | Phase 2 framing probe — F1 (driver) and F3 (substitute behavior) |
+| D3 — Flat, generic dimensions | Phase 3 coverage rule + depth rule |
+| D4 — No concrete-example prompt | Phase 2 probe F4 (preventative) + CC-3 (reactive, adjacent scenario) |
+| D5 — No contradiction protocol | CC-2 (Contradiction watch) |
+| D6 — No "what did you consider and reject?" | Phase 2 probe F2 (with forcing function + ADR-candidate tagging) |
+| D7 — No completeness signal | Phase 4 stop-and-summarize gate; graceful-unknown protocol for genuinely unresolved dimensions |
+| D8 — Scope re-check is one-shot | CC-4 (Mid-conversation scope re-check) |
+| D9 — Unstructured handoff to Stage 2 | Phase 4 structured end-of-stage report to coordinator |
 
 ---
 
@@ -355,5 +375,6 @@ Keeps the operational change and the documentation sync clearly separated in his
 
 - **Discovery length.** Adding the framing probe in absolute terms lengthens discovery for simple features. Mitigation: skip conditions are explicit and narrow; trivial features get one-line answers per dimension; the stop gate refuses extra drilling once coverage is met. Net length should be similar to today for simple features (framing probe replaces shallow dimension questions that would have been asked anyway) and longer only for genuinely under-specified features (which is the case we want it to be longer for).
 - **Skill size.** SKILL.md grows from ~184 lines to an estimated ~280-320 lines. Acceptable given the skill is the operational spec for the most context-sensitive stage in the pipeline.
-- **Agent compliance with new rules.** Cross-cutting rules are named, triggered, and short — that's what makes them enforceable rather than aspirational. If an agent skips them anyway, the section-by-section approval gate in Phase 4 surfaces the gap (since framing-driver one-liners would be missing or hollow).
+- **Agent compliance with new rules — honest scope.** Naming and numbering rules makes them visible to the agent and to reviewers; it does not externally enforce them. Of the new constructs, only the Phase 4 stop-gate paragraph self-check is structurally checkable (the agent either can write the paragraph or it can't). Everything else — playback gate, contradiction watch, adjacent-scenario invitation, scope re-check, framing probe completeness — raises the ceiling for compliant agents but does not raise the floor for non-compliant ones. The section-by-section approval gate in Phase 4 partially backstops this (a hollow framing-driver one-liner is visible to the user), but only for fields that surface in the user-facing summary. We are accepting this as the honest scope of the work.
+- **Stop-gate as sub-stage.** The Phase 4 stop-and-summarize self-check is load-bearing enough that an implementation-plan reviewer might frame it as a sub-stage rather than an internal gate. It is internal (no state-file boundary, no new `stages_completed` entry, no commit, no user-visible artifact) and the design treats it as such — but flagging here so we're not surprised if a future reviewer pushes back on the framing.
 - **Drift between SKILL.md and pipeline.md narrative.** Mitigated by committing both updates in the same PR (two commits, one PR) and including the cross-cutting rules section in the narrative summary.
