@@ -59,26 +59,30 @@ Apply cross-cutting rules (CC-1, CC-2, CC-3, CC-4) throughout Phases 2–4 as th
 
 Individual probes in Phase 2 may be skipped only under the narrow conditions listed in that section; no other shortcut is permitted.
 
-## Step 1: Load Project Context
+## Phase 1 — Context
 
-Run the shared discovery script and Read the relevant files. The output tells you which files exist; only Read what's present.
+Three sub-steps. Behavior is unchanged from the prior Steps 1–3; only the grouping name changes.
+
+### 1.1 — Load project context
+
+Run the shared discovery script and read the relevant files via the harness's read mechanism. The output tells you which files exist; only read what's present.
 
 ```bash
 "${SUBLIME_SKILLS_HOME:?SUBLIME_SKILLS_HOME is not set; see Sublime-Skills README for setup}"/skills/spec-driven-development/framework/discover-context.sh
 ```
 
 Read these if present:
-- `constitution` — non-negotiable project principles; spec must comply
-- `architecture` — overall structure; helps situate where the feature fits
-- `glossary` / `domain` — domain vocabulary you should use
-- All `adrs` — prior decisions you should respect, not re-litigate
-- `readme` — fallback for high-level project understanding
+- `constitution` — non-negotiable project principles; the spec must comply.
+- `architecture` — overall structure; helps situate where the feature fits.
+- `glossary` / `domain` — domain vocabulary you should use.
+- All `adrs` — prior decisions you should respect, not re-litigate.
+- `readme` — fallback for high-level project understanding.
 
 The discovery script already resolves `context.<name>_path` values from `.sublime-skills/config.yml` and verifies the files exist before returning them, so the output JSON's `constitution` / `architecture` / `glossary` / etc. fields can be consumed directly. A `null` field means the project didn't configure (or doesn't have) that artifact.
 
 **Skip files that don't exist.** Context is optional — features can be specced without any of these.
 
-## Step 2: Scope Check
+### 1.2 — Scope check
 
 Before any clarifying questions, assess whether the request is one feature or multiple. Signals it's too big:
 
@@ -92,7 +96,9 @@ If too big, surface immediately:
 
 If the user pushes back, accept their judgment but note the risk: "I'll proceed, but if the spec gets unwieldy I'll suggest the split again."
 
-## Step 3: Determine Work Type
+Note: this is the initial scope check. CC-4 (mid-conversation scope re-check) re-runs this same check during Phases 2–3 if the user adds independent functionality.
+
+### 1.3 — Determine work type
 
 Classify the work as either `feature` (something new being built) or `fix` (a defect in existing behavior being corrected). This is recorded in the state file at Stage 2 and used by `ss-sdd-choosing-feature-branch` (Stage 12) to suggest a branch prefix (`feat/` vs `fix/`).
 
