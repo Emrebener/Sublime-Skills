@@ -402,16 +402,26 @@ You do NOT guess which the user meant. You do NOT silently update one earlier an
 
 | Mistake | Fix |
 |---|---|
-| Skipping the scope check | Always do it; saves work on misaligned features |
-| Asking open-ended when MCQ would work | Format as A/B/C with a recommendation; users decide faster |
+| Skipping the scope check at Phase 1 §1.2 | Always do it; saves work on misaligned features |
+| Skipping a framing probe (F1–F4) without an explicit narrow skip condition | Ask the probe; "I think I can guess" is not a skip condition |
+| Asking open-ended when MCQ would work (Phase 3 dimensions) | Format as A/B/C with a recommendation; users decide faster |
 | Combining questions ("what's the scope AND who uses it?") | Split, always |
-| Writing partial spec content during this stage | This is discovery-only; `ss-sdd-writing-specs` handles the artifact |
+| Forgetting CC-1 playback after a non-obvious answer | Paraphrase the implication before the next question |
 | Re-asking what an existing ADR already decided | Cite the ADR; move on |
-| Driving the conversation past the point where you have enough | When you can summarize confidently, summarize and stop |
+| Writing free-form `N/A — doesn't apply` for a dimension | Cite a Phase 1 or Phase 2 signal (e.g., `N/A — F4 walkthrough involved no persistent data`) |
+| Re-proposing a fork already resolved at F2 | F2-resolved decisions are tagged as ADR candidates; cite the F2 outcome |
+| Firing CC-3 with the F4 scenario verbatim | CC-3 requires an *adjacent* scenario — different user / trigger / edge case |
+| Advancing past the §4.1 stop-gate without being able to write the user/trigger/success/failure paragraph | Return to Phase 3 and drill the missing dimension(s) |
+| Returning a free-form bullet list instead of the §4.4 structured summary | Use the exact template; every field must be filled |
 
 ## Red Flags
 
-- About to start asking the user clarifying questions without having Read the project's constitution + ADRs (when present) → STOP; you'll either re-ask settled questions or steer the user toward decisions that violate stated principles
-- Felt the urge to write `spec.md` already → stop; that's the next stage
-- About to propose a design decision that contradicts an existing ADR without flagging it → flag it explicitly, get user buy-in to override
-- About to ask a 10th question on the same dimension → step back; either you don't have enough context to know what to ask, or you're overthinking it
+- About to start asking the user clarifying questions without having read the project's constitution + ADRs (when present) → STOP; you'll either re-ask settled questions or steer the user toward decisions that violate stated principles
+- About to skip a framing probe (F1–F4) for any reason other than the explicit narrow skip conditions in Phase 2 → STOP
+- About to advance to Phase 4 with any dimension still in a "we'll figure it out" state → STOP; return to Phase 3
+- About to summarize but cannot write the §4.1 paragraph (user / trigger / success / top-3 failures) → STOP; return to Phase 3
+- Two user answers point at different systems and you're about to silently pick one → CC-2 fires; surface and ask
+- User just added "oh and also…" — independent functionality → CC-4 fires; re-run the scope check before continuing
+- About to write `spec.md` already → STOP; that's Stage 2
+- About to propose a design decision that contradicts an existing ADR without flagging it → flag explicitly, get user buy-in to override
+- About to ask a 10th question on the same dimension → step back; either you don't have enough context to know what to ask, or you're overthinking it (consider CC-3 or the §3.4 graceful-unknown protocol)
