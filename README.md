@@ -165,14 +165,24 @@ at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
 
 Shared scripts at `skills/spec-driven-development/framework/`:
 - `discover-context.sh` — reads project convention file paths from
-  `.sublime-skills/config.yml` (`CONSTITUTION.md`, `ARCHITECTURE.md`, `GLOSSARY.md`,
-  `DOMAIN.md`, prior ADRs) and verifies each file exists, so skills can
-  load relevant context from a single source of truth.
+  `.sublime-skills/config.yml` (the six `context.*_path` artifacts —
+  `CONSTITUTION.md`, `ARCHITECTURE.md`, `TESTING.md`, `GLOSSARY.md`,
+  `DOMAIN.md`, `DESIGN.md` — plus prior ADRs and SDD state) and verifies
+  each file exists, so skills can load relevant context from a single
+  source of truth.
+- `get-config-value.sh` — reads a single scalar value from
+  `.sublime-skills/config.yml` (with `config-local.yml` overlay applied).
 - `validate-config.sh` — validates `.sublime-skills/config.yml` end-to-end (YAML
   shape, required keys, context-path resolution, enum values). Used by
   `ss-bs-bootstrapping-project`'s fix-and-retry loop and by `ss-sdd-preflight`
   (Stage 0 of the SDD pipeline) to halt if the config is missing or
   invalid.
+- `coherence-check.sh` — runs Tier 1 structural checks across the 7
+  bootstrap artifacts (unresolvable pointers, missing memory-file links,
+  DOMAIN-vs-GLOSSARY vocabulary gaps, ARCHITECTURE-vs-TESTING coverage,
+  constitution-evidence-file existence, principle contradictions, stale
+  suggestion-pass provenance). Invoked by `ss-bs-bootstrapping-project`
+  at end of run and by `ss-bs-auditing-project` at start of run.
 - `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
   schema-check the artifacts each writer skill produces. Catch gross
   format violations (missing sections, placeholders, forbidden diagram

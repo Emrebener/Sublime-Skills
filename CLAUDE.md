@@ -56,7 +56,11 @@ Where a category contains a coordinated workflow (currently
 `skills/spec-driven-development/` and `skills/project-bootstrap/`), the human-readable
 explanation lives under `docs/`:
 
-- `docs/bootstrap.md` — one-time project setup pipeline
+- `docs/bootstrap.md` — project setup pipeline (initial bootstrap +
+  audit re-runs via `ss-bs-auditing-project`)
+- `docs/CONTEXT-FILES.md` — the 7 convention artifacts bootstrap produces
+  (constitution, architecture, testing, glossary, domain, design, memory
+  file) plus the supporting `docs/adr/` and `docs/specs/` directories
 - `docs/sdd/` — the SDD pipeline (`pipeline.md`, `skills.md`, `artifacts.md`,
   `state-and-config.md`, `operations.md`, `rationale.md`)
 
@@ -77,8 +81,10 @@ config.
 All config access goes through the central scripts under
 `skills/spec-driven-development/framework/` — `get-config-value.sh` for single
 scalars, `discover-context.sh` for bulk paths, `validate-config.sh` for
-structural checks. Do not introduce inline YAML parsing in skill files;
-extend those scripts instead.
+structural config checks, `coherence-check.sh` for cross-artifact
+consistency checks (invoked by both `ss-bs-bootstrapping-project` end-of-run
+and `ss-bs-auditing-project` start-of-run). Do not introduce inline YAML
+parsing in skill files; extend those scripts instead.
 
 ## Script invocation convention
 

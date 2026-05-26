@@ -453,7 +453,7 @@ The root `.gitignore` is NOT modified by this skill.
 ## Step 10: Commit
 
 ```bash
-git add docs/constitution.md docs/ARCHITECTURE.md docs/TESTING.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
+git add docs/CONSTITUTION.md docs/ARCHITECTURE.md docs/TESTING.md docs/GLOSSARY.md docs/DOMAIN.md docs/DESIGN.md \
         <memory-file-path> \
         docs/adr/ docs/specs/ \
         .sublime-skills/config.yml .sublime-skills/.gitignore
@@ -478,7 +478,7 @@ The coordinator emits a final summary:
 SDD bootstrap complete.
 
 Convention files:
-- docs/constitution.md — <outcome>
+- docs/CONSTITUTION.md — <outcome>
 - docs/ARCHITECTURE.md — <outcome>
 - docs/TESTING.md — <outcome>
 - docs/GLOSSARY.md — <outcome>

@@ -199,7 +199,7 @@ memory_file:
 
 The other keys (context, the rest of branching, grill, the rest of memory_file) fall through to `config.yml`'s values.
 
-**Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap creates `.sublime-skills/.gitignore` (with `config-local.yml` and `state.json` entries) in Step 4; Step 7 is a re-run safety net that re-appends any missing entry. Each developer's overlay is their own; no one else sees it.
+**Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap creates `.sublime-skills/.gitignore` (with `config-local.yml` and `state.json` entries) in Step 5; Step 9 is a re-run safety net that re-appends any missing entry. Each developer's overlay is their own; no one else sees it.
 
 **Validation.** `validate-config.sh` reads both files, sanity-checks the overlay's block + key names (typo'd keys like `finshing:` or `mode_x:` fail), then merges the overlay into the base before running the existing structural checks. Type errors, enum errors, and orphan paths in the merged result are caught regardless of which file the offending value came from. Overlay-specific findings are prefixed with `config-local.yml:` so it's clear where to fix them.
 

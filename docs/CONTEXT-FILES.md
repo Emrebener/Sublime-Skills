@@ -1,6 +1,8 @@
----
+# Context files reference
 
-Bootstrap covers 7 artifacts (constitution, architecture, testing, glossary, domain, design, memory file) plus supporting directories (`docs/adr/`, `docs/specs/`).
+Bootstrap covers 7 convention artifacts (constitution, architecture, testing, glossary, domain, design, memory file) plus supporting directories (`docs/adr/`, `docs/specs/`) and machine-readable config (`.sublime-skills/config.yml`). This file is the index — for each, it documents the owner skill, what the file should/may contain, and what doesn't belong.
+
+For the operational specs of how each file gets discovered and written, see the individual `ss-bs-discovering-<topic>` skills. For the bootstrap pipeline narrative, see [bootstrap.md](bootstrap.md).
 
 ---
 
@@ -216,12 +218,12 @@ The agent memory file is the seventh and final stage of bootstrap. It synthesize
 
 **Contains:**
 
-- `context.<name>_path` for each of the seven convention files (or null if skipped)
+- `context.<name>_path` for each of the **six** code-rooted convention files (constitution, architecture, testing, glossary, domain, design — or null if skipped)
 - `branching.branch_pattern` (e.g., `feat/{short-name}`)
 - `grill.question_cap` (soft cap on grill stage questions)
-- `memory_file.path` (explicit path or null for auto-detect)
+- `memory_file.path` (the seventh artifact's path lives in its own block, not under `context.*` — explicit path or null for auto-detect)
 - `memory_file.character_limit` (default 40000)
-- `suggest.default` (ask / on / off)
+- `suggest.default` (ask / on / off — controls the suggestion-pass opt-in UX)
 
 **Per-developer overlay:** `.sublime-skills/config-local.yml` — gitignored; any scalar key shadows the matching key in `config.yml`.
 

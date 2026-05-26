@@ -43,11 +43,14 @@ Interrupted runs are resumable inside the same conversation: a single global sta
 
 ## Quickstart
 
-**First-time setup on a project:** invoke `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family) manually. It walks you through each convention file via five inline conversational `ss-bs-discovering-<topic>` skills (constitution / architecture / glossary / domain-model / design) and scaffolds:
+**First-time setup on a project:** invoke `ss-bs-bootstrapping-project` (in the `skills/project-bootstrap/` family) manually. It walks you through seven convention files via inline conversational `ss-bs-discovering-<topic>` skills (constitution / architecture / testing / glossary / domain-model / design / memory-file) — with an optional opt-in suggestion-pass that flags anti-patterns and missing-but-typically-valuable patterns — and scaffolds:
 - `docs/CONSTITUTION.md` (optional project-wide principles)
-- `docs/ARCHITECTURE.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
+- `docs/ARCHITECTURE.md`, `docs/TESTING.md`, `docs/GLOSSARY.md`, `docs/DOMAIN.md`, `docs/DESIGN.md` (optional scaffolds)
+- Agent memory file at the user's chosen path (CLAUDE.md / AGENTS.md / GEMINI.md / .agents.md)
 - `.sublime-skills/config.yml` (copied from `skills/project-bootstrap/scaffolds/config.yml`, validated by `validate-config.sh`)
 - `docs/adr/`, `docs/specs/` directories with README stubs
+
+After the per-file loop and config validation, bootstrap runs `coherence-check.sh` to verify cross-artifact consistency before commit. For re-evaluating an already-bootstrapped project (drift, incoherence, opportunities), use the sibling skill `ss-bs-auditing-project` instead.
 
 For the full bootstrap walkthrough (steps, decision tree, re-run semantics, troubleshooting), see [../bootstrap.md](../bootstrap.md).
 
