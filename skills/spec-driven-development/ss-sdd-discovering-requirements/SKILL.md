@@ -232,9 +232,26 @@ If you cannot state an answer for a dimension after a reasonable amount of drill
 
 In all three cases the dimension exits Phase 3 with a stated answer (the open question itself counts, since it includes the disposition and the default). This is the only recovery mechanism for a genuinely-unresolved dimension; without it, the Phase 4 stop gate would loop indefinitely.
 
-## Step 6: Present Shared Understanding in Sections
+## Phase 4 — Synthesis
 
-Once the conversation has covered enough ground, summarize back to the user in sections. Get explicit approval after each section before moving to the next. Cover (in order):
+Four sub-steps, in order: stop-gate self-check, section-by-section approval, final confirmation, structured end-of-stage summary.
+
+### 4.1 — Stop-and-summarize gate
+
+Before summarizing back to the user, run this self-check:
+
+> Can I, right now, write a single paragraph that names: (a) who the primary user is, (b) what triggers them to use this, (c) what success looks like for them, and (d) the top 3 ways this could go wrong?
+>
+> If yes — proceed to Step 4.2.
+> If no — return to Phase 3 and drill the missing dimension(s). Do not summarize.
+
+A second sub-check runs alongside: every dimension from Phase 3 must have its stated answer (or signal-cited N/A) in your in-memory understanding. If any dimension is still in a "we'll figure it out" state, that's a return-to-Phase-3 signal regardless of the paragraph check.
+
+This gate replaces the prior version's softer "Stop when you have enough" guidance.
+
+### 4.2 — Section-by-section approval
+
+Summarize back to the user in sections. Get explicit approval after each section before moving to the next. Cover (in order):
 
 1. **Goal & problem** — one paragraph
 2. **Users & their flows** — list of user stories with priorities (P1/P2/P3)
@@ -242,38 +259,88 @@ Once the conversation has covered enough ground, summarize back to the user in s
 4. **Success criteria** — measurable outcomes
 5. **Key entities** — only if data is involved
 6. **Edge cases & constraints** — explicit list
-7. **Major decisions** — what was chosen and why (these become ADR candidates later)
+7. **Major decisions** — what was chosen and why (these become ADR candidates at Stage 6)
 
-**Section format:** scaled to complexity. A few sentences if straightforward, up to ~200-300 words if nuanced. After each section ask: "Does this match your intent?"
+**Section format scales to complexity.** A few sentences if straightforward, up to ~200–300 words if nuanced.
 
-If the user pushes back on any section, revise and re-confirm. Don't move on.
+**Frame the goal section with its driver inline.** When presenting "Goal & problem," include the F1 driver (and the F3 substitute behavior, when load-bearing) as a brief parenthetical at the top of the section. Example:
 
-## Step 7: Final Confirmation
+> **Goal & problem.** *(Driver from Phase 2 F1: customer success spends ~5 hrs/week on manual exports; substitute today is copy-paste into a spreadsheet.)* This feature gives CS reps a self-serve export panel so they can…
+>
+> Does this match your intent?
+
+This makes it cheap for the user to spot if your framing-probe interpretation drifted.
+
+After each section ask: "Does this match your intent?" If the user pushes back on any section, revise and re-confirm. Don't move on.
+
+### 4.3 — Final confirmation
 
 When all sections are approved, say:
 
 > "Alright, here's the shared understanding we're going to spec out:
 >
-> [one-paragraph summary]
+> [the one-paragraph summary from the stop-gate self-check]
 >
 > Ready to write this up?"
 
 Wait for explicit confirmation.
 
-## Step 8: Hand Off
+### 4.4 — Structured end-of-stage summary
 
-After confirmation, return control to the coordinator with:
+Return control to the coordinator with the following **fixed-shape structured summary** in your final message. The structure is for *your own self-discipline* (forces every dimension to be actually stated) and for *coordinator state cleanliness*; it is NOT a parse contract with `ss-sdd-writing-specs`. No new file is written — the summary lives in the conversation, exactly where the prior version's free-form bullet list lived.
+
+Use this exact template, filling in every field. Use `N/A — <signal>` for fields that genuinely don't apply, citing a Phase 1 or Phase 2 signal:
 
 ```
-Discovery complete.
-- Short name: <kebab-case>
-- Work type: feature | fix
-- Approved sections: goal, users, scope, success, entities, edge_cases, decisions
-- Major decisions captured: [list, to become ADR candidates later]
-- Out-of-scope explicit: [list]
+=== DISCOVERY SUMMARY ===
+short_name: <kebab-case>
+work_type: feature | fix
+
+framing:
+  driver:               <one sentence — answer to F1 (timing/trigger), or "N/A — F1 skipped because <reason>">
+  alternatives:         <list of alternatives considered + why rejected, OR
+                        "user did not consider; agent proposed X/Y/Z; user chose <pick>">
+  substitute_behavior:  <one sentence — answer to F3 (what user does without it), or "N/A — F3 skipped because <reason>">
+  walkthrough:          <one short paragraph — answer to F4>
+
+dimensions:
+  purpose:     <stated answer | N/A: <signal>>
+  users:       <stated answer | N/A: <signal>>
+  scope_in:    <bullet list>
+  scope_out:   <bullet list>
+  success:     <stated answer with measurable outcome | N/A: <signal>>
+  entities:    <stated answer | N/A: <signal>>
+  edge_cases:  <bullet list of top failure modes>
+  constraints: <stated answer | N/A: <signal>>
+  integration: <stated answer | N/A: <signal>>
+
+major_decisions:    # ADR candidates — including any decisions resolved at F2
+  - title:    <short title>
+    chosen:   <chosen option>
+    rejected: [<option 1>, <option 2>]
+    reasoning: <one to two sentences>
+
+open_questions:     # from Phase 3 §3.4 graceful-unknown protocol
+  - question: <what's open>
+    default:  <reasonable default agent proposed>
+    disposition: accepted_default | deferred_to_assumptions | deferred_to_followup_spec
+
+approved_sections: [goal, users, scope, success, entities, edge_cases, decisions]
+=== END SUMMARY ===
 ```
 
-The coordinator will invoke `ss-sdd-writing-specs` next.
+### How the coordinator uses each field
+
+No new dispatch parameters are introduced; the summary populates existing in-memory carry and existing dispatch parameters.
+
+| Summary field | Coordinator action (unchanged contracts) |
+|---|---|
+| `short_name`, `work_type` | Passed to `ss-sdd-writing-specs` (Stage 2), which persists them into the state file. |
+| `framing.*` | Carried in coordinator's in-memory context. Stage 2 receives the same in-memory understanding it does today (now slightly richer); Stage 2's prerogative how it uses framing material in the spec's Goal/Problem section. |
+| `dimensions.*` | Same as today — coordinator's in-memory understanding of the agreed content, passed to Stage 2. |
+| `major_decisions` | Populates the existing `DECISIONS_CAPTURED` dispatch parameter the coordinator already passes to `ss-sdd-maintaining-adrs` (Stage 6). Today free-form; now shape (title/chosen/rejected/reasoning). Stage 6's contract is unchanged. |
+| `open_questions` | Coordinator's choice: either include in the in-memory understanding passed to Stage 2 (so the writer can route them into the spec's Open Questions / Assumptions sections per the existing spec format), or surface to the user for resolution before Stage 2. No new dispatch parameter. |
+| `approved_sections` | Confirmation marker. Used only as evidence that Phase 4 ran to completion. |
 
 ## Common Mistakes
 
