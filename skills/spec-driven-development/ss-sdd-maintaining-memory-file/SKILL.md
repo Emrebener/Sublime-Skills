@@ -31,6 +31,7 @@ Your job: read what this run produced (spec, plan, ADRs), decide whether **anyth
 - Do NOT use todo/task tools. The todo list is shared with the controller; your entries pollute it.
 - Do NOT use user-interaction tools. Return findings to the controller; the controller handles user discussion.
 - Do NOT dispatch sub-subagents. You are a leaf skill.
+- Do NOT create the memory file from scratch. This skill is for incremental updates only. If `MEMORY_FILE_PATH` is set but the file is missing on disk, refuse with status `skipped (file missing on disk)` and direct the caller to `ss-bs-bootstrapping-project` (memory-file Create/Extend) or `ss-bs-auditing-project` (memory-file audit). Authoring resolves all six convention-file paths from config and asks the user about pointers — that's not in this skill's contract.
 
 ## What You Get From the Coordinator
 
@@ -39,9 +40,18 @@ The dispatch prompt includes:
 - `SPEC_PATH` — path to spec.md
 - `PLAN_PATH` — path to plan.md
 - `ADR_PATHS` — list of ADRs created or modified in this run (may be empty)
-- `MEMORY_FILE_PATH` — resolved path to the memory file (from config or auto-detect). May be `null` if no memory file exists and the user didn't configure one — in which case you SKIP (return "no memory file configured; no update").
+- `MEMORY_FILE_PATH` — resolved path to the memory file (from config or auto-detect). May be `null` if no memory file exists and the user didn't configure one — in which case you SKIP (return `skipped (no path configured)`). If the path is set but the file does not exist on disk, you also SKIP (return `skipped (file missing on disk)`) — authoring is `ss-bs-bootstrapping-project`/`ss-bs-auditing-project`'s job, not this skill's. In practice `validate-config.sh` catches the missing-on-disk case at preflight, so a well-formed pipeline run never reaches you in that state; the pre-check below is defense in depth.
 - `CHARACTER_LIMIT` — soft cap on total memory file size (default 40000 from config). Warning at 90%, refuse to push past it.
-- `EXISTING_CONTENT` — full text of the current memory file (or empty if it doesn't exist yet)
+- `EXISTING_CONTENT` — full text of the current memory file. Should always be non-empty: the pre-check below refuses when the file is missing, and preflight catches the same case earlier via `validate-config.sh`.
+
+## Pre-Check (before Step 1)
+
+Before reading any SDD artifact, validate the dispatch inputs:
+
+- If `MEMORY_FILE_PATH` is `null` → report `skipped (no path configured)` and stop.
+- If `MEMORY_FILE_PATH` is set but the file does not exist on disk (check with the file-existence tool of your harness) → report `skipped (file missing on disk)` and stop. Direct the caller to `ss-bs-bootstrapping-project` (memory-file Create/Extend mode) or `ss-bs-auditing-project` (memory-file audit). This skill never authors the file from scratch — bootstrap/audit owns that contract because authoring requires resolving the six convention-file paths from config and asking the user about pointers.
+
+Both branches are short-circuit returns: no spec/plan/ADR reads, no writes.
 
 ## Checklist
 
@@ -105,32 +115,7 @@ Memory files are read by every agent every session. Token economy matters.
 
 ### Structure
 
-If the file doesn't exist, create it with a sensible default structure:
-
-```markdown
-# <Project Name> — Agent Memory
-
-## Project conventions
-
-- <Stable rule or convention>
-
-## Domain vocabulary
-
-- **<Term>:** <definition>
-
-## NEVER / MUST
-
-- NEVER: <rule>
-- MUST: <rule>
-
-## Pointers
-
-- Architecture: see [ARCHITECTURE.md](ARCHITECTURE.md)
-- ADRs: docs/adr/
-- Specs: docs/specs/
-```
-
-If the file exists, **respect its existing structure.** Don't reorganize. Find the section your additions belong in and add there.
+The file always exists at this point (the pre-check refuses the missing-file case, so this skill never authors from scratch). **Respect its existing structure.** Don't reorganize. Find the section your additions belong in and add there.
 
 ### Line shape
 
@@ -174,7 +159,7 @@ Return to the coordinator:
 ```
 ## Memory File Update
 
-**Status:** updated | no update needed | skipped (no path configured)
+**Status:** updated | no update needed | skipped (no path configured) | skipped (file missing on disk)
 **File:** <path>
 **Character count:** <N> / <limit> (<percent>%)
 **Lines added:** <N>
@@ -273,6 +258,7 @@ The skill updates only the configured path. If the project has multiple memory f
 | Reorganizing the existing structure when adding | Respect what's there; add to the appropriate section |
 | Including tone/style guidance the code already shows | Code teaches by example; memory teaches non-obvious rules |
 | Putting in-progress / TODO items in memory | Memory is stable truth; use issue trackers for TODOs |
+| Creating the memory file from scratch when it's missing | Refuse with `skipped (file missing on disk)`; the maintainer does incremental updates only — bootstrap/audit authors the file with proper pointer resolution |
 
 ## Red Flags
 
@@ -282,3 +268,4 @@ The skill updates only the configured path. If the project has multiple memory f
 - About to update memory because "the feature shipped" without identifying a project-level truth change → STOP; return "no update needed"
 - About to dispatch a sub-subagent → STOP; leaf skill
 - About to modify any file other than the memory file → STOP; only the memory file is in scope
+- About to create the memory file from scratch because `EXISTING_CONTENT` is empty / the file is missing → STOP; refuse with `skipped (file missing on disk)`; authoring is bootstrap/audit's job, not this skill's

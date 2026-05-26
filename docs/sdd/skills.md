@@ -745,7 +745,10 @@ Two-pass scan: keep going until no new redactions surface.
 |---|---|
 | `updated` | File was written; coordinator commits |
 | `no update needed` | Most common outcome; no commit; advance |
-| `skipped` | No memory file configured/detected; `memory_file` added to `stages_skipped` |
+| `skipped (no path configured)` | No memory file configured/detected; `memory_file` added to `stages_skipped` |
+| `skipped (file missing on disk)` | Configured path points to a missing file (mid-run deletion or preflight bypass); `memory_file` added to `stages_skipped`; coordinator surfaces hint to re-run `ss-bs-bootstrapping-project` or `ss-bs-auditing-project`. (Preflight's `validate-config.sh` normally catches this at Stage 0, so reaching this status mid-pipeline is rare.) |
+
+**Authoring vs maintenance:** This skill is for incremental updates only — it never creates the memory file from scratch. Full authoring (with pointer synthesis from the six convention files) is the bootstrap discovery skill `ss-bs-discovering-memory-file`'s job, run by `ss-bs-bootstrapping-project` (Create/Extend) or `ss-bs-auditing-project` (audit).
 
 The skill's SKILL.md includes a Best Practices section on what memory files are for (project conventions, NEVER/MUST rules, canonical vocabulary, pointers), what they're NOT for (changelogs, TODOs, narrative, transient state), healthy size ranges, update cadence, pruning advice, and common anti-patterns to avoid.
 

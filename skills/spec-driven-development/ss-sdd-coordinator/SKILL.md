@@ -236,7 +236,7 @@ If no: add `memory_file` to `stages_skipped`. Advance to Stage 17.
 
 If yes, resolve `CHARACTER_LIMIT` from `memory_file.character_limit` (default 40000).
 
-Read `EXISTING_CONTENT` from `MEMORY_FILE_PATH` (empty string if file doesn't exist yet but a path is configured).
+Read `EXISTING_CONTENT` from `MEMORY_FILE_PATH`. The file should exist — preflight's `validate-config.sh` halts on a configured-but-missing memory file (orphan path), so by Stage 16 the file is on disk or the path is null. If the file is somehow missing here (e.g., deleted mid-run), the maintainer's pre-check will refuse with `skipped (file missing on disk)` — see outcomes below.
 
 Dispatch a fresh subagent with: `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT`, `EXISTING_CONTENT`, and "Use the `ss-sdd-maintaining-memory-file` skill."
 
@@ -248,7 +248,8 @@ The subagent returns one of:
   ```
   If it resolves outside the repo, skip the commit and inform the user where it was written.
 - **no update needed** — most common outcome. Advance.
-- **skipped** — no memory file configured or detected. Add `memory_file` to `stages_skipped`; advance.
+- **skipped (no path configured)** — no memory file configured or detected. Add `memory_file` to `stages_skipped`; advance.
+- **skipped (file missing on disk)** — configured path points to a missing file (mid-run deletion or preflight bypass). Add `memory_file` to `stages_skipped`; surface the maintainer's hint to the user (re-run `ss-bs-bootstrapping-project` or `ss-bs-auditing-project` to re-author the memory file); advance.
 
 Record outcome in state: `memory_file_updated: true | false`. If updated, also record `memory_file_path` in state for the handoff doc / debugging.
 

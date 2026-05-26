@@ -587,7 +587,7 @@ If a path was resolved, the coordinator asks:
 
 On `no`: `memory_file` added to `stages_skipped`. Advance to Stage 17.
 
-On `yes`, dispatch the subagent with `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT` (from config, default 40000), and `EXISTING_CONTENT` (current file text, or empty if it doesn't exist yet).
+On `yes`, dispatch the subagent with `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS` (from `state.adr_results`), `MEMORY_FILE_PATH`, `CHARACTER_LIMIT` (from config, default 40000), and `EXISTING_CONTENT` (current file text). Preflight's `validate-config.sh` halts on a configured-but-missing memory file (orphan path), so by Stage 16 the file is on disk or the path is null; if it's somehow missing here (e.g., deleted mid-run), the maintainer refuses via its pre-check — see the outcome table.
 
 The subagent reads spec + plan + ADRs and decides whether anything in this run changes what's true at the project level. **"No update needed" is the most common and correct outcome** — it should not feel obligated to write just because a feature shipped. When it does write:
 
@@ -597,13 +597,14 @@ The subagent reads spec + plan + ADRs and decides whether anything in this run c
 - No timestamps, no narrative, no transient content
 - Respect the character cap — at 90% it warns; over 100% it refuses (must prune first)
 
-Three outcomes:
+Outcomes:
 
 | Status | Coordinator action |
 |---|---|
 | `updated` | Commit the memory file (path-scoped). If `MEMORY_FILE_PATH` is outside the repo: no commit; inform the user. Update `.sublime-skills/state.json` with `memory_file_updated: true` (atomic write, no commit). |
 | `no update needed` | No commit; advance. Set `memory_file_updated: false`. |
-| `skipped` | No memory file configured/detected. Add `memory_file` to `stages_skipped`. |
+| `skipped (no path configured)` | No memory file configured/detected. Add `memory_file` to `stages_skipped`. |
+| `skipped (file missing on disk)` | Configured path points to a missing file (mid-run deletion or preflight bypass). Add `memory_file` to `stages_skipped`; surface the maintainer's hint to re-run `ss-bs-bootstrapping-project` or `ss-bs-auditing-project` to re-author. |
 
 **Why this isn't part of handoff generation:** the handoff doc captures THIS feature's context (transient); memory file captures the PROJECT's stable truth. Different goals, different content rules, different update cadence. Conflating them produces a bloated memory file.
 

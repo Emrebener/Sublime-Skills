@@ -229,8 +229,16 @@ elif v < 1 or v > 20:
 v = get("memory_file", "path")
 if v == "__MISSING__":
     fail("memory_file.path: missing (use null to auto-detect)")
-elif v is not None and (not isinstance(v, str) or not v.strip()):
+elif v is None:
+    pass  # null is fine — auto-detect or skipped
+elif not isinstance(v, str) or not v.strip():
     fail(f"memory_file.path: must be null or a non-empty string, got {v!r}")
+else:
+    candidate = os.path.expanduser(v)
+    if not os.path.isabs(candidate):
+        candidate = os.path.join(repo_root, candidate)
+    if not os.path.isfile(candidate):
+        fail(f"memory_file.path: orphan path (file does not exist): {v}")
 
 v = get("memory_file", "character_limit")
 if v == "__MISSING__":
@@ -383,6 +391,22 @@ for key in constitution_path architecture_path testing_path glossary_path domain
     record_fail "context.$key: orphan path (file does not exist): $v"
   fi
 done
+
+# memory_file.path: must be null or point to an existing file (parallel to context check)
+v="$(read_scalar memory_file path)"
+if [ -n "$v" ] && [ "$v" != "null" ] && [ "$v" != "~" ]; then
+  case "$v" in
+    "~/"*) expanded="$HOME/${v#~/}" ;;
+    *) expanded="$v" ;;
+  esac
+  case "$expanded" in
+    /*) candidate="$expanded" ;;
+    *) candidate="$REPO_ROOT/$expanded" ;;
+  esac
+  if [ ! -f "$candidate" ]; then
+    record_fail "memory_file.path: orphan path (file does not exist): $v"
+  fi
+fi
 
 # Reject unknown context keys (catches stale schema)
 unknown_keys=$(awk '
