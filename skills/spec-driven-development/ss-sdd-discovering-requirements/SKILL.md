@@ -151,33 +151,56 @@ A probe is skipped only when:
 
 The framing probe does NOT replace the Purpose dimension in Phase 3. The probe surfaces *why* and *what's behind the ask*; the Purpose dimension pins down the problem statement for the spec. They feed each other.
 
-## Step 4: Conversational Discovery
+## Phase 3 — Targeted dimension walk
 
-Walk through these dimensions (in roughly this order, skipping any that are already clear from the user's description):
+The heart of discovery — where the spec's content is shaped. The 9-dimension table from the prior version of this skill is preserved verbatim, but its role shifts from *script* to *coverage checklist*.
 
-| Dimension | Sample question |
+### 3.1 — The coverage rule
+
+Every dimension below must end Phase 3 with a **stated answer** — a sentence or two you can recite. A dimension that genuinely doesn't apply ends with an explicit `N/A — <one-line reason citing a Phase 1 or Phase 2 signal>` statement. **The cited signal is mandatory.** Free-form `N/A — doesn't apply here` is rejected.
+
+Examples of well-formed N/A:
+- `N/A — F4 walkthrough involved no persistent data`
+- `N/A — constitution forbids external integrations for this layer`
+- `N/A — F3 substitute behavior is purely manual; no integration surface`
+
+There is no third option — no "skipped," no "we'll get to it." The Phase 4 stop gate (§4.1) verifies this rule.
+
+| Dimension | What "stated answer" looks like |
 |---|---|
-| Purpose | "What problem is this solving? Who's currently feeling that pain?" |
-| Users | "Who interacts with this? Are there multiple roles?" |
-| Scope (in) | "What's the smallest version that delivers value?" |
-| Scope (out) | "Anything you want to explicitly leave out for later?" |
-| Success | "How will we know it's working? What's measurable?" |
-| Key entities | "What are the main objects/records involved?" |
-| Edge cases | "What happens when [boundary condition]?" |
-| Constraints | "Any tech-stack, performance, security, or compliance constraints?" |
-| Integration | "Does this need to talk to other systems or APIs?" |
+| Purpose | One sentence naming the problem and who feels it |
+| Users | Named roles (or "single role: X") + the trigger that brings each to the feature |
+| Scope (in) | Bullet list of the smallest valuable slice |
+| Scope (out) | Explicit deferred items |
+| Success | At least one measurable outcome (number, threshold, observable behavior) |
+| Key entities | Named entities with attributes, or explicit `N/A — <signal>` |
+| Edge cases | At least the top 3 failure modes |
+| Constraints | Named constraints (tech/perf/security/compliance) or explicit `N/A — <signal>` |
+| Integration | External dependencies named with failure modes, or explicit `N/A — <signal>` |
 
-**Rules:**
-- One question at a time
-- Prefer multiple choice with a recommended answer (e.g., "A) ... [recommended because ...] B) ... C) ...") over open-ended when the choice has clear alternatives
-- Honor the project context — if `CONSTITUTION.md` says "all APIs must use OAuth2", don't ask "which auth method?"
-- Skip dimensions that are obviously not applicable (e.g., "key entities" for a config-only feature)
-- Stop when you have enough to write a spec — overly thorough discovery is friction
+The "Sample question" column from the prior version of this skill is gone. Question wording is **guidance, not script** — pick what fits the conversation, drawing on framing-probe answers and project context.
 
-## Step 5: Propose Approaches for Major Decisions
+### 3.2 — Depth rule
 
-For any non-obvious major design decision (e.g., "JWT vs session cookies", "REST vs WebSocket", "synchronous vs queued processing"), propose **2-3 alternatives** with:
-- Description (1-2 sentences each)
+Depth per dimension is driven by signals from Phase 1 and Phase 2, not by a fixed quota. Drill **deeper** when:
+
+- **Phase 2's F4 walkthrough** exposed a specific ambiguity in that dimension (e.g., the walkthrough revealed two user roles where only one was implied → drill Users)
+- **Phase 1 context** (constitution / ADRs) implies non-trivial constraints on that dimension
+- **Risk-weight** is high: data-handling dimensions for features touching user data, integration dimensions when the feature crosses a service boundary, edge cases when the framing implied real-time or financial behavior
+
+Drill **shallower** (one question, often answered from context alone) when:
+
+- The dimension is trivially settled by Phase 1 + Phase 2 answers
+- The user's initial input already specified it concretely
+- A prior ADR settles it — cite the ADR and record the stated answer with the ADR reference
+
+There is **no fixed cap on questions per dimension.** The cap is implicit: the Phase 4 stop gate refuses to advance until every dimension has a stated answer, and the cross-cutting rules (no repeating, no asking-twice-worded-differently) prevent over-drilling.
+
+### 3.3 — Major decisions sub-step
+
+For any non-obvious major design decision (e.g., "JWT vs session cookies", "REST vs WebSocket", "synchronous vs queued processing"), propose **2–3 alternatives** with:
+
+- Description (1–2 sentences each)
 - Trade-offs (what you gain, what you give up)
 - **Your recommended choice with reasoning**
 
@@ -194,6 +217,20 @@ Example:
 > **C) OAuth2 with an external provider** — offloads identity entirely. Trade-off: external dependency, extra latency on login.
 >
 > Recommended A because [project-specific reasoning]. Sound right?"
+
+**Any decision resolved here is tagged as an ADR candidate** in your in-memory understanding (title / chosen / rejected options / reasoning). Phase 4's structured summary serializes these for the coordinator to feed into Stage 6's `DECISIONS_CAPTURED` dispatch parameter.
+
+**Do not re-propose decisions already resolved at Phase 2 F2** — they were already tagged as ADR candidates and the user already chose. Cite the F2 outcome and move on.
+
+### 3.4 — Graceful-unknown protocol
+
+If you cannot state an answer for a dimension after a reasonable amount of drilling, surface explicitly as an **Open Question**. Propose a reasonable default. Let the user choose:
+
+- **(a) Accept the default** — the stated answer for that dimension is the default; record `disposition: accepted_default` for the Phase 4 summary.
+- **(b) Defer to spec Assumptions** — `disposition: deferred_to_assumptions`; the stated answer is "open; default <X> proposed, user opted to defer to the spec's Assumptions section."
+- **(c) Defer to a follow-up spec** — `disposition: deferred_to_followup_spec`; the dimension's stated answer references the deferral.
+
+In all three cases the dimension exits Phase 3 with a stated answer (the open question itself counts, since it includes the disposition and the default). This is the only recovery mechanism for a genuinely-unresolved dimension; without it, the Phase 4 stop gate would loop indefinitely.
 
 ## Step 6: Present Shared Understanding in Sections
 
