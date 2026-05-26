@@ -219,14 +219,18 @@ implementation.
 
 #### [ss-sdd-discovering-requirements](skills/spec-driven-development/ss-sdd-discovering-requirements/)
 
-Interactive discovery conversation. One question at a time, multiple
-choice with a recommended answer where possible. Walks the user through
-purpose, scope, users, success criteria, key entities, edge cases,
-constraints, and integration points — skipping dimensions already
-covered. Surfaces 2-3 alternatives with recommendations for major design
-decisions. Includes a scope check that catches and decomposes too-big
-feature requests. Output is shared understanding in the coordinator's
-context, not a written artifact — `ss-sdd-writing-specs` renders it next.
+Four-phase discovery conversation: Context (load conventions, scope
+check, classify work type) → Framing probe (F1 driver / F2 alternatives
+/ F3 substitute behavior / F4 concrete walkthrough) → Targeted dimension
+walk (9-dimension coverage checklist; every dimension ends with a
+stated answer or signal-cited N/A) → Synthesis (stop-and-summarize
+gate, section-by-section approval, structured end-of-stage summary).
+Four cross-cutting rules (CC-1 playback gate, CC-2 contradiction watch,
+CC-3 adjacent-scenario invitation, CC-4 mid-conversation scope
+re-check) apply throughout Phases 2–4. Output is shared understanding
+in the coordinator's context plus a fixed-shape structured summary in
+the agent's final message; no files written to disk —
+`ss-sdd-writing-specs` renders the spec next.
 
 #### [ss-sdd-writing-specs](skills/spec-driven-development/ss-sdd-writing-specs/)
 
