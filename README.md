@@ -314,10 +314,14 @@ Path-scoping protects the user's pre-existing dirty files.
 
 Per-task orchestration loop. For each task in plan order: dispatch
 implementer subagent → handle status (DONE / DONE_WITH_CONCERNS /
-BLOCKED / NEEDS_CONTEXT) → dispatch spec-compliance reviewer subagent →
-loop fix-review until approved (cap 3) → dispatch code-quality reviewer
-subagent → loop until approved (cap 3, Minor findings non-blocking) →
-mark task complete. After all tasks: final code review on the full diff.
+BLOCKED / NEEDS_CONTEXT) → (only when `per_task_reviews: full`) dispatch
+spec-compliance reviewer subagent → loop fix-review until approved
+(cap 3) → (only when `per_task_reviews: full`) dispatch code-quality
+reviewer subagent → loop until approved (cap 3, Minor findings
+non-blocking) → mark task complete. The per-task reviewers are gated by
+a user-gate the coordinator asks once at Stage 13 entry (default off —
+most features don't need it). After all tasks: a mandatory final code
+review on the full branch diff runs regardless of the per-task mode.
 Continuous execution between tasks — no needless check-ins. Includes
 three prompt templates as separate files (implementer-prompt.md,
 spec-compliance-reviewer-prompt.md, code-quality-reviewer-prompt.md).
@@ -336,8 +340,9 @@ quality.
 
 #### [ss-sdd-reviewing-task-compliance](skills/spec-driven-development/ss-sdd-reviewing-task-compliance/)
 
-Protocol skill loaded by the first-stage per-task reviewer subagent.
-Spec-compliance checks only: coverage + FR traceability, scope creep
+Protocol skill loaded by the first-stage per-task reviewer subagent
+(only dispatched when the user opts in to per-task review at Stage 13
+entry; default off). Spec-compliance checks only: coverage + FR traceability, scope creep
 (the dominant failure mode), test presence and meaningful coverage,
 test verification by re-running tests (not trusting the implementer's
 report), silent design decisions, commit hygiene, files-touched scope.
@@ -349,7 +354,9 @@ problems, not manufacture issues.
 #### [ss-sdd-reviewing-task-quality](skills/spec-driven-development/ss-sdd-reviewing-task-quality/)
 
 Protocol skill loaded by the second-stage per-task reviewer subagent
-after spec compliance is approved. Six-dimension code review:
+after spec compliance is approved (only dispatched when the user opts in
+to per-task review at Stage 13 entry; default off). Also reused for the
+mandatory final cross-cutting code review at end of Stage 13. Six-dimension code review:
 readability, correctness around edges, idiom alignment with the rest of
 the codebase, security (with specific scan anchors for SQL injection,
 unsafe deserialization, secrets in logs, missing authz, custom crypto),

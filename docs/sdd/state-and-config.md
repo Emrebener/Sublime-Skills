@@ -233,18 +233,23 @@ A few values have hard ceilings that override config:
 | Setting | Config | Hard ceiling |
 |---|---|---|
 | `grill.question_cap` | 10 (default) | 20 |
-| Per-task spec-compliance review iterations | 3 (fixed) | — |
-| Per-task code-quality review iterations | 3 (fixed) | — |
+| Per-task spec-compliance review iterations | 3 (fixed) — applies when `per_task_reviews: full`; reviewer does not run otherwise | — |
+| Per-task code-quality review iterations | 3 (fixed) — applies when `per_task_reviews: full`; reviewer does not run otherwise | — |
 | Test fix-loop iterations | 3 (fixed) | — |
 | Spec/plan review fix iterations | 2 (fixed) | — |
 
 Iteration caps are deliberately not config-overridable. Hitting a cap means something is wrong with the plan or spec, and the user should be involved.
+
+### Per-run state knobs (not config)
+
+`per_task_reviews` is a per-run state field, not a config knob. The coordinator surfaces a yes/no question at Stage 13 entry (default no) and writes the answer to `state.per_task_reviews` as `"full"` or `"skipped"`. The choice is deliberately re-asked every run rather than read from `.sublime-skills/config.yml` — it depends on the size/risk of the specific feature, not project-wide preference. The mandatory final cross-cutting code review at end of Stage 13 always runs regardless.
 
 ### What's NOT in config
 
 The following are deliberately not config:
 
 - Per-skill behaviors (each skill has its own internal rules; if you want to change them, edit the skill)
+- `per_task_reviews` default (the Stage 13 per-task review gate is asked per run; see "Per-run state knobs" above)
 - The list of allowed `[NO-TDD]` categories (defined in `ss-sdd-writing-plans` skill; changing them requires a skill edit)
 - The redaction patterns in `ss-sdd-generating-handoff` (defined in the skill)
 - The diagram prohibitions (Mermaid, C4, PlantUML, ASCII — defined in skills)

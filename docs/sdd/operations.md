@@ -36,8 +36,8 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 | 6 | ADR maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-adrs`) |
 | 9, 10 | Plan reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-plans`) |
 | 13 (per task) | Implementer | `skills/spec-driven-development/ss-sdd-implementing-plans/implementer-prompt.md` (calls `ss-sdd-implementing-task`) |
-| 13 (per task) | Spec-compliance reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/spec-compliance-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-compliance`) |
-| 13 (per task) | Code-quality reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/code-quality-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-quality`) |
+| 13 (per task, conditional on `per_task_reviews: full`) | Spec-compliance reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/spec-compliance-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-compliance`) |
+| 13 (per task, conditional on `per_task_reviews: full`) | Code-quality reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/code-quality-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-quality`) |
 | 13 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `ss-sdd-reviewing-task-quality`) |
 | 14 | Feature tester | `skills/spec-driven-development/ss-sdd-testing-implementation/tester-prompt.md` (calls `ss-sdd-testing-feature`) |
 | 14 (fix loop) | Fixer | `skills/spec-driven-development/ss-sdd-testing-implementation/fixer-prompt.md` (calls `ss-sdd-fixing-test-failures`) |
@@ -60,7 +60,7 @@ The `<INPUTS>` block is the bulk of the prompt. It includes file paths, content 
 
 ### Why fresh subagents per task
 
-For Stage 13 implementation, every task gets THREE fresh subagent dispatches (implementer + two reviewers):
+For Stage 13 implementation, every task gets at least one fresh dispatch (implementer) and — when the user opted in to per-task review at Stage 13 entry (`per_task_reviews: full`) — up to three (implementer + spec-compliance reviewer + code-quality reviewer). A single mandatory final cross-cutting code-quality reviewer runs once at the end of Stage 13 regardless of per-task mode. The rationale below applies to all dispatches:
 
 - **Context isolation:** subagent A working on T003 doesn't have T002's context. Prevents cross-task contamination.
 - **Smaller context budgets:** each dispatch has only what it needs.
@@ -101,7 +101,7 @@ Subagents return one of a small set of statuses depending on their role. The coo
 
 | Status | Meaning | Coordinator action |
 |---|---|---|
-| `DONE` | Task complete, tests passing, self-review clean | Proceed to spec-compliance review |
+| `DONE` | Task complete, tests passing, self-review clean | Proceed to spec-compliance review when `per_task_reviews: full`; otherwise mark complete and advance |
 | `DONE_WITH_CONCERNS` | Complete + tests pass, but concerns flagged | If correctness/scope: re-dispatch with concerns appended. If observations: note + proceed. |
 | `NEEDS_CONTEXT` | Missing information from original dispatch | Provide context, re-dispatch |
 | `BLOCKED` | Cannot complete | Assess: more context / more capable model / smaller pieces / escalate to user |

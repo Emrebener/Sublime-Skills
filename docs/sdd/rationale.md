@@ -94,9 +94,9 @@ The cost is a small amount of coordinator overhead (advance from Stage 1 to Stag
 
 ## Why per-task subagent dispatch
 
-For Stage 13 implementation, every task gets THREE fresh subagent dispatches: implementer, spec-compliance reviewer, code-quality reviewer.
+For Stage 13 implementation, every task gets one fresh implementer dispatch and — when the user opts in at Stage 13 entry (`per_task_reviews: full`, default off) — up to two more (spec-compliance reviewer, code-quality reviewer). A single final cross-cutting code-quality reviewer runs once at end of Stage 13 regardless.
 
-This is expensive (subagent dispatch isn't free) and slow (sequential, not parallel). We do it because:
+The fresh-subagent pattern itself is expensive (subagent dispatch isn't free) and slow (sequential, not parallel). We use it because:
 
 - **Context isolation.** Per-task subagents don't carry context from previous tasks. T002's design choices don't bleed into T003's work.
 - **Smaller context budgets.** Each subagent's prompt + the relevant files fits comfortably in a small context window.
@@ -121,6 +121,16 @@ Conflating them produces noisier, less actionable feedback. A reviewer that's lo
 Two reviewers, with two different prompt templates, with explicit "stay in your lane" rules in each prompt. The cost is one more subagent dispatch per task; the benefit is consistently higher signal-to-noise.
 
 **Per-task code-quality also distinguishes Critical / Important / Minor.** Critical and Important come back to the implementer for fixes; Minor is noted but doesn't block. This prevents the "every minor style suggestion is a re-dispatch" cycle.
+
+### Why it's opt-in (default off)
+
+Per-task review is valuable on large or risky implementations and overkill on most features. Three reasons we made it opt-in with a default-off:
+
+- **The implementer's self-review already covers per-task discipline.** `ss-sdd-implementing-task` walks the implementer through scope, tests, and commit hygiene before they report DONE. For typical features, that's enough.
+- **The mandatory final cross-cutting reviewer catches systemic issues.** Inconsistencies between tasks, integration drift, and cumulative quality problems show up at end-of-stage anyway — and per-task review can't see them.
+- **The cost compounds.** Two extra subagent dispatches per task, plus their fix-loops, can double or triple Stage 13's wall-clock time. That's worth paying on a 12-task feature touching auth boundaries; it's wasted on a 4-task copy change.
+
+When the user opts in (`per_task_reviews: full`), both per-task reviewers run with the cap-3 fix loop. Otherwise (`per_task_reviews: skipped`, the default), the implementer's DONE flows straight to "task complete" and the final cross-cutting review at end of Stage 13 is the safety net.
 
 ---
 

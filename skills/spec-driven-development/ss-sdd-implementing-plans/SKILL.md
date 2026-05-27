@@ -1,20 +1,20 @@
 ---
 name: ss-sdd-implementing-plans
-description: Use during the implementation stage of an SDD pipeline run, after the plan is committed and approved. Drives the per-task loop — dispatching implementer subagents and two-stage reviewer subagents (spec compliance, then code quality) for each task — with continuous execution between independent tasks.
+description: Use during the implementation stage of an SDD pipeline run, after the plan is committed and approved. Drives the per-task loop — dispatching implementer subagents (and, when `per_task_reviews: full`, two-stage reviewer subagents for spec compliance and code quality) for each task — followed by a mandatory final cross-cutting code-quality review, with continuous execution between independent tasks.
 ---
 
 # Implementing Plans
 
 ## Overview
 
-Execute the plan task-by-task. Per task: fresh implementer subagent → spec-compliance reviewer subagent → code-quality reviewer subagent. The loop continues without pausing for human check-in unless a task is BLOCKED or all tasks are complete.
+Execute the plan task-by-task. Per task: fresh implementer subagent, then — only when `per_task_reviews: full` — spec-compliance reviewer subagent followed by code-quality reviewer subagent. After every task is complete, a mandatory final cross-cutting code-quality reviewer runs on the full branch diff regardless of the per-task mode. The loop continues without pausing for human check-in unless a task is BLOCKED or all tasks are complete.
 
-**Core principle:** Fresh subagent per task (no context pollution) + two-stage review (spec compliance first, then code quality) = high quality, fast iteration.
+**Core principle:** Fresh subagent per task (no context pollution). The default mode (`per_task_reviews: skipped`) trusts the implementer's self-review for per-task discipline and relies on the final cross-cutting review for systemic issues; the opt-in mode (`per_task_reviews: full`) adds two-stage per-task review (spec compliance first, then code quality) for large or risky implementations.
 
 **Each subagent loads a corresponding skill:**
 - Implementer → `ss-sdd-implementing-task` skill
-- Spec-compliance reviewer → `ss-sdd-reviewing-task-compliance` skill
-- Code-quality reviewer → `ss-sdd-reviewing-task-quality` skill
+- Spec-compliance reviewer → `ss-sdd-reviewing-task-compliance` skill (only when `per_task_reviews: full`)
+- Code-quality reviewer → `ss-sdd-reviewing-task-quality` skill (only when `per_task_reviews: full`; also used for the mandatory final review)
 
 The prompt templates in this directory are dispatch envelopes only; the protocols live in those skills.
 
@@ -24,11 +24,12 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Do NOT start implementation on `main` or `master` — Stage 12 (`ss-sdd-choosing-feature-branch`) should have settled the work onto a feature branch by the time you run. If `git branch --show-current` returns `main`/`master`, something went wrong upstream; halt and surface.
-- Do NOT skip reviews. Each task goes through both spec compliance AND code quality.
-- Do NOT proceed to the next task while either review has open issues
+- When `per_task_reviews: full`, do NOT skip either per-task review; each task goes through spec compliance THEN code quality (in that order). When `per_task_reviews: skipped`, do NOT dispatch either per-task reviewer.
+- The final cross-cutting code-quality review at the end of Stage 13 (Step 4) is MANDATORY regardless of `per_task_reviews` — never skip it.
+- Do NOT proceed to the next task while a per-task review has open issues (when per-task reviews are on)
 - Do NOT dispatch multiple implementer subagents in parallel — sequential is the rule; conflicts otherwise
-- Do NOT let an implementer's self-review replace the spec-compliance review — both are needed
-- Do NOT start code-quality review before spec compliance is approved
+- When `per_task_reviews: full`, do NOT let an implementer's self-review replace the spec-compliance review — both are needed
+- When `per_task_reviews: full`, do NOT start code-quality review before spec compliance is approved
 
 ## Checklist
 
@@ -37,10 +38,10 @@ The prompt templates in this directory are dispatch envelopes only; the protocol
 3. For each task in order:
    - Dispatch implementer subagent
    - Handle status (DONE, DONE_WITH_CONCERNS, BLOCKED, NEEDS_CONTEXT)
-   - Dispatch spec-compliance reviewer; loop fix-review until approved
-   - Dispatch code-quality reviewer; loop fix-review until approved
+   - (Only when `per_task_reviews: full`) dispatch spec-compliance reviewer; loop fix-review until approved
+   - (Only when `per_task_reviews: full`) dispatch code-quality reviewer; loop fix-review until approved
    - Mark task complete in state file and todo tool
-4. After all tasks complete: dispatch final code-reviewer subagent on the full diff
+4. After all tasks complete: dispatch final code-reviewer subagent on the full diff (mandatory regardless of `per_task_reviews`)
 5. Update state file with `current_stage: "implementation_complete"`
 6. Hand off to the next stage (testing or finishing)
 
@@ -56,6 +57,8 @@ Do NOT make subagents re-read the plan file. You pass them the full text inline.
 ## Step 2: Initialize or Sync State and Todos
 
 **Read the current `state.json` first.** Step 2 is idempotent on entry: if `state.tasks` is already populated (e.g., a prior iteration of this skill ran in the same conversation), preserve it; if not, initialize it from the plan.
+
+Also read `state.per_task_reviews`. The coordinator sets it at Stage 13 entry to `"full"` or `"skipped"`. If it's somehow absent (older state, pre-existing bug), default to `"skipped"` defensively — do NOT overwrite the field yourself; it is owned by the coordinator. The value gates Step 3c and Step 3d throughout this run.
 
 ### 2a. Sync the tasks map
 
@@ -125,14 +128,16 @@ The implementer reports one of:
 
 | Status | Action |
 |---|---|
-| `DONE` | Proceed to 3c (spec-compliance review) |
-| `DONE_WITH_CONCERNS` | Read the concerns. **If concerns are about correctness or scope:** re-dispatch a fresh implementer with the original task PLUS the concerns appended ("address these specific concerns before reporting DONE: [list]"). **If observations only** (e.g., "this file is getting large"), note in your task summary and proceed to 3c (spec-compliance review). |
+| `DONE` | If `per_task_reviews: full`, proceed to 3c (spec-compliance review). Otherwise proceed directly to 3e (mark complete). |
+| `DONE_WITH_CONCERNS` | Read the concerns. **If concerns are about correctness or scope:** re-dispatch a fresh implementer with the original task PLUS the concerns appended ("address these specific concerns before reporting DONE: [list]"). **If observations only** (e.g., "this file is getting large"), note in your task summary and proceed — to 3c when `per_task_reviews: full`, otherwise to 3e. |
 | `NEEDS_CONTEXT` | Read the implementer's `NEEDS_CONTEXT` response — it should include "What you need / What you tried / What you'd do if forced to guess". For each missing piece: if you can answer from the plan/spec/your context, append the answer to the task and re-dispatch a fresh implementer. If you can't answer (it requires user judgment), surface to user — don't fabricate context. Never auto-decide on the implementer's "forced guess" without confirming first. |
 | `BLOCKED` | Assess: (1) context problem → provide more context, re-dispatch same model; (2) reasoning insufficient → re-dispatch with a more capable model; (3) task too large → break into smaller pieces (update plan, ask user); (4) plan is wrong → escalate to user. Never silently retry the same dispatch. |
 
 Never silently ignore a BLOCKED or NEEDS_CONTEXT.
 
 ### 3c. Spec-Compliance Review
+
+**Only when `state.per_task_reviews == "full"`.** If `per_task_reviews: skipped`, skip this step entirely and advance to 3e — the final cross-cutting review at Step 4 covers systemic risk.
 
 Dispatch a fresh subagent with `./spec-compliance-reviewer-prompt.md`. Fill in:
 
@@ -155,6 +160,8 @@ The reviewer compares the implementer's diff to the task spec. Returns: Approved
 
 ### 3d. Code-Quality Review
 
+**Only when `state.per_task_reviews == "full"`.** If `per_task_reviews: skipped`, skip this step entirely and advance to 3e.
+
 Only after spec-compliance is Approved. Dispatch with `./code-quality-reviewer-prompt.md`. Same SHA pattern.
 
 The reviewer evaluates the code (readability, naming, structure, idiomatic style, security, performance). Categorizes findings as Critical / Important / Minor.
@@ -167,13 +174,18 @@ The reviewer evaluates the code (readability, naming, structure, idiomatic style
 
 ### 3e. Mark Complete
 
-Once both reviewers have approved (or only Minor code-quality findings remain):
+When `per_task_reviews: full`: once both reviewers have approved (or only Minor code-quality findings remain).
+When `per_task_reviews: skipped`: as soon as the implementer reports DONE (or DONE_WITH_CONCERNS for observations only).
+
+Then:
 
 1. Update state file (atomic write): `tasks[T###]: "completed"`, update `updated_at`
 2. Update todo tool: mark this task's todo as completed
 3. Continue to next task
 
 ## Step 4: Final Review
+
+**Mandatory regardless of `per_task_reviews`.** This is the safety net for the skipped-per-task path and the cross-cutting check (inconsistencies between tasks, integration drift) that per-task review can't see. Never skip it.
 
 After every task is complete, dispatch one more fresh subagent with the same code-quality-reviewer prompt but with:
 
@@ -231,7 +243,7 @@ Do not pause to check in with the user between tasks. The user asked you to exec
 
 ## Model Selection (Cost / Speed)
 
-Use the least capable model that can handle each role:
+Use the least capable model that can handle each role. The two per-task reviewer rows apply only when `per_task_reviews: full`; the final reviewer always runs.
 
 | Role | Suggested model strength |
 |---|---|
@@ -248,6 +260,8 @@ When a BLOCKED implementer needed more reasoning, re-dispatch with a more capabl
 
 | Mistake | Fix |
 |---|---|
+| Skipping the final review because `per_task_reviews: skipped` | The final review is mandatory either way — it's the safety net for the skipped-per-task path |
+| Dispatching per-task reviewers when `per_task_reviews: skipped` | Don't — Step 3c and 3d are gated on `per_task_reviews: full` |
 | Reusing the same subagent instance across tasks | Fresh subagent per task — preserves clean context |
 | Making the subagent read the plan file | Pass full task text inline |
 | Skipping scene-setting context in the dispatch prompt | Subagent needs to know where the task fits |
@@ -260,6 +274,8 @@ When a BLOCKED implementer needed more reasoning, re-dispatch with a more capabl
 
 ## Red Flags
 
+- About to skip the final review because per-task reviews were off → STOP; the final review is mandatory either way
+- About to re-prompt the user for `per_task_reviews` mid-Stage 13 → STOP; the coordinator owns that gate, and the value persists for the whole run
 - About to dispatch two implementers in parallel → STOP; sequential only
 - About to "fix it myself" inline instead of dispatching a fresh implementer → STOP; protect controller context
 - Review loop hitting iteration 4 → STOP and escalate

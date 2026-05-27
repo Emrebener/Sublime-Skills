@@ -460,9 +460,11 @@ After commits, update `state.json` atomically with `current_stage: implementing`
 **Skill:** `ss-sdd-implementing-plans` (inline; orchestrates subagents)
 **Output:** code changes, commits, updated `state.json` per task
 
+**Per-task review gate (default off).** Before loading the skill, the coordinator asks the user: "Run per-task spec-compliance + code-quality reviews? (yes/no, default no — final cross-cutting review runs either way)." The answer is persisted to `state.per_task_reviews` as `"full"` or `"skipped"` (default `"skipped"`). On idempotent re-entry within the same conversation the coordinator reuses the value silently. This is a sub-mode of Stage 13, not a stage skip — Stage 13 itself always runs.
+
 The skill drives the per-task loop. For each task in plan order:
 
-**On entry:** the skill reads existing state. Step 2 is idempotent: if `tasks` is empty, initialize every task as `"pending"`; if `tasks` already has entries (a prior iteration of this skill ran in the same conversation), preserve `completed` and `in_progress` statuses and merge new plan tasks as `"pending"`. It then starts at the first `in_progress` task (its prior implementer subagent died before reporting completion — re-dispatch is safe), or the first `pending` task if none in-progress. Completed tasks are skipped.
+**On entry:** the skill reads existing state, including `per_task_reviews`. Step 2 is idempotent: if `tasks` is empty, initialize every task as `"pending"`; if `tasks` already has entries (a prior iteration of this skill ran in the same conversation), preserve `completed` and `in_progress` statuses and merge new plan tasks as `"pending"`. It then starts at the first `in_progress` task (its prior implementer subagent died before reporting completion — re-dispatch is safe), or the first `pending` task if none in-progress. Completed tasks are skipped.
 
 1. **Mark task in-progress**: state file updates `tasks[T###]: "in_progress"` (atomic write).
 
@@ -477,18 +479,18 @@ The skill drives the per-task loop. For each task in plan order:
 
    | Status | Coordinator action |
    |---|---|
-   | DONE | Proceed to spec-compliance review |
-   | DONE_WITH_CONCERNS | Read concerns. If about correctness/scope: re-dispatch implementer with concerns appended. If observations only: note and proceed. |
+   | DONE | When `per_task_reviews: full`, proceed to spec-compliance review. Otherwise mark task complete and advance to the next task. |
+   | DONE_WITH_CONCERNS | Read concerns. If about correctness/scope: re-dispatch implementer with concerns appended. If observations only: note and proceed (to spec-compliance review when `per_task_reviews: full`, else to next task). |
    | NEEDS_CONTEXT | Read the "What you need / tried / forced-guess" sections; provide the missing context inline (from spec/plan); re-dispatch a fresh implementer with the answer appended. If the controller can't answer without user input, surface to user. Never auto-decide on the "forced guess" without confirming. |
    | BLOCKED | Assess: more context, more capable model, smaller pieces, or escalate to user. If commit failure (hook rejection, signing, missing identity), surface the commit error per the Commit Failure Protocol — never bypass with `--no-verify`. |
 
-3. **Dispatch spec-compliance reviewer** using `spec-compliance-reviewer-prompt.md` (dispatch envelope calling the `ss-sdd-reviewing-task-compliance` skill). Inputs: task text, `SPEC_PATH`, `PLAN_PATH`, git SHA range. Returns Approved or Issues Found. If Issues Found, re-dispatch a fresh implementer with the findings appended; re-review. Cap: 3 iterations.
+3. **Dispatch spec-compliance reviewer** *(only when `per_task_reviews: full`)* using `spec-compliance-reviewer-prompt.md` (dispatch envelope calling the `ss-sdd-reviewing-task-compliance` skill). Inputs: task text, `SPEC_PATH`, `PLAN_PATH`, git SHA range. Returns Approved or Issues Found. If Issues Found, re-dispatch a fresh implementer with the findings appended; re-review. Cap: 3 iterations.
 
-4. **Dispatch code-quality reviewer** (only after spec-compliance Approved) using `code-quality-reviewer-prompt.md` (calls the `ss-sdd-reviewing-task-quality` skill). Returns findings categorized Critical / Important / Minor. Critical and Important block; Minor is noted but doesn't block. Cap: 3 iterations.
+4. **Dispatch code-quality reviewer** *(only when `per_task_reviews: full`)* — only after spec-compliance Approved — using `code-quality-reviewer-prompt.md` (calls the `ss-sdd-reviewing-task-quality` skill). Returns findings categorized Critical / Important / Minor. Critical and Important block; Minor is noted but doesn't block. Cap: 3 iterations.
 
-5. **Mark task complete**: state file updates `tasks[T###]: "completed"`.
+5. **Mark task complete**: state file updates `tasks[T###]: "completed"`. When `per_task_reviews: skipped`, this happens immediately after the implementer reports DONE (or DONE_WITH_CONCERNS for observations only).
 
-After all tasks: dispatch a **final code reviewer** using the same code-quality prompt with `TASK_ID=final` and the branch-wide SHA range. The `ss-sdd-reviewing-task-quality` skill has explicit "When TASK_ID is `final`" guidance — the reviewer expects a multi-file diff, prioritizes cross-cutting concerns (inconsistencies between tasks, integration points, cumulative drift), and de-prioritizes per-task issues.
+After all tasks: dispatch a **final code reviewer** (mandatory regardless of `per_task_reviews`) using the same code-quality prompt with `TASK_ID=final` and the branch-wide SHA range. The `ss-sdd-reviewing-task-quality` skill has explicit "When TASK_ID is `final`" guidance — the reviewer expects a multi-file diff, prioritizes cross-cutting concerns (inconsistencies between tasks, integration points, cumulative drift), and de-prioritizes per-task issues.
 
 Once final review passes, write `final_review_completed: true` to state file.
 
@@ -503,10 +505,11 @@ Once final review passes, write `final_review_completed: true` to state file.
 - Per-task context budgets stay small
 - Subagents can ask focused questions without scrolling through history
 
-**Why two-stage review per task?**
+**Why two-stage review per task is optional (default off)?**
 - Spec compliance asks: did you do exactly what the task said?
 - Code quality asks: is the code well-built?
-- Conflating them produces noisier, less useful feedback
+- Conflating them produces noisier, less useful feedback — so when per-task review *is* on, splitting into two reviewers keeps each one focused.
+- But the cost (two extra subagent dispatches per task, plus fix-loop iterations) only pencils out on large or risky implementations. For most features the implementer's self-review handles per-task discipline, and the mandatory final cross-cutting reviewer at end of Stage 13 catches systemic issues. Hence: default off, opt in per run.
 
 ---
 

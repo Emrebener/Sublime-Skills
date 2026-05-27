@@ -15,7 +15,7 @@ preflight → discover → spec → reviews → ADRs → user approval
         ↓
 plan → reviews → user approval
         ↓
-per-task implementation (with two-stage review per task)
+per-task implementation (with optional two-stage per-task review, plus mandatory final cross-cutting review)
         ↓
 optional feature testing
         ↓
@@ -24,7 +24,7 @@ handoff doc generation
 finishing (`git merge --no-ff` to `main`, safe-delete the feature branch, `rm` state)
 ```
 
-Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + per-task spec-compliance review + per-task code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
+Along the way, six **subagent-handled** stages run in fresh context: spec auto-review, optional 2nd spec-review, ADR maintenance, plan auto-review, optional 2nd plan-review, per-task implementation + (when the user opts in) per-task spec-compliance review + per-task code-quality review + a mandatory final cross-cutting code-quality review, feature testing, handoff generation. The coordinator stays thin: a state machine and a dispatcher. Phase-specific knowledge lives in dedicated skills loaded just-in-time.
 
 A single global state file at `.sublime-skills/state.json` carries data between stages — the structured outputs each subagent writes back (ADR list, handoff path, per-task statuses, etc.) and the per-task coordination record `ss-sdd-implementing-plans` shares with its implementer subagents. It's permanently gitignored — local-only orchestration metadata, created by Stage 0 (preflight) as a minimal shell and deleted by Stage 17 (finishing). Not a resume mechanism: SDD runs end-to-end in one conversation.
 
@@ -127,7 +127,7 @@ For the full bootstrap walkthrough (steps, decision tree, re-run semantics, trou
 - **Abort-fast preflight.** No magic cleanup. If the repo isn't in a fit state, the user fixes it manually.
 - **No diagrams.** Mermaid, C4, PlantUML, and ASCII art are all blocked in specs and plans. Prose only.
 - **TDD strict by default.** `[NO-TDD]` opt-out exists but is allowed only for tightly-scoped non-logic changes.
-- **Two-stage per-task review.** Spec compliance → then code quality. Different reviewers, different focus.
+- **Optional two-stage per-task review (default off).** Per run, the user opts in at Stage 13 entry. When on, spec compliance → then code quality (different reviewers, different focus). When off, the implementer's self-review and the mandatory final cross-cutting reviewer carry the weight.
 - **User-gated optional stages.** 2nd spec/plan reviews, the grill, and feature testing are all opt-in per run.
 - **Findings via dedicated skill.** Review output is processed via `ss-sdd-receiving-review-findings` — no performative agreement, verify before fixing, push back when reviewer is wrong.
 - **Handoff doc at the end.** A redacted, summary-style document that lets a fresh agent continue work without re-reading everything.

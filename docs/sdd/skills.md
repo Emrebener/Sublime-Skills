@@ -466,7 +466,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 **Loaded:** by the coordinator at Stage 13
 **Stage:** 13
 
-**Purpose:** Drive the per-task loop. For each task: dispatch implementer subagent → handle status → dispatch spec-compliance reviewer → loop on Issues Found (cap 3) → dispatch code-quality reviewer → loop on Issues Found (cap 3, Minor non-blocking) → mark complete.
+**Purpose:** Drive the per-task loop. For each task: dispatch implementer subagent → handle status → (only when `per_task_reviews: full`) dispatch spec-compliance reviewer → loop on Issues Found (cap 3) → (only when `per_task_reviews: full`) dispatch code-quality reviewer → loop on Issues Found (cap 3, Minor non-blocking) → mark complete. The per-task reviewers are gated on the `state.per_task_reviews` field that the coordinator sets at Stage 13 entry from a user-gate (default off).
 
 **Continuous execution:** no pausing between tasks for human check-in. Only stops on BLOCKED, cap hit, plan-is-wrong, or all-tasks-complete.
 
@@ -476,7 +476,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 - At task start: `tasks[T###]: "in_progress"` (atomic write)
 - At task end: `tasks[T###]: "completed"`
 
-**Final review:** after all tasks, dispatch one more code-quality reviewer on the full diff with `TASK_ID=final`. The `ss-sdd-reviewing-task-quality` skill has explicit guidance for the final case (cross-cutting concerns, multi-file diff handling). Sets `final_review_completed: true` in state file.
+**Final review:** mandatory regardless of `per_task_reviews`. After all tasks, dispatch one more code-quality reviewer on the full diff with `TASK_ID=final`. The `ss-sdd-reviewing-task-quality` skill has explicit guidance for the final case (cross-cutting concerns, multi-file diff handling). Sets `final_review_completed: true` in state file.
 
 **Prompt templates** (dispatch envelopes alongside the skill — protocols live in dedicated skills):
 - `implementer-prompt.md` → calls `ss-sdd-implementing-task`
@@ -487,7 +487,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 | Status | Action |
 |---|---|
-| DONE | Proceed to spec-compliance review |
+| DONE | If `per_task_reviews: full`, proceed to spec-compliance review. Else mark task complete and advance. |
 | DONE_WITH_CONCERNS | If correctness/scope concerns: re-dispatch with concerns appended. If observations only: note and proceed. |
 | NEEDS_CONTEXT | Provide context, re-dispatch |
 | BLOCKED | Assess and re-dispatch with: more context / more capable model / smaller pieces / escalate to user |
@@ -517,7 +517,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 - **Examples of In-Scope vs Out-of-Scope** — concrete cases (TypeScript/JWT example; principles transfer)
 - **Common Rationalizations and Why They're Wrong** — table addressing the most common scope-creep traps
 
-**"Your work will be reviewed" priming:** explicit in the Overview and reinforced throughout. Improves output quality measurably.
+**"Your work will be reviewed" priming:** explicit in the Overview and reinforced throughout. Improves output quality measurably. The priming covers both modes — mandatory final cross-cutting review (always) plus optional per-task two-stage review (when the user enabled it at Stage 13 entry).
 
 ---
 

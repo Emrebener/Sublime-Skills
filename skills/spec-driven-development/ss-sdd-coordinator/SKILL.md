@@ -29,6 +29,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 - Do NOT do work that belongs to phase-skills inline. If a stage has a phase-skill, load it and follow it.
 - Do NOT attempt to test the feature yourself if `ss-sdd-testing-implementation` reports MCP_UNAVAILABLE. Surface to user.
 - Do NOT proceed past a user-approval gate without explicit approval
+- The Stage 13 per-task review gate (`per_task_reviews`) is a sub-mode flag, not a stage skip — do NOT add an entry to `stages_skipped` for it; only write the `per_task_reviews` state field. Stage 13 itself always runs and always appends `implementation_complete`.
 - ALWAYS use path-scoped `git add` (list specific paths) for any commit you make directly. Never `git add .` or `git add -A`. SDD allows dirty working trees (preflight warns but doesn't abort); path-scoping is what keeps the user's pre-existing dirty files from being swept into SDD commits.
 - During Stages 2–11, the SDD planning artifacts (spec.md, plan.md, ADRs) are uncommitted in the working tree. Do NOT instruct the user (or run yourself) `git stash`, `git restore`, or `git checkout <other-branch>` mid-pipeline — uncommitted artifacts will be displaced and the run is unrecoverable. The state file at `.sublime-skills/state.json` is gitignored and stays in place across branch operations, but the planning artifacts do not. If git operations become necessary mid-pipeline, halt and surface to the user with the risk explicit.
 
@@ -51,7 +52,7 @@ You are the coordinator for a spec-driven development run. You hold the workflow
 | 10 | Optional 2nd plan-review | Subagent uses `ss-sdd-reviewing-plans`; findings via `ss-sdd-receiving-review-findings` | **Yes — ask, default no** | `plan_second_review` | `plan_second_reviewed` |
 | 11 | User plan approval | Inline | No | `plan_approval` | `plan_approved` |
 | 12 | Settle feature branch + batch commit | Inline via `ss-sdd-choosing-feature-branch` (silent when on `main` or already on derived branch; prompts when ambiguous; persists `branch_name`) | No | `choosing_branch` | `branch_chosen` |
-| 13 | Implementation (sub-pipeline) | Inline via `ss-sdd-implementing-plans` (dispatches per-task subagents) | No | `implementing` | `implementation_complete` |
+| 13 | Implementation (sub-pipeline) | Inline via `ss-sdd-implementing-plans` (dispatches per-task subagents) | No (stage); contains an internal user-gate for per-task reviews (default no) | `implementing` | `implementation_complete` |
 | 14 | Optional feature testing | Inline via `ss-sdd-testing-implementation` (dispatches tester subagent) | **Yes — ask, default yes** | `testing` | `testing_complete` |
 | 15 | Generate handoff | Subagent uses `ss-sdd-generating-handoff` | **Yes — ask, default yes** | `handoff` | `handoff_generated` |
 | 16 | Maintain memory file | Subagent uses `ss-sdd-maintaining-memory-file` | **Yes — ask, default yes** (auto-skipped if no memory file configured/detected) | `memory_file` | `memory_file_maintained` |
@@ -182,7 +183,9 @@ After success: append `branch_chosen` to `stages_completed`. Advance to Stage 13
 
 ### Stage 13 — Implementation (sub-pipeline)
 
-Load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers, then final review). State's `tasks` map is owned by that skill — initialized on entry, updated per task. The map is the orchestration record between the skill and the per-task subagents (each subagent dies after returning, so the skill picks the next task by reading state); the coordinator just loads the skill.
+**Per-task review gate (default off).** Before loading `ss-sdd-implementing-plans`, check `state.per_task_reviews`. If it's already set (idempotent re-entry in the same conversation), reuse it silently — do NOT re-prompt. If absent, ask via the harness's interactive question tool: "Run per-task spec-compliance + code-quality reviews? (yes/no, default no — the final cross-cutting code review runs at end of Stage 13 either way; per-task reviews are valuable mainly on large or risky implementations)." Write `per_task_reviews: "full"` on yes or `per_task_reviews: "skipped"` on no into state.json (atomic write). This is a sub-mode flag for Stage 13 — do NOT add anything to `stages_skipped`. Stage 13 still runs and still appends `implementation_complete`.
+
+Then load `ss-sdd-implementing-plans`. It orchestrates the per-task loop (implementer + 2 reviewers when `per_task_reviews: full`, implementer only when `per_task_reviews: skipped`, followed by a mandatory final cross-cutting review either way). State's `tasks` map is owned by that skill — initialized on entry, updated per task. The map is the orchestration record between the skill and the per-task subagents (each subagent dies after returning, so the skill picks the next task by reading state); the coordinator just loads the skill.
 
 **Continuous execution:** Stage 13 does NOT pause between tasks for human check-in. Only stop when: a task returns BLOCKED that can't be resolved by the coordinator (e.g., needs user input); a review loop hits its 3-iteration cap; the plan itself appears wrong; or all tasks complete. Coordinator-driven pauses between tasks waste run time and break the per-task isolation.
 
@@ -287,6 +290,7 @@ When in doubt about edge cases, follow operations.md.
 | Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
 | Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 | Skipping user-approval gates | Mandatory; never auto-proceed |
+| Recording the Stage 13 per-task review answer in `stages_skipped` | Wrong — it's a sub-mode flag (`per_task_reviews`), not a stage skip. Stage 13 itself always runs. |
 | Auto-skipping an optional stage | Always ask user; never auto-skip or auto-include |
 | Doing phase-skill work inline | Load the phase-skill or dispatch the subagent |
 | Coordinator running feature tests when MCP_UNAVAILABLE | NEVER — surface to user with manual test plan |

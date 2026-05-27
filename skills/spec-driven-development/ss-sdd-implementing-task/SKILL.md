@@ -7,7 +7,7 @@ description: Use when an SDD implementer subagent has been dispatched to impleme
 
 ## Overview
 
-You are implementing **one** task in a larger spec-driven plan. Your work will be reviewed twice — first for spec compliance, then for code quality. Issues come back to you for fixes. Aim to pass both reviews on the first try.
+You are implementing **one** task in a larger spec-driven plan. Your work will be reviewed at the end of the implementation stage by a cross-cutting code-quality reviewer, and — when the user opted in to per-task review for this run — twice per task (first for spec compliance, then for code quality). Either way, issues come back to you for fixes. Aim to pass on the first try.
 
 **Core principle:** Match the task spec exactly. No more, no less. Trust the plan to be complete and the reviewers to be calibrated — your job is execution, not editing the plan.
 
@@ -124,7 +124,7 @@ If you spot issues, fix them. Then report.
 
 ## What Reviewers Will Check
 
-The two reviewers look at different things. Knowing what each cares about helps you anticipate their feedback.
+Per-task review is opt-in (default off); the user decides at Stage 13 entry. Either way, a final cross-cutting code-quality reviewer runs at end of Stage 13 on the full branch diff — your task's code is in scope for it. When per-task review is on, two reviewers look at different things; knowing what each cares about helps you anticipate their feedback.
 
 | Reviewer | Catches |
 |---|---|

@@ -65,6 +65,7 @@ These are absent from the preflight shell and become required once `ss-sdd-writi
 | `test_status` | string | Stage 14 | One of: `passed`, `passed_after_fixes`, `skipped_mcp_unavailable`, `skipped_user_choice`, `failed_escalated`, or `null` if Stage 14 hasn't run. |
 | `fix_iterations` | integer | Stage 14 | How many test-fix iterations ran (0-3). |
 | `final_review_completed` | boolean | After Stage 13 final review | Set `true` by `ss-sdd-implementing-plans` when the cross-cutting final code-quality review passes. |
+| `per_task_reviews` | string | Stage 13 entry | Whether per-task spec-compliance and code-quality reviewer subagents run for each task. One of `"full"` or `"skipped"`. Set by the coordinator at Stage 13 entry from a user-gate (default `"skipped"`). The final cross-cutting code-quality review at the end of Stage 13 runs regardless of this field. |
 | `handoff_path` | string | Stage 15 | Absolute path to the generated handoff doc, located under `$HOME/.sublime-skills/handoffs/<repo-basename>/`. |
 | `memory_file_updated` | boolean | Stage 16 | `true` if the memory file was updated this run; `false` if no update was needed or the stage was skipped. |
 | `memory_file_path` | string | Stage 16 (only if updated) | Path to the memory file that was updated. May be repo-relative or absolute. |
@@ -92,6 +93,7 @@ Each field is owned by exactly one skill or the coordinator. Multiple writers = 
 | `branch_name` | `ss-sdd-choosing-feature-branch` (Stage 12) | Set once at Stage 12 in the same atomic write that advances `current_stage` and appends `branch_chosen`. Never updated after. |
 | `test_status`, `fix_iterations` | `ss-sdd-testing-implementation` | Written when Stage 14 completes. |
 | `final_review_completed` | `ss-sdd-implementing-plans` | Set to `true` after Stage 13's final review approves. |
+| `per_task_reviews` | Coordinator | Set once at Stage 13 entry from the user-gate; read by `ss-sdd-implementing-plans` on every (idempotent) entry. Never overwritten — if already present, the coordinator reuses it silently rather than re-prompting. |
 | `handoff_path` | Coordinator | Set after Stage 15 from the `ss-sdd-generating-handoff` subagent's report. |
 | `memory_file_updated`, `memory_file_path` | Coordinator | Set after Stage 16 from the `ss-sdd-maintaining-memory-file` subagent's report. |
 | `reviewer_pushbacks` | `ss-sdd-receiving-review-findings` | Appended whenever the coordinator pushes back instead of fixing. |
@@ -174,6 +176,7 @@ This is a typical state during Stage 13 with 3 tasks done, 1 in progress, 3 pend
   "test_status": null,
   "fix_iterations": 0,
   "final_review_completed": false,
+  "per_task_reviews": "skipped",
   "handoff_path": null,
   "reviewer_pushbacks": [],
   "spec_auto_review_iterations": 1,
@@ -188,5 +191,6 @@ This schema is the contract. A consumer that wants to verify a state file should
 - All always-required fields present; if `current_stage` is past `spec_writing`, the four required-by-Stage-2 fields are also present
 - Enum values valid (`current_stage` from the Stage Name Mapping; `tasks.T###` in `pending|in_progress|completed`; `test_status` from the documented set)
 - Stage progression is consistent (e.g., `current_stage: implementing` implies `plan_approved` is in `stages_completed`)
+- If `current_stage` is `implementing` or later, `per_task_reviews` is present and equal to `"full"` or `"skipped"`
 
 For machine-readable validation, see `state-schema.json` (JSON Schema Draft 2020-12).
