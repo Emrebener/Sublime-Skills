@@ -35,7 +35,7 @@ Storage layout (fixed):
 
 ```
 docs/specs/NNN-<short-name>/
-  spec.md           # this stage writes (user-facing artifact, committed at Stage 12)
+  spec.md           # this stage writes (user-facing artifact, committed at Stage 7)
 
 .sublime-skills/
   state.json        # SDD state file (created by preflight at Stage 0; this stage writes feature_id, short_name, work_type, spec_path into it) — gitignored, never committed
@@ -80,9 +80,7 @@ Required sections (in order): Goal, User Stories, Functional Requirements, Succe
 
 Optional sections: Key Entities (only if data is involved), Open Questions (only if any remain), References (only if external docs/specs/ADRs are worth linking).
 
-The Clarifications section is auto-managed by the ss-sdd-grilling-specs skill if invoked later — do not create it preemptively here.
-
-**Write atomically.** Compose the full spec content, write to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. The atomic move prevents a half-written spec.md if the session dies mid-write. Apply the same pattern when editing the spec during grill/approval — never edit-in-place.
+**Write atomically.** Compose the full spec content, write to `<spec_path>.tmp`, then `mv <spec_path>.tmp <spec_path>`. The atomic move prevents a half-written spec.md if the session dies mid-write. Apply the same pattern when editing the spec during the approval gate — never edit-in-place.
 
 ## Step 4: Write Feature Fields into State
 
@@ -102,7 +100,7 @@ All other fields (including `started_at`, `current_stage`, `stages_completed`) a
 
 **Do NOT change `current_stage` or append to `stages_completed` here.** The coordinator advances the stage and marks `spec_written` complete after this skill returns. (Avoids racing with the coordinator's stage-advancement logic.)
 
-**Do NOT commit spec.md.** It stays uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits spec.md alongside plan.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
+**Do NOT commit spec.md.** It stays uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 7 batch-commits spec.md alongside plan.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
 
 ## Step 5: Inline Self-Review
 

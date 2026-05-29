@@ -382,7 +382,7 @@ to:
   glossary_path: null
 ```
 
-**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `branching`, `grill`, `memory_file` — all keep their scaffold defaults. (`context` is the one block the bootstrap edits, per the skipped-file logic above.) If the user later wants a custom branch pattern or memory-file limit, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
+**Hard rule:** the coordinator does NOT touch any keys the user didn't ask about. `branching`, `memory_file` — all keep their scaffold defaults. (`context` is the one block the bootstrap edits, per the skipped-file logic above.) If the user later wants a custom branch pattern or memory-file limit, they edit the config by hand. The bootstrap stays out of opinions it wasn't asked to hold.
 
 ---
 
@@ -400,7 +400,7 @@ to:
 | `3` | Usage error | Halt — coordinator bug. |
 
 Validator checks include:
-- All required keys present (`context.<name>_path` for all six including `testing_path`, `branching.branch_pattern`, `grill.question_cap`, `memory_file.path`, `memory_file.character_limit`; also validates the `suggest:` block)
+- All required keys present (`context.<name>_path` for all six including `testing_path`, `branching.branch_pattern`, `memory_file.path`, `memory_file.character_limit`; also validates the `suggest:` block)
 - No unknown keys (catches schema drift)
 - Each context path is either `null` or points to an actual existing file (orphan paths fail)
 
@@ -444,7 +444,7 @@ Coherence findings are NOT added to the commit message — they're conversation-
 
 `.sublime-skills/config-local.yml` is the per-developer overrides file (Step 5 creates it empty); the gitignore entry keeps each developer's content out of commits.
 
-`.sublime-skills/state.json` is the SDD per-run state file. It's local-only orchestration metadata, created by Stage 2 and deleted by Stage 17. It's never committed.
+`.sublime-skills/state.json` is the SDD per-run state file. It's local-only orchestration metadata, created by preflight (Stage 0) and deleted at finishing (Stage 11). It's never committed.
 
 The root `.gitignore` is NOT modified by this skill.
 
@@ -538,7 +538,7 @@ The SDD pipeline reads the bootstrap's output at several points:
 
 - **`ss-sdd-coordinator` entry**: runs Stage 0 (`ss-sdd-preflight`) which is the single home for every pre-pipeline halt check — config validation via `validate-config.sh` first, then workspace + branch state. If config validation fails (orphan path, unknown key, missing required field), preflight halts with reason `config_invalid` / `config_missing` and directs the user to re-run `ss-bs-bootstrapping-project`. SDD's stance is: a valid config isn't optional, it's required. Once every check passes, preflight creates `.sublime-skills/state.json` as a minimal shell (silently removing any orphan file from a dead prior pipeline first).
 - **`ss-sdd-discovering-requirements` (Stage 1)**: runs `discover-context.sh` to find the project convention files. Each file present is loaded; each file absent is skipped (null path → no read). The discovery conversation uses the project's domain vocabulary from `GLOSSARY.md`, the entities from `DOMAIN.md`, and the principles from `CONSTITUTION.md` if any of these exist.
-- **`ss-sdd-reviewing-specs` and `ss-sdd-reviewing-plans`**: read the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
+- **`ss-sdd-reviewing-specs`**: reads the constitution (if present) to check alignment, and the glossary (if present) to flag vocabulary drift.
 - **`ss-sdd-writing-specs` and `ss-sdd-writing-plans`**: prefer the project's canonical vocabulary over synonyms, when a glossary is present.
 
 If the user never bootstraps (or bootstraps with all seven files Skipped), SDD still works — it just operates without project-specific context. The pipeline doesn't require any convention file to exist; they're additive.

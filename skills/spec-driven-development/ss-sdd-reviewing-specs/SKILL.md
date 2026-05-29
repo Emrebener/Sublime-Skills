@@ -27,7 +27,7 @@ The coordinator's dispatch prompt will include:
 
 - `SPEC_PATH` — absolute path to the spec file
 - `CONTEXT_FILES` — list of project context files (constitution, ADRs, architecture, glossary, etc.) the spec is meant to comply with
-- `REVIEW_FOCUS` (optional) — "first-pass" or "second-pass — focus on X". If second-pass with focus, weight findings accordingly.
+- `REVIEW_FOCUS` (optional) — "first-pass". If a specific focus area is supplied, weight findings accordingly.
 
 ## Checklist
 
@@ -111,7 +111,7 @@ Return a markdown report in this shape:
 
 **Status:** Approved | Issues Found
 **Spec:** docs/specs/NNN-<short-name>/spec.md
-**Reviewer focus:** first-pass | second-pass — <focus>
+**Reviewer focus:** first-pass | <focus if supplied>
 
 ### CRITICAL
 

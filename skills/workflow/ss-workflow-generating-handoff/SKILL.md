@@ -1,6 +1,6 @@
 ---
 name: ss-workflow-generating-handoff
-description: Use when the user wants a handoff document for the current session — a self-contained note that lets a fresh agent (or human) pick up the work in a new conversation. Reads conversation context (what was discussed, what was built, what's left, what's blocked), then writes one markdown file at $HOME/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md. Generic counterpart to `ss-sdd-generating-handoff` — same output location and shape, no SDD pipeline assumptions.
+description: Use when the user wants a handoff document for the current session — a self-contained note that lets a fresh agent (or human) pick up the work in a new conversation. Reads conversation context (what was discussed, what was built, what's left, what's blocked), then writes one markdown file at $HOME/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md. Works for any kind of in-flight work, with no SDD pipeline assumptions.
 ---
 
 # Generating Handoff

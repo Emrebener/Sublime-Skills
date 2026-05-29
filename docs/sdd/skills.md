@@ -1,6 +1,6 @@
 # Skills Reference
 
-The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 9-skill set (1 bootstrap coordinator + 1 audit coordinator + 7 per-artifact discovery skills) used to set up `.sublime-skills/config.yml` and the 7 project convention artifacts (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 7 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `coherence-check.sh`, `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
+The SDD family is 15 skills coordinated by `ss-sdd-coordinator`. The project-bootstrap family is a separate 9-skill set (1 bootstrap coordinator + 1 audit coordinator + 7 per-artifact discovery skills) used to set up `.sublime-skills/config.yml` and the 7 project convention artifacts (lives at `skills/project-bootstrap/`, outside the SDD pipeline). Both families share 6 scripts under `skills/spec-driven-development/framework/` (`discover-context.sh`, `get-config-value.sh`, `validate-config.sh`, `coherence-check.sh`, `validate-spec.sh`, `validate-plan.sh`) and a canonical state schema (`state-schema.md` + `state-schema.json`). This document is the per-skill reference: what it does, when it runs, what it reads, what it writes, and how it interacts with the rest of each family.
 
 ## Quick map by role
 
@@ -11,23 +11,18 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 - `ss-sdd-preflight` — Stage 0
 - `ss-sdd-discovering-requirements` — Stage 1
 - `ss-sdd-writing-specs` — Stage 2
-- `ss-sdd-reviewing-specs` — Stages 3, 5 (subagent)
-- `ss-sdd-grilling-specs` — Stage 4
-- `ss-sdd-maintaining-adrs` — Stage 6 (subagent)
-- `ss-sdd-receiving-review-findings` — Stages 3, 5, 9, 10 (inline)
-- `ss-sdd-writing-plans` — Stage 8
-- `ss-sdd-reviewing-plans` — Stages 9, 10 (subagent)
-- `ss-sdd-choosing-feature-branch` — Stage 12 (inline; batch-commits SDD planning artifacts)
-- `ss-sdd-implementing-plans` — Stage 13 (orchestrates per-task subagents)
-- `ss-sdd-implementing-task` — Stage 13 (loaded by implementer subagents)
-- `ss-sdd-reviewing-task-compliance` — Stage 13 (loaded by spec-compliance reviewer subagent)
-- `ss-sdd-reviewing-task-quality` — Stage 13 (loaded by code-quality reviewer subagent; also used for final review)
-- `ss-sdd-testing-implementation` — Stage 14 (orchestrates tester + fixer subagents)
-- `ss-sdd-testing-feature` — Stage 14 (loaded by tester subagent)
-- `ss-sdd-fixing-test-failures` — Stage 14 (loaded by fixer subagent)
-- `ss-sdd-generating-handoff` — Stage 15 (subagent)
-- `ss-sdd-maintaining-memory-file` — Stage 16 (subagent)
-- `ss-sdd-finishing` — Stage 17
+- `ss-sdd-reviewing-specs` — Stage 3 (subagent)
+- `ss-sdd-receiving-review-findings` — Stage 3 (inline)
+- `ss-sdd-maintaining-adrs` — Stage 4 (subagent)
+- `ss-sdd-writing-plans` — Stage 6
+- `ss-sdd-choosing-feature-branch` — Stage 7 (inline; batch-commits SDD planning artifacts)
+- `ss-sdd-implementing-plans` — Stage 8 (orchestrates per-task subagents + final review)
+- `ss-sdd-implementing-task` — Stage 8 (loaded by implementer subagents)
+- `ss-sdd-testing-implementation` — Stage 9 (orchestrates tester + fixer subagents)
+- `ss-sdd-testing-feature` — Stage 9 (loaded by tester subagent)
+- `ss-sdd-fixing-test-failures` — Stage 9 (loaded by fixer subagent)
+- `ss-sdd-maintaining-memory-file` — Stage 10 (subagent)
+- `ss-sdd-finishing` — Stage 11
 
 **Bootstrap (outside the SDD family — see `skills/project-bootstrap/` directory):**
 - `ss-bs-bootstrapping-project` — one-time project setup coordinator
@@ -41,7 +36,6 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 - `coherence-check.sh` — cross-artifact structural consistency check across the 7 bootstrap artifacts (invoked by `ss-bs-bootstrapping-project` at end of run and by `ss-bs-auditing-project` at start of run)
 - `validate-spec.sh` — schema-check a spec.md (incl. duplicate FR/SC ID detection)
 - `validate-plan.sh` — schema-check a plan.md (incl. duplicate T### detection)
-- `validate-handoff.sh` — schema-check a handoff doc (incl. unredacted-secret patterns)
 
 **Canonical state schema:**
 - `state-schema.md` — human-readable state file schema (fields, ownership, lifecycle)
@@ -79,7 +73,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 **Loaded:** by the coordinator at Stage 0
 **Stage:** 0
 
-**Purpose:** Validate that the repo is workable for SDD, then create the state file shell. A **permissive** gate: aborts only on conditions that genuinely make SDD impossible. Does NOT create branches (Stage 12 owns that).
+**Purpose:** Validate that the repo is workable for SDD, then create the state file shell. A **permissive** gate: aborts only on conditions that genuinely make SDD impossible. Does NOT create branches (Stage 7 owns that).
 
 **Behavior matrix:**
 
@@ -95,7 +89,7 @@ The SDD family is 20 skills coordinated by `ss-sdd-coordinator`. The project-boo
 **Key rules:**
 - No `git commit`, no `git stash`, no `git clean`, no `git restore`, no `git checkout`. Preflight never mutates working-tree state.
 - Dirty trees are allowed because SDD's commits are path-scoped to its own artifacts — the user's pre-existing dirty files stay untouched throughout the pipeline.
-- Branch creation belongs to Stage 12 (`ss-sdd-choosing-feature-branch`), not here.
+- Branch creation belongs to Stage 7 (`ss-sdd-choosing-feature-branch`), not here.
 - State shell is written as the **last** step, only after all validation passes — an aborted preflight leaves no trace.
 - Any pre-existing `.sublime-skills/state.json` at preflight entry is treated as an orphan from a dead prior pipeline and silently removed before the fresh shell is written.
 
@@ -209,15 +203,15 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 ## ss-sdd-reviewing-specs
 
 **Type:** Subagent skill (dispatched in fresh context)
-**Loaded:** by the dispatched subagent at Stages 3, 5
-**Stage:** 3 (mandatory first-pass), 5 (optional second-pass)
+**Loaded:** by the dispatched subagent at Stage 3
+**Stage:** 3 (the single spec-review pass)
 
 **Purpose:** Independent fresh-eyes review of the spec before plan writing. Read-only.
 
 **What the dispatched subagent gets from the coordinator:**
 - `SPEC_PATH`
 - `CONTEXT_FILES` — constitution, ADRs, architecture, glossary, etc.
-- `REVIEW_FOCUS` — "first-pass" or "second-pass — focus on X"
+- `REVIEW_FOCUS` — "first-pass" (a specific focus area may be supplied)
 
 **Detection passes:**
 - **Completeness** — placeholders, missing sections, untraceable FRs
@@ -248,55 +242,11 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 ---
 
-## ss-sdd-grilling-specs
-
-**Type:** Phase skill (inline; conversational)
-**Loaded:** by the coordinator at Stage 4, only if user opted in
-**Stage:** 4 (optional)
-
-**Purpose:** Optional bounded stress-test of the spec. Asks scoped, prioritized questions one at a time with recommended answers, and **applies each accepted answer to the spec inline**.
-
-**Why inline (not subagent)?** Interactive multi-turn conversation with the user — subagents can't have that.
-
-**Question categories** (the skill internally prioritizes by impact × uncertainty):
-- Goal sharpness
-- Story priority rationale
-- Acceptance testability
-- FR coverage
-- SC measurability
-- Entity completeness
-- Edge case depth
-- Constraint rigor
-- Integration risk
-- Constitution / ADR fit
-- Out-of-scope explicitness
-
-**Question format:**
-- Multiple choice with recommendation prominent (preferred)
-- Short-answer with suggestion (when options don't fit)
-- One question per message; the recommendation is always shown
-
-**After each accepted answer:**
-1. Append `- Q: ... → A: ...` to the Clarifications log section (created if missing) — always, regardless of body-edit disposition
-2. Pick a disposition: **Substantive change** (edit the affected section), **Confirms spec is already correct** (log only, no body edit), or **Out of scope / deferred** (log + maybe an Out-of-Scope line)
-3. **Save the spec immediately (atomic write)** — even when only the Clarifications log changed; atomic per-answer writes keep each answer durable on its own
-4. Move to next question
-
-**Stop conditions:**
-- User signals done
-- All high-impact categories resolved
-- Cap reached (default 10; configurable; hard ceiling 20)
-
-**Reads:** spec + project context
-**Writes:** updated spec.md (atomic per-answer)
-
----
-
 ## ss-sdd-maintaining-adrs
 
 **Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stage 6
-**Stage:** 6 (mandatory; may produce zero ADRs)
+**Loaded:** by the dispatched subagent at Stage 4
+**Stage:** 4 (mandatory; may produce zero ADRs)
 
 **Purpose:** Identify decisions in the spec that warrant new ADRs and write them in the locked format.
 
@@ -324,17 +274,17 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 **Zero ADRs is valid output.** Not every spec needs new ADRs. The subagent returns "0 ADRs created" with a one-sentence reason.
 
-**Status flips to `Accepted`** in Stage 7 when the user approves.
+**Status flips to `Accepted`** in Stage 5 when the user approves.
 
 ---
 
 ## ss-sdd-receiving-review-findings
 
 **Type:** Inline skill (process review output)
-**Loaded:** by the coordinator after each reviewer subagent returns
-**Stages:** 3, 5, 9, 10
+**Loaded:** by the coordinator after the spec reviewer subagent returns
+**Stage:** 3
 
-**Purpose:** Establishes how the coordinator consumes findings from a spec or plan reviewer. Borrows from superpowers' `receiving-code-review` philosophy.
+**Purpose:** Establishes how the coordinator consumes findings from the spec reviewer. Borrows from superpowers' `receiving-code-review` philosophy.
 
 **Core protocol:**
 
@@ -380,8 +330,8 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 ## ss-sdd-writing-plans
 
 **Type:** Phase skill (inline; mechanical)
-**Loaded:** by the coordinator at Stage 8
-**Stage:** 8
+**Loaded:** by the coordinator at Stage 6
+**Stage:** 6
 
 **Purpose:** Render the approved spec into `plan.md`. Tasks are bite-sized, organized into phases by user story, with TDD steps.
 
@@ -401,41 +351,17 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 **Validator invoked:** `framework/validate-plan.sh`. Runs as first sub-step of Step 6 self-review.
 
----
-
-## ss-sdd-reviewing-plans
-
-**Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stages 9, 10
-**Stage:** 9 (mandatory), 10 (optional)
-
-**Purpose:** Independent review of the plan before implementation. Read-only.
-
-**Detection passes:**
-- **Spec coverage** — every FR has at least one task (the output includes a coverage table)
-- **Placeholders** — "TBD", "TODO", "similar to Task N", etc.
-- **Type / name / path consistency** across tasks
-- **TDD discipline** — Red-Green-Refactor steps present; `[NO-TDD]` matches allowed categories (misuse is CRITICAL)
-- **`[P]` correctness** — parallel-marked tasks don't share files
-- **Story independence** — each story phase produces a working increment standalone
-- **Constitution / ADR alignment**
-- **Granularity** — tasks bite-sized (2-5 min each)
-
-**Severity rubric:** same shape as ss-sdd-reviewing-specs (CRITICAL / HIGH / MEDIUM / LOW with calibration).
-
-**Output:** structured markdown report including a Spec Coverage table — the most concrete check.
-
-**Hard rules:** READ-ONLY, no rewrites, no sub-subagent dispatch.
+There is no separate plan-review or plan-approval stage. The plan is a mechanical rendering of the already-approved spec; the writer's Step 6 self-review (validator + fresh-eyes pass) is its only check, and the final cross-cutting review at the end of Stage 8 catches any egregious quality problems that reach the code.
 
 ---
 
 ## ss-sdd-choosing-feature-branch
 
 **Type:** Phase skill (inline)
-**Loaded:** by the coordinator at Stage 12
-**Stage:** 12
+**Loaded:** by the coordinator at Stage 7
+**Stage:** 7
 
-**Purpose:** Decide which branch the SDD planning artifacts (spec, plan, ADRs) — uncommitted through Stages 2–11 — should land on. Optionally creates a feature branch with `git checkout -b`, then batch-commits the artifacts in two thematic commits. `.sublime-skills/state.json` is gitignored and never included in commits.
+**Purpose:** Decide which branch the SDD planning artifacts (spec, plan, ADRs) — uncommitted through Stages 2–6 — should land on. Optionally creates a feature branch with `git checkout -b`, then batch-commits the artifacts in two thematic commits. `.sublime-skills/state.json` is gitignored and never included in commits.
 
 **3-way user prompt:**
 1. Create and switch to `<derived-name>` (recommended; derived from `branching.branch_pattern`)
@@ -463,10 +389,10 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 ## ss-sdd-implementing-plans
 
 **Type:** Phase skill (inline; orchestrates per-task subagents)
-**Loaded:** by the coordinator at Stage 13
-**Stage:** 13
+**Loaded:** by the coordinator at Stage 8
+**Stage:** 8
 
-**Purpose:** Drive the per-task loop. For each task: dispatch implementer subagent → handle status → (only when `per_task_reviews: full`) dispatch spec-compliance reviewer → loop on Issues Found (cap 3) → (only when `per_task_reviews: full`) dispatch code-quality reviewer → loop on Issues Found (cap 3, Minor non-blocking) → mark complete. The per-task reviewers are gated on the `state.per_task_reviews` field that the coordinator sets at Stage 13 entry from a user-gate (default off).
+**Purpose:** Drive the per-task loop. For each task: dispatch implementer subagent → handle status → mark complete. There is no per-task review; the implementer's own TDD and self-review handle per-task discipline. A single mandatory final cross-cutting review runs once at the end (see below).
 
 **Continuous execution:** no pausing between tasks for human check-in. Only stops on BLOCKED, cap hit, plan-is-wrong, or all-tasks-complete.
 
@@ -476,18 +402,17 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 - At task start: `tasks[T###]: "in_progress"` (atomic write)
 - At task end: `tasks[T###]: "completed"`
 
-**Final review:** mandatory regardless of `per_task_reviews`. After all tasks, dispatch one more code-quality reviewer on the full diff with `TASK_ID=final`. The `ss-sdd-reviewing-task-quality` skill has explicit guidance for the final case (cross-cutting concerns, multi-file diff handling). Sets `final_review_completed: true` in state file.
+**Final review:** mandatory. After all tasks, dispatch one final code-quality reviewer on the full branch diff using the self-contained `final-review-prompt.md` template (no skill loaded — the prompt carries the full protocol: cross-cutting concerns, multi-file diff handling, severity rubric, output format). Sets `final_review_completed: true` in state file. Fix loop capped at 3 iterations.
 
-**Prompt templates** (dispatch envelopes alongside the skill — protocols live in dedicated skills):
-- `implementer-prompt.md` → calls `ss-sdd-implementing-task`
-- `spec-compliance-reviewer-prompt.md` → calls `ss-sdd-reviewing-task-compliance`
-- `code-quality-reviewer-prompt.md` → calls `ss-sdd-reviewing-task-quality`
+**Prompt templates** (alongside the skill):
+- `implementer-prompt.md` → dispatch envelope; calls `ss-sdd-implementing-task`
+- `final-review-prompt.md` → self-contained final-review protocol (no skill)
 
 **Subagent statuses handled:**
 
 | Status | Action |
 |---|---|
-| DONE | If `per_task_reviews: full`, proceed to spec-compliance review. Else mark task complete and advance. |
+| DONE | Mark task complete and advance. |
 | DONE_WITH_CONCERNS | If correctness/scope concerns: re-dispatch with concerns appended. If observations only: note and proceed. |
 | NEEDS_CONTEXT | Provide context, re-dispatch |
 | BLOCKED | Assess and re-dispatch with: more context / more capable model / smaller pieces / escalate to user |
@@ -500,7 +425,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 **Type:** Subagent skill (lightweight protocol)
 **Loaded:** by implementer subagents themselves when they start
-**Stage:** 13 (during per-task implementation)
+**Stage:** 8 (during per-task implementation)
 
 **Purpose:** Establish the implementer's protocol — scope discipline, TDD-by-default, status protocol, self-review, commit hygiene.
 
@@ -513,79 +438,35 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 - **Self-Review Before Reporting** — completeness, quality, discipline, testing
 - **Commit Hygiene** — one task = one commit (or a few), Conventional Commits style with task ID
 - **If a Commit Fails** — read the error, re-stage once if hook auto-fixed, otherwise BLOCKED; never `--no-verify` / `--no-gpg-sign` / `--force`
-- **What Reviewers Will Check** — primer on spec-compliance vs code-quality reviewers
+- **What the Final Review Will Check** — primer on the cross-cutting code-quality review and on doing spec compliance in your own self-review
 - **Examples of In-Scope vs Out-of-Scope** — concrete cases (TypeScript/JWT example; principles transfer)
 - **Common Rationalizations and Why They're Wrong** — table addressing the most common scope-creep traps
 
-**"Your work will be reviewed" priming:** explicit in the Overview and reinforced throughout. Improves output quality measurably. The priming covers both modes — mandatory final cross-cutting review (always) plus optional per-task two-stage review (when the user enabled it at Stage 13 entry).
+**"Your work will be reviewed" priming:** explicit in the Overview and reinforced throughout. Improves output quality measurably. The priming points at the single mandatory final cross-cutting review — and makes clear that the implementer's own self-review is the only per-task check.
 
 ---
 
-## ss-sdd-reviewing-task-compliance
+## The final review (end of Stage 8)
 
-**Type:** Subagent skill (full protocol for the per-task spec-compliance reviewer)
-**Loaded:** by the spec-compliance reviewer subagent when it's dispatched
-**Stage:** 13 (per task)
+After every task completes, `ss-sdd-implementing-plans` dispatches one mandatory cross-cutting code-quality reviewer over the whole feature-branch diff. It is driven by the self-contained `final-review-prompt.md` template (no skill is loaded — the prompt carries the full protocol).
 
-**Purpose:** First-stage per-task review. Confirms the implementation matches the task spec exactly — no scope creep, no missing steps, no silent design decisions.
+**Inputs the dispatcher provides:** `BASE_SHA` (first commit on the branch), `HEAD_SHA` (current HEAD). The reviewer runs `git diff BASE_SHA..HEAD_SHA`.
 
-**Inputs the dispatcher provides:** `TASK_ID`, `TASK_TEXT`, `SPEC_PATH`, `PLAN_PATH`, `BASE_SHA`, `HEAD_SHA`. Spec and plan paths are for targeted lookups only.
+**Six dimensions checked:** Readability, Correctness around edges, Idiom, Security, Performance, Maintainability — same rubric as a careful PR review.
 
-**The seven checks:**
+**Cross-cutting focus:** because the diff spans the whole feature, the review prioritizes inconsistencies between tasks, integration points, cumulative style drift, and public surface area — things no single-task view could catch. Isolated per-task nits are de-prioritized.
 
-1. Coverage + Requirements Traceability — every step done; cited FRs actually satisfied
-2. Scope Creep — the dominant failure mode (extra options, refactors, defensive code, new abstractions)
-3. Tests Present and Meaningful — including TDD verification via commit order
-4. Tests Pass — re-run by the reviewer, not trusting the implementer
-5. No Silent Decisions — design choices the task didn't make
-6. Commit Hygiene — task ID reference, no grab-bag commits
-7. Files Touched Match the Task
+**Severity rubric:** Critical (must fix — correctness/security/data integrity) / Important (should fix — idiom, readability, real future-pain) / Minor (could fix — style, small naming). Style is NEVER Critical; Minor findings don't block. Fix loop capped at 3 iterations, then escalate to the user.
 
-**Output:** `Approved` or `Issues Found` with categorized findings (Missing / Extra / Scope creep / Test gap / FR not satisfied / Silent decision / Commit hygiene / Files out of scope) + re-run verification + 2-3 sentence summary.
-
-**Lane discipline:** does NOT flag code quality, naming, style, or idiom. Those are the next reviewer's job.
-
-**Hard rules:** READ + re-run tests; never fix the code; leaf reviewer (no sub-subagent dispatch).
-
----
-
-## ss-sdd-reviewing-task-quality
-
-**Type:** Subagent skill (full protocol for the per-task code-quality reviewer)
-**Loaded:** by the code-quality reviewer subagent when it's dispatched
-**Stage:** 13 (per task, after spec compliance is Approved)
-
-**Purpose:** Second-stage per-task review. Catches code-quality issues that would harm the codebase if merged — assumes the previous reviewer verified scope.
-
-**Inputs the dispatcher provides:** `TASK_ID`, `BASE_SHA`, `HEAD_SHA`. No spec/plan paths needed (not re-checking compliance).
-
-**Six dimensions checked:**
-
-| Dimension | Focus |
-|---|---|
-| Readability | Naming, function length, nesting, flow |
-| Correctness around edges | Nulls, empties, errors, concurrency |
-| Idiom | Alignment with the project's existing patterns |
-| Security | Injection, deserialization, leaked secrets, missing authz, custom crypto |
-| Performance | O(n²), unbounded growth, N+1, missing indexes |
-| Maintainability | DRY-within-reason, single responsibility, WHY comments only |
-
-**Severity rubric:**
-- **Critical** — must fix; correctness, security, or data integrity
-- **Important** — should fix; idiom, readability, real future-pain risks
-- **Minor** — could fix; style preferences, small naming improvements
-
-**Style is NEVER Critical.** Minor findings don't block merging.
-
-**Hard rules:** does NOT re-check compliance; does NOT re-run tests; does NOT propose architecture changes; never fixes the code; no filler "Strengths" section; leaf reviewer.
+**Hard rules:** does NOT re-run tests; does NOT propose architecture changes; never fixes the code itself; no filler "Strengths" section; leaf reviewer (no sub-subagent dispatch).
 
 ---
 
 ## ss-sdd-testing-implementation
 
 **Type:** Phase skill (inline; orchestrates tester subagent)
-**Loaded:** by the coordinator at Stage 14 (only if user opted in)
-**Stage:** 14 (optional)
+**Loaded:** by the coordinator at Stage 9 (only if user opted in)
+**Stage:** 9 (optional)
 
 **Purpose:** Feature-level testing distinct from per-task unit tests. Asks the user for a depth (`quick` or `standard`, default `standard`), then dispatches a tester subagent that picks a strategy based on available MCPs and feature type.
 
@@ -600,7 +481,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 | Status | Coordinator action |
 |---|---|
-| PASS | Update state, advance to Stage 15 |
+| PASS | Update state, advance to Stage 10 |
 | FAIL | Dispatch fixer subagent with failures; re-test; cap 3 iterations before escalating |
 | MCP_UNAVAILABLE | Surface manual test plan + code review findings to user; **coordinator MUST NOT test itself** |
 
@@ -622,7 +503,7 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 **Type:** Subagent skill (full protocol for the tester subagent)
 **Loaded:** by the tester subagent when it's dispatched
-**Stage:** 14 (optional)
+**Stage:** 9 (optional)
 
 **Purpose:** Feature-level verification — does the implementation deliver what the spec promised end-to-end? Picks strategy by feature type and available tools.
 
@@ -681,55 +562,11 @@ The structure is for agent self-discipline and cleaner coordinator state; it is 
 
 ---
 
-## ss-sdd-generating-handoff
-
-**Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stage 15
-**Stage:** 15 (user-prompted, default yes)
-
-**Purpose:** Produce a self-contained handoff document at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md` that lets a fresh agent (or human) continue work without re-reading everything.
-
-**What the dispatched subagent gets:**
-- `STATE_PATH`, `SPEC_PATH`, `PLAN_PATH`, `ADR_PATHS`, `BRANCH`, `BASE_SHA`, `HEAD_SHA`, `HANDOFF_DIR`
-
-**Handoff structure** (see [artifacts.md](artifacts.md) for full template):
-- Quick context (2-3 sentences)
-- Source artifacts (references with one-line summaries — NOT duplicates)
-- What got built (2-4 paragraphs)
-- Build highlights (from git log)
-- Test status
-- Open concerns
-- If you're continuing this work (practical guidance)
-- Redactions (note count if any)
-- Files not to look at (optional; for low-signal diffs like lockfiles)
-
-**Redaction sweep:**
-- OpenAI/Anthropic keys (`sk-...`, `sk-ant-...`)
-- AWS keys (`AKIA...`, `ASIA...`)
-- GitHub tokens (`ghp_...`, `gho_...`, `ghu_...`, `ghs_...`, `ghr_...`)
-- JWT-shaped strings (`eyJ...` 3-part)
-- URLs with embedded credentials
-- SSH private key markers
-- Sensitive env var assignments (`*_SECRET=`, `*_PASSWORD=`, `*_TOKEN=`, `*_KEY=`)
-- Generic high-entropy secret literals near `password|secret|token|api_key`
-
-Two-pass scan: keep going until no new redactions surface.
-
-**Validator invoked:** `framework/validate-handoff.sh`. Critical failures include unredacted secret patterns.
-
-**Hard rules:**
-- Do NOT duplicate ADR content (reference + one-line summary)
-- Do NOT duplicate large spec/plan sections
-- Do NOT modify any file other than the new handoff doc
-- Do NOT dispatch sub-subagents
-
----
-
 ## ss-sdd-maintaining-memory-file
 
 **Type:** Subagent skill
-**Loaded:** by the dispatched subagent at Stage 16
-**Stage:** 16 (user-prompted, default yes; auto-skipped without prompt when no memory file is configured/detected)
+**Loaded:** by the dispatched subagent at Stage 10
+**Stage:** 10 (user-prompted, default yes; auto-skipped without prompt when no memory file is configured/detected)
 
 **Purpose:** Decide whether the project's agent memory file (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.agents.md`) needs updating based on what this run produced, and if so, update it. Most runs do NOT warrant an update — that's normal.
 
@@ -783,14 +620,14 @@ The skill's SKILL.md includes a Best Practices section on what memory files are 
 ## ss-sdd-finishing
 
 **Type:** Phase skill (inline)
-**Loaded:** by the coordinator at Stage 17
-**Stage:** 17
+**Loaded:** by the coordinator at Stage 11
+**Stage:** 11
 
 **Purpose:** Close out the SDD run by completing the source-control loop. Validate the state file, print a structured summary, merge the feature branch into `main` with `--no-ff`, safe-delete the feature branch on merge success, then `rm .sublime-skills/state.json`. Local-only — no push, no PR.
 
 **Steps:**
-1. Read and validate `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed` and `branch_name` is set. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 14 was the test gate.
-2. Print summary: feature_id, short_name, feature branch (to be merged + deleted), spec/plan/handoff paths, ADRs created, tasks completed, test_status, memory_file_updated.
+1. Read and validate `.sublime-skills/state.json`. Confirm `implementation_complete` is in `stages_completed` and `branch_name` is set. If tests aren't passing (or absent when not skipped), prompt the user before proceeding. No test re-run — Stage 9 was the test gate.
+2. Print summary: feature_id, short_name, feature branch (to be merged + deleted), spec/plan paths, ADRs created, tasks completed, test_status, memory_file_updated.
 3. `git checkout main && git merge --no-ff "$branch_name" -m "Merge branch '$branch_name'"`. On non-zero exit, halt and surface verbatim; leave the working tree as-is, state file in place. Re-invocation is naturally idempotent (already-merged → exit 0 "Already up to date").
 4. `git branch -d "$branch_name"` (safe-delete, not `-D`). On non-zero, halt and surface; leave state in place.
 5. `rm .sublime-skills/state.json` — plain `rm`, not `git rm`. No commit follows; the file is gitignored.
@@ -915,7 +752,7 @@ All seven skills support `create` / `extend` / `replace` / `audit` modes from th
 | `config` | — | path to `.sublime-skills/config.yml` if present |
 | `config_local` | — | path to `.sublime-skills/config-local.yml` if present, else null |
 
-**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `context:`, `branching:`, `grill:`, and `memory_file:`. List-typed or multi-line config values are parsed by individual skills that need them.
+**YAML extractor:** delegated to the sibling `get-config-value.sh`, which is the single source of truth for scalar reads and overlay semantics. Its extractor is awk-based and handles flat `block: \n  key: value` only — sufficient for the singular scalars in `context:`, `branching:`, and `memory_file:`. List-typed or multi-line config values are parsed by individual skills that need them.
 
 **Output JSON shape:**
 
@@ -947,10 +784,10 @@ All seven skills support `create` / `extend` / `replace` / `audit` modes from th
 
 **Checks (on the merged config):**
 - YAML parses for both files (uses `python3` + PyYAML when available; falls back to an awk-based shallow scanner that validates the base config only and warns when overlay is present)
-- All four top-level blocks present: `context`, `branching`, `grill`, `memory_file`
+- All three top-level blocks present: `context`, `branching`, `memory_file`
 - Required scalar keys per block
 - Each `context.<name>_path` is null OR points to an existing file (orphan paths fail)
-- Numeric sanity (`grill.question_cap` 1-20; `memory_file.character_limit` ≥ 1000)
+- Numeric sanity (`memory_file.character_limit` ≥ 1000)
 - Type sanity (strings, null-or-string)
 - Rejects unknown `context.*_path` keys (catches stale schema after upgrades)
 
@@ -975,7 +812,6 @@ All seven skills support `create` / `extend` / `replace` / `audit` modes from th
 
 Examples:
 - `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" branching branch_pattern` → `"feat/{short-name}"`
-- `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" grill question_cap` → `"10"`
 - `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" memory_file character_limit` → `"40000"`
 
 **Exit codes:**
@@ -1038,17 +874,6 @@ Examples:
 - Forbidden diagram syntax
 - Soft length guard (warning at 2000+ lines)
 
-### validate-handoff.sh
-
-**Purpose:** Schema-check a handoff document. Critical: catches unredacted secrets. Strips trailing `.tmp` for filename pattern check so it validates the staged file before atomic mv.
-
-**Checks:**
-- Filename pattern `YYYY-MM-DD-<kebab-title>.md` (trailing `.tmp` is stripped before the check)
-- Required sections (Header, Quick context, Source artifacts, What got built, Build highlights, Test status, Open concerns, If you're continuing this work, Redactions)
-- Unredacted secret patterns (OpenAI/AWS/GitHub tokens, JWTs, private keys, URLs with credentials, sensitive env-var values)
-- Placeholder patterns (handoff is generated, not drafted — placeholders shouldn't appear)
-- Soft length guard (warning at 800+ lines)
-
 ---
 
 ## Canonical State Schema
@@ -1075,39 +900,31 @@ ss-sdd-coordinator (entry; user-invoked)
 ├── ss-sdd-discovering-requirements    (Stage 1)
 ├── ss-sdd-writing-specs               (Stage 2; uses validate-spec.sh)
 │
-├── dispatch → ss-sdd-reviewing-specs  (Stages 3, 5; subagent, first-pass + optional 2nd)
+├── dispatch → ss-sdd-reviewing-specs  (Stage 3; subagent)
 │       ↓
 │   ss-sdd-receiving-review-findings   (inline; process findings)
 │
-├── ss-sdd-grilling-specs              (Stage 4; optional)
+├── dispatch → ss-sdd-maintaining-adrs (Stage 4; subagent)
 │
-├── dispatch → ss-sdd-maintaining-adrs (Stage 6; subagent)
+├── (user approval — Stage 5)
 │
-├── (user approval — Stage 7)
+├── ss-sdd-writing-plans               (Stage 6; uses validate-plan.sh)
 │
-├── ss-sdd-writing-plans               (Stage 8; uses validate-plan.sh)
+├── ss-sdd-choosing-feature-branch     (Stage 7; inline; batch-commits planning artifacts)
 │
-├── dispatch → ss-sdd-reviewing-plans  (Stages 9, 10; subagent)
+├── ss-sdd-implementing-plans          (Stage 8; orchestrates per-task subagents + final review)
 │       ↓
-│   ss-sdd-receiving-review-findings   (inline; process findings)
-│
-├── (user approval — Stage 11)
-│
-├── ss-sdd-choosing-feature-branch     (Stage 12; inline; batch-commits planning artifacts)
-│
-├── ss-sdd-implementing-plans          (Stage 13; orchestrates per-task subagents)
-│       ↓
-│       per-task fresh subagents (each task: implementer + 2 reviewers)
+│       per-task fresh implementer subagents (one per task)
 │           ↓
 │       implementer subagents load → ss-sdd-implementing-task
+│       ↓
+│       final review: one subagent on the full diff (final-review-prompt.md; no skill)
 │
-├── ss-sdd-testing-implementation      (Stage 14; orchestrates tester subagent)
+├── ss-sdd-testing-implementation      (Stage 9; orchestrates tester subagent)
 │
-├── dispatch → ss-sdd-generating-handoff (Stage 15; subagent; uses validate-handoff.sh)
+├── dispatch → ss-sdd-maintaining-memory-file (Stage 10; subagent)
 │
-├── dispatch → ss-sdd-maintaining-memory-file (Stage 16; subagent)
-│
-└── ss-sdd-finishing               (Stage 17)
+└── ss-sdd-finishing               (Stage 11)
 
 
 project-bootstrap family (outside SDD pipeline; user-invoked manually)

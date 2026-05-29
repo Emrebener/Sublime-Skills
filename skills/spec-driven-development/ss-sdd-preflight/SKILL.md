@@ -9,7 +9,7 @@ description: Use at the very start of a spec-driven-development pipeline run, be
 
 Verify the repo is in a workable state for an SDD pipeline run: `.sublime-skills/config.yml` is present and valid, we're inside a git repo, and HEAD is attached (named branch, not detached). A dirty working tree is allowed — SDD commits are path-scoped to its own artifacts, so the user's pre-existing dirty files stay untouched. Once every check passes, preflight creates `.sublime-skills/state.json` as a minimal shell, removing any orphan state file from a previous dead pipeline first.
 
-This skill **does NOT** create branches. Branch policy is decided much later, at Stage 12 (`ss-sdd-choosing-feature-branch`), right before implementation starts.
+This skill **does NOT** create branches. Branch policy is decided much later, at Stage 7 (`ss-sdd-choosing-feature-branch`), right before implementation starts.
 
 **Core principle:** Permissive by default. Only abort on conditions that genuinely make SDD impossible to run (no git, no config, no branch).
 
@@ -103,7 +103,7 @@ Don't auto-`git init` — that's the user's call.
 
 If `git branch --show-current` returns an empty string, HEAD is detached.
 
-**ABORT** with `detached_head` unconditionally. Reason: SDD's later stages (especially Stage 12 batch-commit and per-task implementer commits) require a named branch.
+**ABORT** with `detached_head` unconditionally. Reason: SDD's later stages (especially Stage 7 batch-commit and per-task implementer commits) require a named branch.
 
 **Halt message template:**
 
@@ -151,7 +151,7 @@ This is the ONLY user prompt in preflight. The other checks are pure validation.
 
 ## State Shell Protocol
 
-After every validation check passes, create `.sublime-skills/state.json`. If a state file already exists at this path, it is an orphan from a dead prior pipeline (normal flow at Stage 17 deletes it via `ss-sdd-finishing`); remove it silently and write the fresh shell.
+After every validation check passes, create `.sublime-skills/state.json`. If a state file already exists at this path, it is an orphan from a dead prior pipeline (normal flow at Stage 11 deletes it via `ss-sdd-finishing`); remove it silently and write the fresh shell.
 
 ```bash
 mkdir -p .sublime-skills
@@ -208,7 +208,7 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 | Trying to repair `.sublime-skills/config.yml` inline when it fails validation | Don't — abort with `config_invalid` and direct the user to `ss-bs-bootstrapping-project`. |
 | Aborting on a dirty working tree | A dirty tree is a WARN, not an abort. Ask the user; default to proceeding if they confirm. |
 | Trying to commit/stash/discard dirty files | NEVER — SDD lets the user keep their dirty files; path-scoped commits protect them. |
-| Trying to create a feature branch here | NEVER — that's Stage 12's job. Preflight just validates that a branch exists. |
+| Trying to create a feature branch here | NEVER — that's Stage 7's job. Preflight just validates that a branch exists. |
 | Auto-`git init`ing a non-repo | NEVER — surface the abort message and let the user run `git init` themselves. |
 | Aborting on detached HEAD only when state files exist | Detached HEAD is an UNCONDITIONAL abort. SDD needs a named branch. |
 | Dispatching a subagent for any work | NEVER — preflight runs entirely inline. |
@@ -222,7 +222,7 @@ The coordinator surfaces the abort to the user and exits the pipeline.
 - About to edit `.sublime-skills/config.yml` to make the validator pass → STOP; abort and direct user to `ss-bs-bootstrapping-project`
 - About to run `git init` automatically → STOP; surface abort message
 - About to `git commit`, `git stash`, `git clean`, or `git restore` to "clean up" dirty files → STOP; SDD allows dirty files
-- About to create a feature branch from here → STOP; that's Stage 12 (`ss-sdd-choosing-feature-branch`)
+- About to create a feature branch from here → STOP; that's Stage 7 (`ss-sdd-choosing-feature-branch`)
 - About to `git checkout` to switch branches → STOP; not preflight's job
 - About to dispatch a subagent for branch-detection or any other work → STOP; preflight runs entirely inline
 - About to write the state shell before all checks have passed → STOP; shell write is the LAST step

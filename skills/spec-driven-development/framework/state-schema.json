@@ -28,7 +28,7 @@
     "work_type": {
       "type": "string",
       "enum": ["feature", "fix"],
-      "description": "Captured at Stage 1 by ss-sdd-discovering-requirements. Used by ss-sdd-choosing-feature-branch (Stage 12) to derive the suggested branch prefix (feat/ vs fix/)."
+      "description": "Captured at Stage 1 by ss-sdd-discovering-requirements. Used by ss-sdd-choosing-feature-branch (Stage 7) to derive the suggested branch prefix (feat/ vs fix/)."
     },
     "started_at": {
       "type": "string",
@@ -44,12 +44,12 @@
     },
     "plan_path": {
       "type": ["string", "null"],
-      "description": "Set by ss-sdd-writing-plans at Stage 8"
+      "description": "Set by ss-sdd-writing-plans at Stage 6"
     },
     "branch_name": {
       "type": "string",
       "minLength": 1,
-      "description": "The branch the user committed to at Stage 12. Set by ss-sdd-choosing-feature-branch; read by ss-sdd-finishing (Stage 17) to know which branch to merge into main and delete."
+      "description": "The branch the user committed to at Stage 7. Set by ss-sdd-choosing-feature-branch; read by ss-sdd-finishing (Stage 11) to know which branch to merge into main and delete."
     },
     "current_stage": {
       "type": "string",
@@ -58,18 +58,12 @@
         "discovering",
         "spec_writing",
         "spec_auto_review",
-        "spec_grill",
-        "spec_second_review",
         "adr_maintenance",
         "spec_approval",
         "plan_writing",
-        "plan_auto_review",
-        "plan_second_review",
-        "plan_approval",
         "choosing_branch",
         "implementing",
         "testing",
-        "handoff",
         "memory_file",
         "finishing"
       ]
@@ -83,18 +77,12 @@
           "discovering",
           "spec_written",
           "spec_auto_reviewed",
-          "spec_grilled",
-          "spec_second_reviewed",
           "adrs_maintained",
           "spec_approved",
           "plan_written",
-          "plan_auto_reviewed",
-          "plan_second_reviewed",
-          "plan_approved",
           "branch_chosen",
           "implementation_complete",
           "testing_complete",
-          "handoff_generated",
           "memory_file_maintained",
           "finished"
         ]
@@ -105,11 +93,7 @@
       "items": {
         "type": "string",
         "enum": [
-          "spec_grill",
-          "spec_second_review",
-          "plan_second_review",
           "testing",
-          "handoff",
           "memory_file"
         ]
       }
@@ -168,15 +152,6 @@
     "final_review_completed": {
       "type": "boolean"
     },
-    "per_task_reviews": {
-      "type": "string",
-      "enum": ["full", "skipped"],
-      "description": "Whether per-task spec-compliance and code-quality reviewer subagents run for each task at Stage 13. Set by the coordinator at Stage 13 entry from a user-gate (default 'skipped'). The final cross-cutting code-quality review at the end of Stage 13 runs regardless."
-    },
-    "handoff_path": {
-      "type": ["string", "null"],
-      "description": "Absolute path to the generated handoff doc, located under $HOME/.sublime-skills/handoffs/<repo-basename>/. Set after Stage 15."
-    },
     "memory_file_updated": {
       "type": "boolean"
     },
@@ -203,11 +178,6 @@
       }
     },
     "spec_auto_review_iterations": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 2
-    },
-    "plan_auto_review_iterations": {
       "type": "integer",
       "minimum": 0,
       "maximum": 2

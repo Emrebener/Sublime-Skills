@@ -18,7 +18,7 @@ This document covers operational mechanics: how subagents are dispatched, what t
 
 ## Subagent dispatch
 
-The coordinator dispatches subagents at seven different points in the pipeline (plus the per-task dispatch loop in Stage 13 and the per-failure dispatch loop in Stage 14). Each dispatch is governed by the same general principles:
+The coordinator dispatches subagents at several different points in the pipeline (the spec reviewer, ADR maintainer, final code reviewer, feature tester, and memory-file maintainer, plus the per-task dispatch loop in Stage 8 and the per-failure dispatch loop in Stage 9). Each dispatch is governed by the same general principles:
 
 ### Dispatch principles
 
@@ -32,17 +32,13 @@ The coordinator dispatches subagents at seven different points in the pipeline (
 
 | Stage | What's dispatched | Prompt template |
 |---|---|---|
-| 3, 5 | Spec reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-specs`) |
-| 6 | ADR maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-adrs`) |
-| 9, 10 | Plan reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-plans`) |
-| 13 (per task) | Implementer | `skills/spec-driven-development/ss-sdd-implementing-plans/implementer-prompt.md` (calls `ss-sdd-implementing-task`) |
-| 13 (per task, conditional on `per_task_reviews: full`) | Spec-compliance reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/spec-compliance-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-compliance`) |
-| 13 (per task, conditional on `per_task_reviews: full`) | Code-quality reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/code-quality-reviewer-prompt.md` (calls `ss-sdd-reviewing-task-quality`) |
-| 13 (final) | Final code reviewer | Reuses code-quality reviewer template with `TASK_ID=final` (calls `ss-sdd-reviewing-task-quality`) |
-| 14 | Feature tester | `skills/spec-driven-development/ss-sdd-testing-implementation/tester-prompt.md` (calls `ss-sdd-testing-feature`) |
-| 14 (fix loop) | Fixer | `skills/spec-driven-development/ss-sdd-testing-implementation/fixer-prompt.md` (calls `ss-sdd-fixing-test-failures`) |
-| 15 | Handoff generator | Inline in `ss-sdd-coordinator` (calls `ss-sdd-generating-handoff`) |
-| 16 | Memory file maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-memory-file`) |
+| 3 | Spec reviewer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-reviewing-specs`) |
+| 4 | ADR maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-adrs`) |
+| 8 (per task) | Implementer | `skills/spec-driven-development/ss-sdd-implementing-plans/implementer-prompt.md` (calls `ss-sdd-implementing-task`) |
+| 8 (final) | Final code reviewer | `skills/spec-driven-development/ss-sdd-implementing-plans/final-review-prompt.md` (self-contained; no skill) |
+| 9 | Feature tester | `skills/spec-driven-development/ss-sdd-testing-implementation/tester-prompt.md` (calls `ss-sdd-testing-feature`) |
+| 9 (fix loop) | Fixer | `skills/spec-driven-development/ss-sdd-testing-implementation/fixer-prompt.md` (calls `ss-sdd-fixing-test-failures`) |
+| 10 | Memory file maintainer | Inline in `ss-sdd-coordinator` (calls `ss-sdd-maintaining-memory-file`) |
 
 ### Standard dispatch shape
 
@@ -60,7 +56,7 @@ The `<INPUTS>` block is the bulk of the prompt. It includes file paths, content 
 
 ### Why fresh subagents per task
 
-For Stage 13 implementation, every task gets at least one fresh dispatch (implementer) and — when the user opted in to per-task review at Stage 13 entry (`per_task_reviews: full`) — up to three (implementer + spec-compliance reviewer + code-quality reviewer). A single mandatory final cross-cutting code-quality reviewer runs once at the end of Stage 13 regardless of per-task mode. The rationale below applies to all dispatches:
+For Stage 8 implementation, every task gets one fresh dispatch (the implementer). There are no per-task reviewers. After the last task, a single mandatory final cross-cutting code-quality review runs once over the whole branch diff. The rationale below applies to all dispatches:
 
 - **Context isolation:** subagent A working on T003 doesn't have T002's context. Prevents cross-task contamination.
 - **Smaller context budgets:** each dispatch has only what it needs.
@@ -101,19 +97,19 @@ Subagents return one of a small set of statuses depending on their role. The coo
 
 | Status | Meaning | Coordinator action |
 |---|---|---|
-| `DONE` | Task complete, tests passing, self-review clean | Proceed to spec-compliance review when `per_task_reviews: full`; otherwise mark complete and advance |
+| `DONE` | Task complete, tests passing, self-review clean | Mark complete and advance |
 | `DONE_WITH_CONCERNS` | Complete + tests pass, but concerns flagged | If correctness/scope: re-dispatch with concerns appended. If observations: note + proceed. |
 | `NEEDS_CONTEXT` | Missing information from original dispatch | Provide context, re-dispatch |
 | `BLOCKED` | Cannot complete | Assess: more context / more capable model / smaller pieces / escalate to user |
 
-### Reviewer subagent statuses (spec, plan, per-task)
+### Reviewer subagent statuses (spec, final review)
 
 | Status | Meaning | Coordinator action |
 |---|---|---|
 | `Approved` | No CRITICAL or HIGH findings | Advance |
 | `Issues Found` | At least one CRITICAL or HIGH | Apply fixes per `ss-sdd-receiving-review-findings` protocol |
 
-Per-task code-quality reviewers also distinguish:
+The final cross-cutting code-quality reviewer also distinguishes:
 - **Critical** findings — must fix
 - **Important** findings — must fix
 - **Minor** findings — noted but non-blocking
@@ -122,7 +118,7 @@ Per-task code-quality reviewers also distinguish:
 
 | Status | Meaning | Coordinator action |
 |---|---|---|
-| `PASS` | All tests passed | Advance to Stage 15 |
+| `PASS` | All tests passed | Advance to Stage 10 |
 | `FAIL` | Issues found in feature-level testing | Dispatch fixer, re-test (cap 3 iterations) |
 | `MCP_UNAVAILABLE` | Couldn't run real tests | Surface manual test plan + code review to user; **DO NOT test yourself** |
 
@@ -149,7 +145,7 @@ The `ss-sdd-testing-implementation` skill repeats this rule in five different pl
 
 ## Validation scripts
 
-Three validators check artifact format before commit:
+Two validators check artifact format before commit:
 
 ### `validate-spec.sh`
 
@@ -190,39 +186,9 @@ Invoked by `ss-sdd-writing-specs` as the first sub-step of its self-review. The 
 
 Invoked by `ss-sdd-writing-plans` as first sub-step of self-review; coordinator re-runs before committing (same enforcement pattern as `validate-spec.sh`).
 
-### `validate-handoff.sh`
-
-**Path:** `skills/spec-driven-development/framework/validate-handoff.sh`
-**Usage:** `"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-handoff.sh" <path-to-handoff.md>` (or `<path>.tmp` — the script strips trailing `.tmp` for the filename pattern check)
-
-**Critical checks (exit 1 if any fail):**
-- Filename matches `YYYY-MM-DD-<kebab-title>.md` pattern (trailing `.tmp` is stripped before checking, so validation works on the staged file before atomic mv)
-- Required sections: Header (`# Handoff:`), Quick context, Source artifacts, What got built, Build highlights, Test status, Open concerns, If you're continuing this work, Redactions
-- No unredacted secret patterns (the most important check):
-  - OpenAI/Anthropic keys: `sk-...` (20+ chars), `sk-ant-...`
-  - AWS keys: `AKIA[0-9A-Z]{16}`, `ASIA[0-9A-Z]{16}`
-  - GitHub tokens: `ghp_`, `gho_`, `ghu_`, `ghs_`, `ghr_` followed by 20+ chars
-  - JWT pattern: `eyJ...` 3-part base64 with `.` separators
-  - URLs with credentials: `https?://<user>:<pass>@<host>`
-  - SSH private key markers: `-----BEGIN [A-Z ]+PRIVATE KEY-----`
-  - Sensitive env-var assignments: `(_SECRET|_PASSWORD|_TOKEN|_API_KEY|_KEY)\s*[:=]\s*` with 8+ char value
-- No placeholders (handoff is generated, not drafted)
-
-**Warnings:**
-- ADR section appears to duplicate ADR content (h3+ headings under Source artifacts)
-- Soft length guard at 800 lines
-
-Invocation flow inside `ss-sdd-generating-handoff`:
-1. Compose and redact content (in memory)
-2. Write to `<output-path>.tmp`
-3. Run `validate-handoff.sh <output-path>.tmp` — fix issues in the .tmp file and re-validate until PASS
-4. Atomic `mv <output-path>.tmp <output-path>`
-
-The coordinator re-runs the validator against the final file before committing (same enforcement pattern as spec/plan validators).
-
 ### Interpreting validator output
 
-Output format (all three validators):
+Output format (both validators):
 
 ```
 CRITICAL: <issue 1>
@@ -256,7 +222,7 @@ Warnings can be left if they're acceptable (e.g., a deliberately long spec). The
 
 ## Commit Failure Protocol
 
-Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task code commits, Stage 16 memory file commit when updated, Stage 17 `--no-ff` merge commit on `main`, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`; this is the human-readable summary.
+Every stage that produces a commit (Stage 7 batch commits, Stage 8 per-task code commits, Stage 10 memory file commit when updated, Stage 11 `--no-ff` merge commit on `main`, plus per-task implementer + fixer commits) must handle commit failures. The canonical protocol lives in `ss-sdd-coordinator/SKILL.md`; this is the human-readable summary.
 
 **Detection:** check `git commit`'s exit code. If non-zero, capture stdout/stderr.
 
@@ -269,9 +235,9 @@ Every stage that produces a commit (Stage 12 batch commits, Stage 13 per-task co
 | GPG signing failure | Halt. Surface to user with the gpg error. |
 | Nothing to commit | Investigate: check `git status` and `git log -1`. If intended files are already committed, treat as success. Otherwise halt. |
 | File not found in `git add` | The previous stage's writer may have failed silently. Verify the expected file exists; if not, the prior stage didn't complete properly. |
-| Stage 12 partial batch commit (Commit 1 succeeded, Commit 2 failed) | Halt. Surface to user with both commit outputs and the partial state (Commit 1 is already in history). Do NOT auto-revert; the user decides whether to amend, add a follow-up commit, or reset. |
-| Stage 17 `git merge --no-ff` failure (conflicts, hook rejection, signing failure on the merge commit) | Halt. Surface git's stdout/stderr verbatim. Leave the working tree as-is (do NOT auto-`git merge --abort`). Do NOT delete the feature branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit, or `git merge --abort` and investigate) and tells the coordinator to continue. Stage 17 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes. |
-| Stage 17 `git branch -d` failure (branch not fully merged, despite the merge step succeeding) | Halt. Surface the error. Do NOT escalate to `git branch -D`. Do NOT `rm` the state file. This means the branch is in an unexpected state; the user investigates. |
+| Stage 7 partial batch commit (Commit 1 succeeded, Commit 2 failed) | Halt. Surface to user with both commit outputs and the partial state (Commit 1 is already in history). Do NOT auto-revert; the user decides whether to amend, add a follow-up commit, or reset. |
+| Stage 11 `git merge --no-ff` failure (conflicts, hook rejection, signing failure on the merge commit) | Halt. Surface git's stdout/stderr verbatim. Leave the working tree as-is (do NOT auto-`git merge --abort`). Do NOT delete the feature branch. Do NOT `rm` the state file. The user resolves manually (complete the merge commit, or `git merge --abort` and investigate) and tells the coordinator to continue. Stage 11 is naturally idempotent — `git merge --no-ff` on an already-merged branch returns 0 with "Already up to date" and the run completes. |
+| Stage 11 `git branch -d` failure (branch not fully merged, despite the merge step succeeding) | Halt. Surface the error. Do NOT escalate to `git branch -D`. Do NOT `rm` the state file. This means the branch is in an unexpected state; the user investigates. |
 
 **Hard rules — never violate:**
 
@@ -369,13 +335,13 @@ Reason: docs-only.
 - [ ] **Step 3: Commit ...**
 ```
 
-The reason line is required (validate-plan.sh checks for it) and must match one of the allowed categories (ss-sdd-reviewing-plans checks for that).
+The reason line is required (validate-plan.sh checks for it) and must match one of the allowed categories (the plan writer's own self-review checks for that).
 
 ### Enforcement
 
 - `ss-sdd-writing-plans` produces TDD steps by default. If the writer marks `[NO-TDD]`, they must include a category-matching reason.
 - `validate-plan.sh` checks that `[NO-TDD]` markers have a non-blank reason on the next line.
-- `ss-sdd-reviewing-plans` flags `[NO-TDD]` misuse (used on a logic-change task, or reason doesn't match an allowed category) as **CRITICAL**.
+- The plan writer's own self-review flags `[NO-TDD]` misuse (used on a logic-change task, or reason doesn't match an allowed category).
 - The implementer subagent (via `ss-sdd-implementing-task` skill) is instructed to suspect `[NO-TDD]` if the task actually changes logic.
 
 ### Common rationalizations and rebuttals
@@ -391,7 +357,7 @@ The reason line is required (validate-plan.sh checks for it) and must match one 
 
 ## Diagram prohibitions
 
-Specs, plans, and **handoff documents** are all prose only. No diagrams of any kind:
+Specs and plans are prose only. No diagrams of any kind:
 
 - ❌ Mermaid blocks
 - ❌ PlantUML / `@startuml`
@@ -399,7 +365,7 @@ Specs, plans, and **handoff documents** are all prose only. No diagrams of any k
 - ❌ ASCII art diagrams
 - ❌ Image embeds
 
-All three validators (`validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh`) catch ` ```mermaid `, ` ```plantuml `, ` ```puml `, `@startuml`, `C4Container`, and `C4Component`. **ASCII art is on honor system** — the validators can't reliably detect it via grep (too many false positives), so writers are explicitly instructed not to sneak it in.
+Both validators (`validate-spec.sh`, `validate-plan.sh`) catch ` ```mermaid `, ` ```plantuml `, ` ```puml `, `@startuml`, `C4Container`, and `C4Component`. **ASCII art is on honor system** — the validators can't reliably detect it via grep (too many false positives), so writers are explicitly instructed not to sneak it in.
 
 ### Why
 
@@ -410,7 +376,7 @@ All three validators (`validate-spec.sh`, `validate-plan.sh`, `validate-handoff.
 
 ### What about flowcharts in skill files?
 
-Some skill files (e.g., `subagent-driven-development` from Superpowers) use `dot` flowcharts in their own SKILL.md. We deliberately don't — all our SKILL.md files use prose and tables. The Diagram prohibition applies to specs/plans/handoffs (artifacts produced by the pipeline) — it's a hard rule there.
+Some skill files (e.g., `subagent-driven-development` from Superpowers) use `dot` flowcharts in their own SKILL.md. We deliberately don't — all our SKILL.md files use prose and tables. The Diagram prohibition applies to specs/plans (artifacts produced by the pipeline) — it's a hard rule there.
 
 ### If you genuinely want a visual
 
@@ -441,17 +407,6 @@ Numbers are sequential per repo; never reset. If you delete a feature dir, that 
 - `<kebab-title>`: 2-5 kebab-case words from the ADR title
 
 Examples: `0001-use-jwt-for-sessions.md`, `0023-postgresql-over-mongo.md`
-
-### Handoff filenames
-
-- Pattern: `YYYY-MM-DD-<kebab-title>.md`
-- Date in UTC; sortable
-- `<kebab-title>`: 2-5 kebab-case words
-
-Examples: `2026-05-20-user-auth.md`, `2026-06-15-export-csv.md`
-
-If two handoffs are generated on the same date with the same short name (rare), append `-<N>`:
-`2026-05-20-user-auth-2.md`
 
 ### Branch names
 
@@ -489,7 +444,7 @@ The short name matches the spec directory's short name (after the spec is create
 
 ### "Preflight aborted — user_declined"
 
-**Cause:** you said "no" to the dirty-tree confirmation, or to a feature-branch decision later in Stage 12.
+**Cause:** you said "no" to the dirty-tree confirmation, or to a feature-branch decision later in Stage 7.
 **Fix:** clean up the working tree (or accept it), then run the coordinator again. SDD can run on top of dirty work; the confirmation is just a heads-up.
 
 ### `validate-spec.sh` or `validate-plan.sh` failing
@@ -502,15 +457,6 @@ The short name matches the spec directory's short name (after the spec is create
 - `[NO-TDD]` marker without a reason on the next line
 
 Re-run the validator after fixing; it'll either pass or surface the next issue.
-
-### `validate-handoff.sh` failing on "potential unredacted secret"
-
-**Cause:** the handoff doc contains something that looks like an API key, token, JWT, etc.
-**Fix:** find the line (the validator gives you the line number), inspect it, and decide:
-- If it's actually a secret → redact it (`[REDACTED]`), note the redaction in the Redactions section
-- If it's a false positive (e.g., a base64 string that's not a secret) → the validator is too aggressive here; the most reliable fix is to slightly reformat the offending string so it doesn't match the pattern (e.g., insert a space or wrap in single backticks if it was already unwrapped)
-
-The validator errs aggressive on purpose — under-redaction is worse than over-redaction.
 
 ### Reviewer flags many findings (>10)
 
@@ -533,14 +479,6 @@ The validator errs aggressive on purpose — under-redaction is worse than over-
   4. **Abort the stage** — pause SDD; user investigates manually
 
 The cap is hard — the coordinator does NOT dispatch a 3rd auto-iteration under any circumstances.
-
-### Per-task review loop hits its 3-iteration cap
-
-**Cause:** the implementer can't satisfy the reviewer; the plan or task is likely wrong.
-**Fix:** the coordinator escalates to the user. Options:
-- Revise the task in the plan and continue
-- Override the reviewer (document why in state file)
-- Skip the task and address it later as a separate concern
 
 ### Tester returns `MCP_UNAVAILABLE`
 
@@ -573,7 +511,7 @@ The atomic write pattern (write to `.tmp` then `mv`) makes this rare — typical
 ### "I want to revise the spec mid-implementation"
 
 **Cause:** an implementation task revealed a spec gap or wrong assumption.
-**Fix:** pause Stage 13 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then continue Stage 13 from where you left off. The `tasks` map is preserved.
+**Fix:** pause Stage 8 (let the current task finish or BLOCKED it), edit the spec inline (re-run `validate-spec.sh`), edit the plan if needed (re-run `validate-plan.sh`), then continue Stage 8 from where you left off. The `tasks` map is preserved.
 
 The pipeline is strictly forward-flowing — there is no backtracking to earlier stages. If the inline fix is too big to apply this way, abandon and start a fresh session.
 
@@ -586,7 +524,7 @@ If you genuinely need multiple concurrent runs (rare), use git worktrees — eac
 
 ### Picking up a feature in a fresh conversation
 
-SDD does not support cross-conversation resume. If you want to continue work on a feature whose pipeline ran in a prior conversation, start a new SDD run and reference the existing spec/plan/ADRs that landed on disk (or the handoff doc from Stage 15, if you generated one). Any leftover state file from the prior conversation will be cleared by preflight as an orphan.
+SDD does not support cross-conversation resume. If you want to continue work on a feature whose pipeline ran in a prior conversation, start a new SDD run and reference the existing spec/plan/ADRs that landed on disk (or a handoff note from the standalone `ss-workflow-generating-handoff` skill — not part of SDD — if you generated one separately). Any leftover state file from the prior conversation will be cleared by preflight as an orphan.
 
 ### Coordinator wants to do a phase-skill's work inline
 
@@ -610,11 +548,6 @@ If you notice this pattern, file a follow-up to tighten the coordinator's instru
 
 **Cause:** platform error, model error, timeout, malformed output that doesn't match the expected format.
 **Fix:** follow the Subagent Failure Protocol above. The coordinator retries at most once, then surfaces to user with four options (retry manually / skip if non-mandatory / abort SDD / provide result manually).
-
-### Multiple-tier review told me to write content my task didn't list
-
-**Cause:** the spec-compliance reviewer ran but couldn't verify a `**Requirements:** FR-NNN` reference because the FR wasn't present in the spec.
-**Fix:** this is a real spec/plan mismatch. Either the plan references an FR that doesn't exist (fix the plan), or the FR was renumbered (re-render the plan), or the FR was deleted (decide whether the task is still needed). Surface to user; don't fabricate the requirement.
 
 ---
 

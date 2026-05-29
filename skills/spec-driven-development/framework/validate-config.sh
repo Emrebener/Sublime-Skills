@@ -114,7 +114,6 @@ context_keys = ["constitution_path", "architecture_path", "testing_path", "gloss
 known_blocks = {
     "context": set(context_keys),
     "branching": {"branch_pattern"},
-    "grill": {"question_cap"},
     "memory_file": {"path", "character_limit"},
     "suggest": {"default"},
 }
@@ -169,7 +168,7 @@ for block in data.keys():
         fail(f"unknown top-level block: {block}")
 
 # Required top-level blocks
-required_blocks = ["context", "branching", "grill", "memory_file"]
+required_blocks = ["context", "branching", "memory_file"]
 for block in required_blocks:
     if block not in data:
         fail(f"missing top-level block: {block}")
@@ -215,15 +214,6 @@ elif not isinstance(v, str) or not v.strip():
     fail(f"branching.branch_pattern: must be a non-empty string, got {v!r}")
 elif "{short-name}" not in v:
     warn(f"branching.branch_pattern does not contain {{short-name}} placeholder: {v!r}")
-
-# ── grill block ────────────────────────────────────────────────────
-v = get("grill", "question_cap")
-if v == "__MISSING__":
-    fail("grill.question_cap: missing")
-elif not isinstance(v, int) or isinstance(v, bool):
-    fail(f"grill.question_cap: must be an integer, got {type(v).__name__}")
-elif v < 1 or v > 20:
-    fail(f"grill.question_cap: must be between 1 and 20 (inclusive), got {v}")
 
 # ── memory_file block ──────────────────────────────────────────────
 v = get("memory_file", "path")
@@ -326,7 +316,7 @@ block_exists() {
 }
 
 # Required blocks
-for block in context branching grill memory_file; do
+for block in context branching memory_file; do
   if ! block_exists "$block"; then
     record_fail "missing top-level block: $block"
   fi
@@ -336,7 +326,7 @@ done
 unknown_blocks=$(awk '
   /^[A-Za-z_][A-Za-z0-9_]*:[[:space:]]*$/ {
     match($0, /^([A-Za-z_][A-Za-z0-9_]*):/, m)
-    if (m[1] != "context" && m[1] != "branching" && m[1] != "grill" && m[1] != "memory_file" && m[1] != "suggest") {
+    if (m[1] != "context" && m[1] != "branching" && m[1] != "memory_file" && m[1] != "suggest") {
       print m[1]
     }
   }
@@ -365,7 +355,6 @@ declare_required() {
 
 declare_required context constitution_path architecture_path testing_path glossary_path domain_path design_path
 declare_required branching branch_pattern
-declare_required grill question_cap
 declare_required memory_file path character_limit
 
 # context.*_path values: must be null or point to an existing file

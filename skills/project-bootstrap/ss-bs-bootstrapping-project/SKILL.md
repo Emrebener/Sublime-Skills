@@ -305,7 +305,7 @@ to:
   glossary_path: null
 ```
 
-Do NOT touch any keys the user didn't ask about (preflight, grill, memory_file, finishing keep their scaffold defaults).
+Do NOT touch any keys the user didn't ask about (branching, memory_file, suggest keep their scaffold defaults).
 
 ## Step 7: Validate
 
