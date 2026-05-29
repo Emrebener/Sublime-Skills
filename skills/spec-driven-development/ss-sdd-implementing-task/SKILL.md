@@ -7,7 +7,7 @@ description: Use when an SDD implementer subagent has been dispatched to impleme
 
 ## Overview
 
-You are implementing **one** task in a larger spec-driven plan. Your work will be reviewed at the end of the implementation stage by a cross-cutting code-quality reviewer, and — when the user opted in to per-task review for this run — twice per task (first for spec compliance, then for code quality). Either way, issues come back to you for fixes. Aim to pass on the first try.
+You are implementing **one** task in a larger spec-driven plan. Your work will be reviewed at the end of the implementation stage by a single cross-cutting code-quality reviewer that looks at the whole feature branch. There is no per-task review, so your own self-review is the only per-task check — get spec compliance and code quality right before you report DONE. Issues found by the final review come back to an implementer for fixes; aim to pass clean.
 
 **Core principle:** Match the task spec exactly. No more, no less. Trust the plan to be complete and the reviewers to be calibrated — your job is execution, not editing the plan.
 
@@ -67,7 +67,7 @@ If you suspect the task should NOT be `[NO-TDD]` — i.e., it's actually changin
 
 - One task → one commit (or a small handful, if the task lists multiple commits explicitly)
 - Commit message format: as the task specifies. If the task doesn't specify, use Conventional Commits style: `<type>(<scope>): <description> (T<id>)` — e.g., `feat(auth): JWT issue/verify (T012)`
-- Reference the task ID in the message so reviewers and the handoff doc can trace back
+- Reference the task ID in the message so the final review and future readers can trace back
 - **Path-scoped `git add` only.** List the specific files you modified or created — never `git add .` or `git add -A`. The user may have pre-existing dirty files from before SDD started; those must stay untouched. If you don't know exactly which files you touched, you've drifted from the task — stop and report concerns instead.
 - Don't squash unrelated changes into one commit. If you find yourself wanting to, you've drifted from the task — stop and report concerns instead.
 
@@ -122,18 +122,18 @@ Before you say `DONE`:
 
 If you spot issues, fix them. Then report.
 
-## What Reviewers Will Check
+## What the Final Review Will Check
 
-Per-task review is opt-in (default off); the user decides at Stage 13 entry. Either way, a final cross-cutting code-quality reviewer runs at end of Stage 13 on the full branch diff — your task's code is in scope for it. When per-task review is on, two reviewers look at different things; knowing what each cares about helps you anticipate their feedback.
+There is no per-task review. A single mandatory final cross-cutting code-quality reviewer runs at the end of Stage 8 on the full branch diff — your task's code is in scope for it. Knowing what it cares about helps you anticipate its feedback, so do that work in your own self-review now rather than leaving it for the end.
 
-| Reviewer | Catches |
+| Concern | Catches |
 |---|---|
-| Spec compliance | Did you do exactly what the task said? Anything missing? Anything added? Tests cover what was required? |
-| Code quality | Readability, naming, idiom for this codebase, security holes (injection, leaked secrets), performance pitfalls (O(n²), unbounded growth), maintainability. NOT spec compliance — that's the previous reviewer's job. |
+| Spec compliance (your self-review) | Did you do exactly what the task said? Anything missing? Anything added? Tests cover what was required? Verify this yourself before reporting DONE — nothing downstream re-checks it per task. |
+| Code quality (final review) | Readability, naming, idiom for this codebase, security holes (injection, leaked secrets), performance pitfalls (O(n²), unbounded growth), maintainability, and cross-cutting consistency between tasks. |
 
-**The spec-compliance reviewer rejects scope creep more often than gaps.** Implementers tend to add. The reviewer is calibrated to catch that.
+**Scope creep is the most common self-review miss.** Implementers tend to add. Check that you did exactly what the task said — nothing more — before reporting DONE.
 
-**The code-quality reviewer flags Critical / Important / Minor.** Critical and Important come back to you for fixes. Minor are noted but don't block.
+**The final review flags Critical / Important / Minor.** Critical and Important come back to an implementer for fixes. Minor are noted but don't block.
 
 ## Examples of In-Scope vs Out-of-Scope
 

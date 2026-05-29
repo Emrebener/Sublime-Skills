@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-maintaining-memory-file
-description: Use when dispatched as a subagent during the memory-file maintenance stage of an SDD pipeline run, after handoff generation and before finishing. Reads the spec, plan, and any ADRs from this run to decide whether the project's agent memory file (CLAUDE.md, AGENTS.md, etc.) needs updating. Updates ONLY for significant architectural changes or non-obvious project conventions. Respects a configurable character cap. Never bloats the file with transient or narrative content.
+description: Use when dispatched as a subagent during the memory-file maintenance stage of an SDD pipeline run, after implementation (and any optional testing) and before finishing. Reads the spec, plan, and any ADRs from this run to decide whether the project's agent memory file (CLAUDE.md, AGENTS.md, etc.) needs updating. Updates ONLY for significant architectural changes or non-obvious project conventions. Respects a configurable character cap. Never bloats the file with transient or narrative content.
 ---
 
 # Maintaining Memory File
@@ -24,7 +24,7 @@ Your job: read what this run produced (spec, plan, ADRs), decide whether **anyth
 ## Hard Gates
 
 - Do NOT update the memory file just because a feature shipped. Most features don't change project-level truth.
-- Do NOT duplicate content from the spec, plan, ADRs, or handoff doc. Reference them by path when relevant.
+- Do NOT duplicate content from the spec, plan, or ADRs. Reference them by path when relevant.
 - Do NOT write narrative ("we built X for Y reason") — agents don't need the story, they need the rules.
 - Do NOT exceed the character cap. If your additions would push the file past the cap, you must either tighten existing content or omit your additions.
 - Do NOT modify any file other than the memory file.
@@ -90,10 +90,6 @@ Look at:
 Plans are usually about HOW for one feature, not WHAT IS for the project. But occasionally:
 - A **new tech-stack addition** (added `bcrypt`, added `pino` for logging) might warrant a memory line if it becomes the canonical choice
 - A **pattern established** (first time the project uses X pattern, future features should match) — if this is genuinely the first instance, memory line; otherwise the pattern is already established and doesn't need re-statement
-
-### From the handoff (skip)
-
-The handoff doc covers this specific feature's context. It doesn't reflect project-level truth. Don't pull from it.
 
 ## Step 2: The "Earns Its Place" Bar
 
@@ -194,7 +190,7 @@ These are general principles for any agent memory file. Apply when creating new 
 - **Active TODOs** — that's an issue tracker
 - **Architecture explanation** — that's ARCHITECTURE.md (link instead)
 - **API surface area** — that's auto-generated docs or the code
-- **In-flight work** — that's the handoff doc for THAT work
+- **In-flight work** — that's transient feature context, not project-level truth
 - **History of how the project evolved** — agents don't need this
 - **Tone/style preferences** that the code already demonstrates
 

@@ -100,7 +100,7 @@ Note: this is the initial scope check. CC-4 (mid-conversation scope re-check) re
 
 ### 1.3 — Determine work type
 
-Classify the work as either `feature` (something new being built) or `fix` (a defect in existing behavior being corrected). This is recorded in the state file at Stage 2 and used by `ss-sdd-choosing-feature-branch` (Stage 12) to suggest a branch prefix (`feat/` vs `fix/`).
+Classify the work as either `feature` (something new being built) or `fix` (a defect in existing behavior being corrected). This is recorded in the state file at Stage 2 and used by `ss-sdd-choosing-feature-branch` (Stage 7) to suggest a branch prefix (`feat/` vs `fix/`).
 
 **Inference rule:** if the user's initial input contains clear bug-fix signals — verbs like "fix", "broken", "regression", "bug", or framings like "X used to work but now…" — classify as `fix`. Otherwise default to `feature`.
 
@@ -218,7 +218,7 @@ Example:
 >
 > Recommended A because [project-specific reasoning]. Sound right?"
 
-**Any decision resolved here is tagged as an ADR candidate** in your in-memory understanding (title / chosen / rejected options / reasoning). Phase 4's structured summary serializes these for the coordinator to feed into Stage 6's `DECISIONS_CAPTURED` dispatch parameter.
+**Any decision resolved here is tagged as an ADR candidate** in your in-memory understanding (title / chosen / rejected options / reasoning). Phase 4's structured summary serializes these for the coordinator to feed into Stage 4's `DECISIONS_CAPTURED` dispatch parameter.
 
 **Do not re-propose decisions already resolved at Phase 2 F2** — they were already tagged as ADR candidates and the user already chose. Cite the F2 outcome and move on.
 
@@ -259,7 +259,7 @@ Summarize back to the user in sections. Get explicit approval after each section
 4. **Success criteria** — measurable outcomes
 5. **Key entities** — only if data is involved
 6. **Edge cases & constraints** — explicit list
-7. **Major decisions** — what was chosen and why (these become ADR candidates at Stage 6)
+7. **Major decisions** — what was chosen and why (these become ADR candidates at Stage 4)
 
 **Section format scales to complexity.** A few sentences if straightforward, up to ~200–300 words if nuanced.
 
@@ -338,7 +338,7 @@ No new dispatch parameters are introduced; the summary populates existing in-mem
 | `short_name`, `work_type` | Passed to `ss-sdd-writing-specs` (Stage 2), which persists them into the state file. |
 | `framing.*` | Carried in coordinator's in-memory context. Stage 2 receives the same in-memory understanding it does today (now slightly richer); Stage 2's prerogative how it uses framing material in the spec's Goal/Problem section. |
 | `dimensions.*` | Same as today — coordinator's in-memory understanding of the agreed content, passed to Stage 2. |
-| `major_decisions` | Populates the existing `DECISIONS_CAPTURED` dispatch parameter the coordinator already passes to `ss-sdd-maintaining-adrs` (Stage 6). Today free-form; now shape (title/chosen/rejected/reasoning). Stage 6's contract is unchanged. |
+| `major_decisions` | Populates the existing `DECISIONS_CAPTURED` dispatch parameter the coordinator already passes to `ss-sdd-maintaining-adrs` (Stage 4). Today free-form; now shape (title/chosen/rejected/reasoning). Stage 4's contract is unchanged. |
 | `open_questions` | Coordinator's choice: either include in the in-memory understanding passed to Stage 2 (so the writer can route them into the spec's Open Questions / Assumptions sections per the existing spec format), or surface to the user for resolution before Stage 2. No new dispatch parameter. |
 | `approved_sections` | Confirmation marker. Used only as evidence that Phase 4 ran to completion. |
 

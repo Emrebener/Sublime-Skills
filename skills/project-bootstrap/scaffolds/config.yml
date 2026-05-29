@@ -15,28 +15,22 @@ context:
   domain_path: docs/DOMAIN.md                   # conceptual entities and relationships
   design_path: docs/DESIGN.md                   # visual design system (colors, type, spacing, components)
 
-# ── Branching (Stage 12) ────────────────────────────────────────────
+# ── Branching (Stage 7) ─────────────────────────────────────────────
 branching:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used by the `ss-sdd-choosing-feature-branch` skill (Stage 12) when offering
+  # Used by the `ss-sdd-choosing-feature-branch` skill (Stage 7) when offering
   # to create a feature branch. Bug-fix runs (state.work_type == "fix")
   # use `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
-# ── Grill (Stage 4) ─────────────────────────────────────────────────
-grill:
-  # Soft cap on questions per grill session. Hard ceiling is 20 even with
-  # an override.
-  question_cap: 10
-
-# ── Memory file maintenance (Stage 16) ──────────────────────────────
-# Stage 16 is user-prompted at runtime (yes/no, default yes). These
+# ── Memory file maintenance (Stage 10) ──────────────────────────────
+# Stage 10 is user-prompted at runtime (yes/no, default yes). These
 # values configure WHICH file is maintained and the size budget — they
 # don't toggle the stage itself.
 memory_file:
   # Explicit memory file path. null means: auto-detect at repo root in
   # this order: CLAUDE.md, AGENTS.md, GEMINI.md, .agents.md (first match
-  # wins). If neither config nor auto-detect finds a path, Stage 16 is
+  # wins). If neither config nor auto-detect finds a path, Stage 10 is
   # skipped without prompting.
   path: null
 

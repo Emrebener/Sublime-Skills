@@ -1,15 +1,14 @@
 # Artifact Formats
 
-The SDD pipeline produces five categories of artifacts, each with a strict format. This document is the canonical reference for what each artifact contains, where it lives, and how it's structured.
+The SDD pipeline produces four categories of artifacts, each with a strict format. This document is the canonical reference for what each artifact contains, where it lives, and how it's structured.
 
 ## Artifact summary
 
 | Artifact | Path | Producer | Schema validator |
 |---|---|---|---|
-| Spec | `docs/specs/NNN-<short-name>/spec.md` | `ss-sdd-writing-specs` (Stage 2), updated by `ss-sdd-grilling-specs` (Stage 4) | `validate-spec.sh` |
-| Plan | `docs/specs/NNN-<short-name>/plan.md` | `ss-sdd-writing-plans` (Stage 8) | `validate-plan.sh` |
-| ADR | `docs/adr/NNNN-<kebab-title>.md` | `ss-sdd-maintaining-adrs` (Stage 6) | (no automated validator) |
-| Handoff | `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md` | `ss-sdd-generating-handoff` (Stage 15) | `validate-handoff.sh` |
+| Spec | `docs/specs/NNN-<short-name>/spec.md` | `ss-sdd-writing-specs` (Stage 2) | `validate-spec.sh` |
+| Plan | `docs/specs/NNN-<short-name>/plan.md` | `ss-sdd-writing-plans` (Stage 6) | `validate-plan.sh` |
+| ADR | `docs/adr/NNNN-<kebab-title>.md` | `ss-sdd-maintaining-adrs` (Stage 4) | (no automated validator) |
 | State | `.sublime-skills/state.json` | `ss-sdd-preflight` creates the shell (Stage 0); `ss-sdd-writing-specs` writes feature-identifying fields (Stage 2); coordinator + other skills update later fields | (schema at `framework/state-schema.md` / `.json`) |
 
 For state file schema details, see [state-and-config.md](state-and-config.md).
@@ -123,21 +122,6 @@ Add only when relevant; omit entirely if not (don't leave "N/A"):
 
 - ADR-NNNN — <title>
 - <External doc URL>
-```
-
-### Auto-managed section (added by the grill)
-
-If a grill session (Stage 4) ran, this section is auto-managed:
-
-```markdown
-## Clarifications
-
-### Session 2026-05-20
-
-- Q: Should we support OAuth2 in addition to JWT? → A: No, JWT only for MVP
-- Q: What's the token expiry? → A: 24 hours
-
-(One bullet per accepted answer. Subsequent grill sessions add to this section.)
 ```
 
 ### Acceptance criteria format options
@@ -480,7 +464,7 @@ The reason line must match one of the [NO-TDD] allowed categories (see [operatio
 ### Status lifecycle
 
 - **Proposed** — default when first written by `ss-sdd-maintaining-adrs`. Awaiting user approval.
-- **Accepted** — outcome of Stage 7 (user spec approval): on Approve, the coordinator flips every ADR's status from `Proposed` to `Accepted` in the working tree (Stage 12 batch-commits the change).
+- **Accepted** — outcome of Stage 5 (user spec approval): on Approve, the coordinator flips every ADR's status from `Proposed` to `Accepted` in the working tree (Stage 7 batch-commits the change).
 - **Superseded by ADR-NNNN** — automatically set when a new ADR explicitly supersedes this one.
 - **Deprecated** — manually set when an ADR is no longer relevant (rare).
 
@@ -560,123 +544,7 @@ Revocation is handled via a blocklist table (`session_blocklist`) with a TTL mat
 
 ---
 
-## 4. Handoff document
-
-### Path and naming
-
-- Path: `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<kebab-title>.md`
-- `YYYY-MM-DD` — date of generation (UTC), enables sorting by date
-- `<kebab-title>` — 2-5 kebab-case words from the feature's short name or title
-- Handoffs live outside the repo by design and are not committed to source control. The absolute path is recorded in `state.json` so the user/tooling can find the doc.
-- Same-day re-runs: append `-<N>` (e.g., `2026-05-20-user-auth-2.md`)
-
-### Structure (required sections)
-
-```markdown
-# Handoff: <Spec Title>
-
-**Feature ID:** NNN-<short-name>
-**Branch:** <branch-name>
-**Date generated:** YYYY-MM-DD
-**Status:** <Implementation complete | Testing passed | Testing skipped | Testing failed (escalated)>
-
-## Quick context
-
-<2-3 sentences. What was built, for whom, why. Uses domain vocabulary from the glossary if present.>
-
-## Source artifacts
-
-- **Spec:** [<path>](<path>) — <one-line summary>
-- **Plan:** [<path>](<path>) — <one-line summary>
-- **ADRs created/touched in this run:**
-  - [ADR-NNNN](<path>) — <one-line title>
-- **Prior relevant ADRs:** (only if the spec or plan explicitly cites them)
-  - [ADR-NNNN](<path>) — <one-line title>
-
-## What got built
-
-<2-4 paragraphs. Architecture choice + why (reference ADR), major files/modules added or changed (one-line each), notable patterns followed, anything non-obvious.>
-
-## Build highlights
-
-- **Commits:** <N> commits between `<BASE_SHA>` and `<HEAD_SHA>`
-- **Files changed:** <M> files, +<additions> / -<deletions> lines
-- **Notable commits:**
-  - `<sha>` — <message>
-
-## Test status
-
-<One paragraph: whether feature-level testing ran (Stage 14), result, what was NOT verified that a fresh agent should manually check.>
-
-## Open concerns
-
-<Bulleted list of anything unresolved:
-- Open questions that didn't block implementation
-- Known limitations or trade-offs
-- Tests marked [NO-TDD] that probably should have tests later
-- DONE_WITH_CONCERNS observations not fully resolved
-
-Use "None — implementation is clean" if there genuinely are none.>
-
-## If you're continuing this work
-
-<Practical guidance for a fresh agent:
-- Where to start reading
-- What's in git log vs spec/plan
-- If iterating on PR feedback: what's addressed vs what isn't
-- In-flight things (e.g., "branch hasn't been merged yet; awaiting PR review")
-- Environment setup the next agent needs to know (referenced by name only — no values)>
-
-## Redactions
-
-<If redactions performed:
-- "<count> secret-like values redacted across <section names>"
-- "<count> env-var values referenced by name only"
-
-If none: "None">
-```
-
-### Optional section
-
-```markdown
-## Files not to look at (low signal)
-
-(Optional. Only if applicable.)
-
-- `package-lock.json` — generated
-- `dist/*` — build output
-```
-
-### Redaction rules
-
-The redaction sweep replaces matches with `[REDACTED]`:
-
-| Pattern | Examples |
-|---|---|
-| OpenAI / Anthropic keys | `sk-...` (40+ chars), `sk-ant-...` |
-| AWS access keys | `AKIA...` (20 chars), `ASIA...` |
-| GitHub tokens | `ghp_...`, `gho_...`, `ghu_...`, `ghs_...`, `ghr_...` |
-| JWT-shaped strings | `eyJ...` 3-part base64 |
-| URLs with credentials | `https?://<user>:<pass>@<host>` |
-| SSH private keys | `-----BEGIN [A-Z ]+PRIVATE KEY-----` plus content |
-| Sensitive env vars | `*_SECRET=...`, `*_PASSWORD=...`, `*_TOKEN=...`, `*_KEY=...` (value 8+ chars) |
-| Generic secret literals | `password = "..."`, `secret = "..."`, etc. with literals 10+ chars |
-
-**Rules:**
-- When in doubt, redact. The source files still exist; the handoff doc is a shareable summary.
-- Note in the doc what was redacted (count and section names).
-- Env vars are referenced by name only: `OPENAI_API_KEY (value redacted)`.
-- Two-pass scan to catch redactions revealed by other redactions.
-
-### Hard rules
-
-- **Reference, don't duplicate.** ADRs and spec sections get path links + one-line summaries, not pasted content.
-- **No placeholders.** The handoff is generated, not drafted. `TBD` should never appear.
-- **Schema-validated.** Must pass `validate-handoff.sh` before being committed.
-
----
-
-## 5. State file
+## 4. State file
 
 See [state-and-config.md](state-and-config.md) for the full state file schema, field ownership, and lifecycle.
 
@@ -686,7 +554,7 @@ Quick reference:
 - **Created:** Stage 0 (`ss-sdd-preflight`) writes a minimal shell after all validation passes; any pre-existing file is treated as an orphan from a dead prior pipeline and silently removed first
 - **Feature fields written:** Stage 2 (`ss-sdd-writing-specs`) fills in `feature_id`, `short_name`, `work_type`, `spec_path`
 - **Updated:** at every stage boundary by the coordinator; per-task by `ss-sdd-implementing-plans`
-- **Deleted:** Stage 17 (`ss-sdd-finishing`) via plain `rm` — no commit anywhere
+- **Deleted:** Stage 11 (`ss-sdd-finishing`) via plain `rm` — no commit anywhere
 - **Atomic writes** via `state.json.tmp` + `mv`
 - **Permanently gitignored throughout.** The bootstrap creates `.sublime-skills/.gitignore` with `state.json` listed; no SDD stage ever commits the state file. Branch operations (`git checkout`, `git stash -u`) leave it in place.
 
@@ -699,6 +567,5 @@ The skill files themselves contain authoritative templates. If you're looking fo
 - Spec template: `skills/spec-driven-development/ss-sdd-writing-specs/SKILL.md` → "Spec Structure" section
 - Plan template: `skills/spec-driven-development/ss-sdd-writing-plans/SKILL.md` → "Plan Structure" section
 - ADR template: `skills/spec-driven-development/ss-sdd-maintaining-adrs/SKILL.md` → "Step 5: Write ADRs"
-- Handoff template: `skills/spec-driven-development/ss-sdd-generating-handoff/SKILL.md` → "Handoff Structure" section
 
 The templates in this doc and those in the SKILL.md files should always match. If they drift, the SKILL.md is authoritative (skills are the executable spec; docs are the explanation).

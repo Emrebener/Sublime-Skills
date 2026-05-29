@@ -87,18 +87,6 @@ Structure, Phases), T### task IDs present, duplicate T### detection,
 Requirements traceability per task, `[NO-TDD]` markers have reasons on the
 next line, placeholder patterns, forbidden diagram syntaxes, line-count guard.
 
-### `validate-handoff.sh`
-
-```bash
-"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/validate-handoff.sh" <path-to-handoff.md>
-```
-
-Checks: filename pattern (`YYYY-MM-DD-<kebab>.md`, strips trailing `.tmp` for the
-pattern check), required sections, unredacted secret patterns (OpenAI/AWS/GitHub
-tokens, JWTs, private keys, URLs with credentials, sensitive env-var
-assignments), placeholder patterns, soft length guard. Critical failures here
-are most often unredacted secrets — re-run redaction before retrying.
-
 ### `validate-config.sh`
 
 ```bash
@@ -107,8 +95,8 @@ are most often unredacted secrets — re-run redaction before retrying.
 
 Validates `.sublime-skills/config.yml` end-to-end. Default path: `<repo-root>/.sublime-skills/config.yml`. If a sibling `.sublime-skills/config-local.yml` exists, it's overlaid onto the base config per-key and validation runs against the merged result.
 
-Checks: YAML parses (both files); all four top-level blocks present in the base
-(`context`, `branching`, `grill`, `memory_file`); required scalar
+Checks: YAML parses (both files); all three top-level blocks present in the base
+(`context`, `branching`, `memory_file`); required scalar
 keys per block in the merged result; every `context.<name>_path` is null OR
 points to an existing file (orphan paths fail); numeric and type sanity on
 remaining fields; rejection of unknown `context.*_path` keys (catches stale
@@ -139,7 +127,6 @@ Examples:
 
 ```bash
 "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" branching branch_pattern     # "feat/{short-name}"
-"$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" grill question_cap           # "15"
 "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" memory_file character_limit  # "40000"
 ```
 
@@ -168,7 +155,7 @@ Both define exactly the same shape; the
 `.json` is JSON Schema Draft 2020-12 for objective validation.
 
 Skills that read or write the state file (ss-sdd-coordinator, ss-sdd-writing-specs,
-ss-sdd-writing-plans, ss-sdd-implementing-plans, ss-sdd-testing-implementation, ss-sdd-generating-handoff,
+ss-sdd-writing-plans, ss-sdd-implementing-plans, ss-sdd-testing-implementation,
 ss-sdd-receiving-review-findings, ss-sdd-finishing) MUST match this schema. Drift
 between a skill's behavior and these files is a bug; fix the schema files
 first if the change is intentional, or fix the skill if it diverged

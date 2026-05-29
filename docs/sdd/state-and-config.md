@@ -8,7 +8,7 @@ This document covers two things that aren't artifacts in the user-facing sense b
 
 ### What it is
 
-A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds the orchestration record the coordinator and per-task subagents share within a conversation, plus the structured outputs each subagent writes back (ADR list, handoff path, per-task statuses, etc.). It is NOT a resume mechanism — SDD runs end-to-end inside a single conversation, where conversation context tells the coordinator where it is. Any leftover state file from a dead prior conversation is silently removed by preflight at the next fresh run.
+A JSON file at `.sublime-skills/state.json` — a single global file representing the one active SDD run (absent between runs). It holds the orchestration record the coordinator and per-task subagents share within a conversation, plus the structured outputs each subagent writes back (ADR list, per-task statuses, etc.). It is NOT a resume mechanism — SDD runs end-to-end inside a single conversation, where conversation context tells the coordinator where it is. Any leftover state file from a dead prior conversation is silently removed by preflight at the next fresh run.
 
 ### Lifecycle
 
@@ -17,13 +17,12 @@ A JSON file at `.sublime-skills/state.json` — a single global file representin
 | 0 (Preflight) | **Created** as a minimal shell at the end of preflight, after all validation passes. Contains only the always-required fields (`started_at`, `updated_at`, `current_stage: "preflight"`, empty `stages_completed` / `stages_skipped`, empty `tasks`). Any pre-existing file is treated as an orphan from a dead prior pipeline and silently removed before the shell is written. **Gitignored from the start.** |
 | 1 (Discovery) | Coordinator advances `current_stage` to `discovering` at the stage boundary. Discovery outputs (`short_name`, `work_type`, etc.) are held in coordinator memory and persisted by `ss-sdd-writing-specs` at Stage 2. |
 | 2 (Writing spec) | `ss-sdd-writing-specs` writes the feature-identifying fields into the existing shell: `feature_id`, `short_name`, `work_type`, `spec_path`. Atomic write. Coordinator then advances `current_stage`. |
-| 3–11 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
-| 12 (Choosing branch) | Updated atomically (`current_stage: implementing`, `branch_name: "<chosen branch>"`). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. `branch_name` is later read by Stage 17 to know what to merge. |
-| 13 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). |
-| 14 (Testing) | Updated with `test_status` and `fix_iterations`. No state commit. |
-| 15 (Handoff) | Updated with `handoff_path`. No state commit. |
-| 16 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. No state commit (memory file itself is committed if updated). |
-| 17 (Finishing) | Read for `branch_name`. Stage 17 runs `git checkout main && git merge --no-ff $branch_name && git branch -d $branch_name` (halt on any failure; state stays so the user can re-run Stage 17 after resolving). On success, state.json is **deleted** via plain `rm`. No commit. |
+| 3–6 | **Updated** at every stage boundary by the coordinator (atomic). Gitignored throughout. |
+| 7 (Choosing branch) | Updated atomically (`current_stage: implementing`, `branch_name: "<chosen branch>"`). The spec / plan / ADRs are batch-committed in two thematic commits on the chosen branch; state.json is NOT in any commit. `branch_name` is later read by Stage 11 to know what to merge. |
+| 8 (Implementing) | Updated per-task with `tasks` transitions (atomic, on disk only). |
+| 9 (Testing) | Updated with `test_status` and `fix_iterations`. No state commit. |
+| 10 (Memory file) | Updated with `memory_file_updated` and `memory_file_path`. No state commit (memory file itself is committed if updated). |
+| 11 (Finishing) | Read for `branch_name`. Stage 11 runs `git checkout main && git merge --no-ff $branch_name && git branch -d $branch_name` (halt on any failure; state stays so the user can re-run Stage 11 after resolving). On success, state.json is **deleted** via plain `rm`. No commit. |
 
 ### Atomic write pattern
 
@@ -62,12 +61,12 @@ Worked examples in this document are still accurate; if you spot drift, file it 
 2. Each state-touching skill has a Hard Gate prohibiting `git add -f` / `--force` / any other bypass.
 3. The canonical rule lives in `skills/spec-driven-development/framework/state-schema.md` under "Git policy (CRITICAL)".
 
-The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-11, then batch-committed by `ss-sdd-choosing-feature-branch` at Stage 12 in two thematic commits:
+The planning artifacts (spec.md, plan.md, ADRs) live at `docs/specs/<feature_id>/` and `docs/adr/`. They are uncommitted through Stages 2-6, then batch-committed by `ss-sdd-choosing-feature-branch` at Stage 7 in two thematic commits:
 
 - `docs(<feature_id>): spec and plan` — spec.md + plan.md
 - `docs(adr): N decisions for <feature_id>` — ADRs (skipped if none)
 
-From Stage 13 onward, commits happen per stage by the active skill, alongside their own artifacts (code, memory file, etc.) — never with state.json.
+From Stage 8 onward, commits happen per stage by the active skill, alongside their own artifacts (code, memory file, etc.) — never with state.json.
 
 **All commits use path-scoped `git add`.** No `git add .` / `git add -A` — preflight allows dirty working trees, so path-scoping is what protects the user's pre-existing dirty files.
 
@@ -76,23 +75,23 @@ From Stage 13 onward, commits happen per stage by the active skill, alongside th
 - `git stash -u` skips it (gitignored files aren't stashed even with `-u`)
 - Branch operations don't disturb state
 
-The planning artifacts (spec.md, plan.md, ADRs) still need protection through Stages 2-11 — they're untracked, so the same `git stash` / `git checkout` warning applies to them.
+The planning artifacts (spec.md, plan.md, ADRs) still need protection through Stages 2-6 — they're untracked, so the same `git stash` / `git checkout` warning applies to them.
 
 ### Why the file exists
 
 SDD runs end-to-end inside one conversation. The coordinator never "exits and re-enters" — conversation context already tells it which stage it's in. So the state file is not a resume mechanism. It exists for two concrete reasons:
 
-1. **Subagent orchestration.** Dispatched subagents (reviewers, ADR maintainer, per-task implementers, tester, handoff writer, memory-file maintainer) die after they return. The coordinator records each subagent's structured outputs into state (`adr_results`, `tasks` transitions, `handoff_path`, `memory_file_*`, `reviewer_pushbacks`, etc.) so later stages and later subagents see them.
-2. **Per-task coordination at Stage 13.** Each task is a fresh implementer subagent. The `tasks` map is how `ss-sdd-implementing-plans` decides which task to dispatch next: a task at `"in_progress"` (its subagent died before reporting completion) is re-dispatched from the start; `"pending"` tasks run in plan order; `"completed"` tasks are skipped.
+1. **Subagent orchestration.** Dispatched subagents (reviewers, ADR maintainer, per-task implementers, tester, memory-file maintainer) die after they return. The coordinator records each subagent's structured outputs into state (`adr_results`, `tasks` transitions, `memory_file_*`, `reviewer_pushbacks`, etc.) so later stages and later subagents see them.
+2. **Per-task coordination at Stage 8.** Each task is a fresh implementer subagent. The `tasks` map is how `ss-sdd-implementing-plans` decides which task to dispatch next: a task at `"in_progress"` (its subagent died before reporting completion) is re-dispatched from the start; `"pending"` tasks run in plan order; `"completed"` tasks are skipped.
 
-That's the whole purpose. Cross-conversation resume, cross-machine recovery, multi-user handoff, and recovery from destructive git operations are explicitly out of scope.
+That's the whole purpose. Cross-conversation resume, cross-machine recovery, multi-user collaboration, and recovery from destructive git operations are explicitly out of scope.
 
 ### Halt-and-continue cases
 
 Two stages can halt the pipeline mid-run after partially modifying the working tree, in which case state stays on disk so the user can resolve the underlying issue and tell the coordinator to continue:
 
-- **Stage 12 (`ss-sdd-choosing-feature-branch`) — commit failure.** Hook rejection, signing failure, missing identity. State has `current_stage: "choosing_branch"` and `branch_chosen` is NOT yet in `stages_completed`, so continuing re-runs Stage 12.
-- **Stage 17 (`ss-sdd-finishing`) — merge failure.** Merge conflict, hook rejection, or signing failure on the merge commit. The skill leaves the working tree as-is and does NOT delete the state file; continuing re-runs Stage 17, which is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date").
+- **Stage 7 (`ss-sdd-choosing-feature-branch`) — commit failure.** Hook rejection, signing failure, missing identity. State has `current_stage: "choosing_branch"` and `branch_chosen` is NOT yet in `stages_completed`, so continuing re-runs Stage 7.
+- **Stage 11 (`ss-sdd-finishing`) — merge failure.** Merge conflict, hook rejection, or signing failure on the merge commit. The skill leaves the working tree as-is and does NOT delete the state file; continuing re-runs Stage 11, which is naturally idempotent (`git merge --no-ff` on an already-merged branch returns 0 with "Already up to date").
 
 Both paths are "user resolves, asks the coordinator to continue" — same conversation, no resume ceremony.
 
@@ -124,28 +123,22 @@ context:
   domain_path: docs/DOMAIN.md
   design_path: docs/DESIGN.md
 
-# ── Branching (Stage 12) ────────────────────────────────────────────
+# ── Branching (Stage 7) ─────────────────────────────────────────────
 branching:
   # Pattern for derived feature branch names; {short-name} substituted.
-  # Used by the `ss-sdd-choosing-feature-branch` skill (Stage 12) when offering
+  # Used by the `ss-sdd-choosing-feature-branch` skill (Stage 7) when offering
   # to create a feature branch. Bug-fix runs (state.work_type == "fix")
   # use `fix/{short-name}` automatically.
   branch_pattern: "feat/{short-name}"
 
-# ── Grill (Stage 4) ─────────────────────────────────────────────────
-grill:
-  # Soft cap on questions per grill session. Hard ceiling is 20 even
-  # with an override.
-  question_cap: 10
-
-# ── Memory file maintenance (Stage 16) ──────────────────────────────
-# Stage 16 itself is user-prompted at runtime; this block only configures
+# ── Memory file maintenance (Stage 10) ──────────────────────────────
+# Stage 10 itself is user-prompted at runtime; this block only configures
 # which file is maintained and the size budget. There is no `enabled`
 # toggle — the user decides per-run.
 memory_file:
   # Explicit path. null = auto-detect at repo root in order:
   # CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md (first match wins).
-  # If nothing matches, Stage 16 auto-skips without prompting.
+  # If nothing matches, Stage 10 auto-skips without prompting.
   path: null
 
   # Soft cap on memory file size (characters). Skill warns at 90% of
@@ -153,9 +146,9 @@ memory_file:
   character_limit: 40000
 ```
 
-**Stages 14 (testing), 15 (handoff), and 16 (memory file) are user-prompted at runtime**, not config-toggled. The coordinator asks `yes/no` per run. If you want to skip all of them every time, just answer `no` when prompted — but most users will want to make the choice per feature.
+**Stages 9 (testing) and 10 (memory file) are user-prompted at runtime**, not config-toggled. The coordinator asks `yes/no` per run. If you want to skip both every time, just answer `no` when prompted — but most users will want to make the choice per feature.
 
-**There is no `finishing:` config block.** Stage 17 (`ss-sdd-finishing`) runs a fixed workflow: print summary → `git checkout main && git merge --no-ff <branch_name>` → `git branch -d <branch_name>` on merge success → `rm .sublime-skills/state.json`. The merge strategy (`--no-ff`), base branch (`main`), delete-safety (`-d` not `-D`), and local-only behavior (no push) are constants, not configurables.
+**There is no `finishing:` config block.** Stage 11 (`ss-sdd-finishing`) runs a fixed workflow: print summary → `git checkout main && git merge --no-ff <branch_name>` → `git branch -d <branch_name>` on merge success → `rm .sublime-skills/state.json`. The merge strategy (`--no-ff`), base branch (`main`), delete-safety (`-d` not `-D`), and local-only behavior (no push) are constants, not configurables.
 
 ### Config overlay (`config-local.yml`)
 
@@ -173,7 +166,7 @@ memory_file:
   character_limit: 60000
 ```
 
-The other keys (context, the rest of branching, grill, the rest of memory_file) fall through to `config.yml`'s values.
+The other keys (context, the rest of branching, the rest of memory_file) fall through to `config.yml`'s values.
 
 **Git.** `config.yml` is committed; `config-local.yml` is gitignored. The bootstrap creates `.sublime-skills/.gitignore` (with `config-local.yml` and `state.json` entries) in Step 5; Step 9 is a re-run safety net that re-appends any missing entry. Each developer's overlay is their own; no one else sees it.
 
@@ -202,7 +195,7 @@ branching:
   branch_pattern: "feature/{short-name}"
 ```
 
-Used by `ss-sdd-choosing-feature-branch` (Stage 12) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
+Used by `ss-sdd-choosing-feature-branch` (Stage 7) when suggesting a feature branch name. Bug-fix runs (when `state.work_type == "fix"`) swap `feat/` to `fix/` automatically.
 
 **Memory file maintenance (CLAUDE.md / AGENTS.md / etc.):**
 
@@ -212,7 +205,7 @@ memory_file:
   character_limit: 40000   # widely-recommended soft cap for agent memory files
 ```
 
-`path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 16 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
+`path: null` auto-detects at repo root (CLAUDE.md → AGENTS.md → GEMINI.md → .agents.md). If nothing matches, Stage 10 auto-skips without prompting. When a path IS resolved, the coordinator prompts `yes/no` per run — answer `no` if this particular run doesn't deserve attention. Most runs result in "no update needed" anyway.
 
 **Custom context file locations:**
 
@@ -232,26 +225,17 @@ A few values have hard ceilings that override config:
 
 | Setting | Config | Hard ceiling |
 |---|---|---|
-| `grill.question_cap` | 10 (default) | 20 |
-| Per-task spec-compliance review iterations | 3 (fixed) — applies when `per_task_reviews: full`; reviewer does not run otherwise | — |
-| Per-task code-quality review iterations | 3 (fixed) — applies when `per_task_reviews: full`; reviewer does not run otherwise | — |
 | Test fix-loop iterations | 3 (fixed) | — |
 | Spec/plan review fix iterations | 2 (fixed) | — |
 
 Iteration caps are deliberately not config-overridable. Hitting a cap means something is wrong with the plan or spec, and the user should be involved.
-
-### Per-run state knobs (not config)
-
-`per_task_reviews` is a per-run state field, not a config knob. The coordinator surfaces a yes/no question at Stage 13 entry (default no) and writes the answer to `state.per_task_reviews` as `"full"` or `"skipped"`. The choice is deliberately re-asked every run rather than read from `.sublime-skills/config.yml` — it depends on the size/risk of the specific feature, not project-wide preference. The mandatory final cross-cutting code review at end of Stage 13 always runs regardless.
 
 ### What's NOT in config
 
 The following are deliberately not config:
 
 - Per-skill behaviors (each skill has its own internal rules; if you want to change them, edit the skill)
-- `per_task_reviews` default (the Stage 13 per-task review gate is asked per run; see "Per-run state knobs" above)
 - The list of allowed `[NO-TDD]` categories (defined in `ss-sdd-writing-plans` skill; changing them requires a skill edit)
-- The redaction patterns in `ss-sdd-generating-handoff` (defined in the skill)
 - The diagram prohibitions (Mermaid, C4, PlantUML, ASCII — defined in skills)
 - Subagent prompts (in the template files alongside the orchestrating skills)
 
@@ -288,12 +272,9 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
   "stages_completed": [
     "preflight", "discovering", "spec_written",
     "spec_auto_reviewed", "adrs_maintained", "spec_approved",
-    "plan_written", "plan_auto_reviewed", "plan_approved"
+    "plan_written"
   ],
-  "stages_skipped": [
-    "spec_grill", "spec_second_review",
-    "plan_second_review"
-  ],
+  "stages_skipped": [],
   "adr_results": [
     {
       "id": "ADR-0003",
@@ -314,10 +295,8 @@ Suppose feature `003-user-auth` is being implemented; the user just started task
   "test_status": null,
   "fix_iterations": 0,
   "final_review_completed": false,
-  "handoff_path": null,
   "reviewer_pushbacks": [],
-  "spec_auto_review_iterations": 1,
-  "plan_auto_review_iterations": 1
+  "spec_auto_review_iterations": 1
 }
 ```
 

@@ -1,20 +1,20 @@
 ---
 name: ss-sdd-choosing-feature-branch
-description: Use after plan approval (Stage 11) and before implementation (Stage 13). Auto-decides where the SDD planning commits land — silent when on `main` (creates and switches to the derived feature branch) or when already on the derived branch (build-on-top of a partial implementation). Falls back to an inline prompt only when the current branch is neither. Then batch-commits the planning artifacts in two thematic, path-scoped commits and persists the chosen branch into state for Stage 17 to merge.
+description: Use after the plan is written (Stage 6) and before implementation (Stage 8). Auto-decides where the SDD planning commits land — silent when on `main` (creates and switches to the derived feature branch) or when already on the derived branch (build-on-top of a partial implementation). Falls back to an inline prompt only when the current branch is neither. Then batch-commits the planning artifacts in two thematic, path-scoped commits and persists the chosen branch into state for Stage 11 to merge.
 ---
 
 # Choosing Feature Branch
 
 ## Overview
 
-Stage 12 of the SDD pipeline. By this point the spec, plan, and ADRs have all been written and approved, but **nothing has been committed yet** — they sit uncommitted in the working tree. This skill:
+Stage 7 of the SDD pipeline. By this point the spec, plan, and ADRs have all been written (the spec approved at Stage 5), but **nothing has been committed yet** — they sit uncommitted in the working tree. This skill:
 
 1. Decides where the work will live, using an opinionated rule keyed off the current branch (see Step 2). The common cases (on `main` / already on the derived branch) auto-decide silently; only genuinely ambiguous starts prompt.
 2. Runs `git checkout -b` (or `git checkout`) only when a branch change is required.
 3. Batch-commits the SDD planning artifacts in two thematic, path-scoped commits.
-4. Persists `branch_name` into the state file so Stage 17 (`ss-sdd-finishing`) can merge and delete it.
+4. Persists `branch_name` into the state file so Stage 11 (`ss-sdd-finishing`) can merge and delete it.
 
-After this skill, the pipeline returns to normal per-stage commits in Stage 13 (implementation) and beyond. At Stage 17, the branch chosen here will be merged into `main` (no-ff) and deleted.
+After this skill, the pipeline returns to normal per-stage commits in Stage 8 (implementation) and beyond. At Stage 11, the branch chosen here will be merged into `main` (no-ff) and deleted.
 
 **Core principle:** One opinionated workflow, not a buffet. Auto-decide whenever the situation is unambiguous; prompt only when it isn't.
 
@@ -52,8 +52,8 @@ The skill reads `.sublime-skills/config.yml → branching.branch_pattern`, `stat
 - NEVER commit `.sublime-skills/state.json`. It is permanently gitignored. Do NOT bypass via `git add -f`, `--force`, `git update-index`, or any other mechanism. See `state-schema.md` "Git policy" for the full list.
 - Never `git add .` or `git add -A` — only explicit paths (the user's pre-existing dirty files must stay untouched)
 - Never `git commit --amend`, `--no-verify`, `--force`, or signing bypasses
-- Never deletes branches (Stage 17 owns the post-merge delete)
-- Never pushes, pulls, or merges (Stage 17 owns the merge to `main`)
+- Never deletes branches (Stage 11 owns the post-merge delete)
+- Never pushes, pulls, or merges (Stage 11 owns the merge to `main`)
 - Never modifies user-authored files
 
 ## Checklist
@@ -137,13 +137,13 @@ You're on `<CURRENT>`, which is neither `main` nor the derived branch
 `<SUGGESTED>`. Choose:
 
   1. Stay on `<CURRENT>` — commits land here.
-     ⚠ At Stage 17 this branch will be merged into `main` and deleted.
+     ⚠ At Stage 11 this branch will be merged into `main` and deleted.
   2. Create `<SUGGESTED>` from `<CURRENT>` — branched off here.
-     ⚠ At Stage 17 this branch will be merged into `main` and deleted.
+     ⚠ At Stage 11 this branch will be merged into `main` and deleted.
   3. Abort — I'll switch to the right branch manually.
 ```
 
-The warning text on options 1 and 2 is mandatory. It is the only thing standing between the user and accidentally deleting a long-lived integration branch (like `develop`) at Stage 17. Do not paraphrase it away.
+The warning text on options 1 and 2 is mandatory. It is the only thing standing between the user and accidentally deleting a long-lived integration branch (like `develop`) at Stage 11. Do not paraphrase it away.
 
 - **Stay:** no branch op. The branch for this run is `CURRENT`. Proceed to Step 3 with `SUGGESTED=$CURRENT` (so subsequent code uses the right name).
 - **Create from current:** `git checkout -b "$SUGGESTED"`. Failure → ABORT `branch_creation_failed`.
@@ -185,13 +185,13 @@ git commit -m "docs(adr): N decisions for <FEATURE_ID>"
 
 If either commit fails:
 
-- **Hook rejection / signing failure / missing identity:** ABORT with `commit_failed`. Show the error verbatim. The user fixes the underlying issue and tells the coordinator to continue — Stage 12 re-runs because `branch_chosen` isn't yet in `stages_completed`.
+- **Hook rejection / signing failure / missing identity:** ABORT with `commit_failed`. Show the error verbatim. The user fixes the underlying issue and tells the coordinator to continue — Stage 7 re-runs because `branch_chosen` isn't yet in `stages_completed`.
 - **NEVER bypass with `--no-verify`, `--no-gpg-sign`, or amend the previous commit.** Per the Commit Failure Protocol in `ss-sdd-coordinator`.
-- **NEVER amend.** If Commit 1 succeeds but Commit 2 fails, the partial commit stays in git. Fix the underlying issue and tell the coordinator to continue; it routes back to Stage 12 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
+- **NEVER amend.** If Commit 1 succeeds but Commit 2 fails, the partial commit stays in git. Fix the underlying issue and tell the coordinator to continue; it routes back to Stage 7 because `branch_chosen` isn't yet in `stages_completed`. The user investigates the partial state and resolves it manually.
 
 ## Step 4: Update State and Return to Coordinator
 
-After the commits land, update `.sublime-skills/state.json` atomically (write `.tmp`, then `mv`). The write must include `branch_name` — Stage 17 reads it to know which branch to merge into `main`:
+After the commits land, update `.sublime-skills/state.json` atomically (write `.tmp`, then `mv`). The write must include `branch_name` — Stage 11 reads it to know which branch to merge into `main`:
 
 ```json
 {
@@ -218,7 +218,7 @@ ss-sdd-choosing-feature-branch complete.
 - Status: ready
 ```
 
-The "auto-created from main" / "switched to existing" / "stayed (already on derived)" / "stayed (user chose, will be merged + deleted at Stage 17)" detail is worth surfacing so the user has an audit trail of what was decided silently.
+The "auto-created from main" / "switched to existing" / "stayed (already on derived)" / "stayed (user chose, will be merged + deleted at Stage 11)" detail is worth surfacing so the user has an audit trail of what was decided silently.
 
 ### On abort
 
@@ -229,7 +229,7 @@ ss-sdd-choosing-feature-branch aborted.
 - Message: <user-facing message>
 ```
 
-The coordinator surfaces the abort to the user and halts the pipeline. `.sublime-skills/state.json` on disk reflects whatever stage Step 4 reached; continuing the coordinator re-runs Stage 12 (because `branch_chosen` isn't yet in `stages_completed`).
+The coordinator surfaces the abort to the user and halts the pipeline. `.sublime-skills/state.json` on disk reflects whatever stage Step 4 reached; continuing the coordinator re-runs Stage 7 (because `branch_chosen` isn't yet in `stages_completed`).
 
 ## Common Mistakes
 
@@ -237,13 +237,13 @@ The coordinator surfaces the abort to the user and halts the pipeline. `.sublime
 |---|---|
 | Prompting the user when on `main` and the derived branch doesn't exist | NEVER — that's the silent happy path; just `git checkout -b`. |
 | Prompting when already on the derived branch | NEVER — silent stay; that's the build-on-top path. |
-| Skipping the merge+delete warning text in the Case C prompt | NEVER — the warning is the only safeguard against deleting `develop` (or similar) at Stage 17. |
-| Forgetting to persist `branch_name` to state | Stage 17 reads it; without it, the merge target is unknown. |
+| Skipping the merge+delete warning text in the Case C prompt | NEVER — the warning is the only safeguard against deleting `develop` (or similar) at Stage 11. |
+| Forgetting to persist `branch_name` to state | Stage 11 reads it; without it, the merge target is unknown. |
 | Using `git add .` or `git add -A` | NEVER — only path-scoped adds. The user has pre-existing dirty files that must stay untouched. |
 | Bypassing a failing commit with `--no-verify` | NEVER — abort with `commit_failed` and surface the error. The user fixes the hook/signing issue. |
 | Amending a previous commit when a later one fails | NEVER — let the partial commits stay; the user investigates. |
 | Pushing the new branch automatically | NEVER — push is the user's call. |
-| Deleting any branch from here | NEVER — Stage 17 owns the post-merge delete. |
+| Deleting any branch from here | NEVER — Stage 11 owns the post-merge delete. |
 | Force-adding state.json with `git add -f` | NEVER. Zero exceptions. |
 | Editing `.sublime-skills/.gitignore` mid-pipeline | NEVER. The ignore is permanent. |
 
@@ -252,10 +252,10 @@ The coordinator surfaces the abort to the user and halts the pipeline. `.sublime
 - About to prompt the user when on `main` with no collision → STOP; auto-create silently
 - About to prompt when already on the derived branch → STOP; silent stay
 - About to issue the Case C prompt without the "merged + deleted" warning → STOP; the warning is mandatory
-- About to skip writing `branch_name` to state → STOP; Stage 17 needs it
+- About to skip writing `branch_name` to state → STOP; Stage 11 needs it
 - About to `git add .` or `git add -A` → STOP; use explicit paths
 - About to `git push` → STOP; not this skill's job
-- About to `git merge` or `git branch -d` → STOP; Stage 17 owns those
+- About to `git merge` or `git branch -d` → STOP; Stage 11 owns those
 - About to amend a previous commit → STOP; let partial state stay; surface to user
 - About to create a branch named `main` or `master` → STOP; reject and re-prompt
 - About to type `git add -f .sublime-skills/state.json` → STOP

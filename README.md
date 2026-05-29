@@ -74,9 +74,8 @@ light project state (current branch, recent commits, working-tree
 status) and writes a single self-contained markdown file at
 `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`
 so a fresh agent (or human) can pick up the work in a new session.
-Same output location and shape as `ss-sdd-generating-handoff`, with no
-SDD pipeline assumptions — works for any kind of in-flight work
-(features, bug fixes, refactors, research). Includes the same
+Works for any kind of in-flight work (features, bug fixes, refactors,
+research) with no SDD pipeline assumptions. Includes a
 redaction sweep (OpenAI/AWS/GitHub tokens, JWTs, private keys, URLs
 with embedded credentials, sensitive env-var assignments) before
 writing. The handoff lives outside the repo by design — never
@@ -149,19 +148,20 @@ and safe-search level. The SearXNG endpoint is configured via the
 
 ### Spec-driven development
 
-A 21-skill family for running structured, spec-driven feature development
+A 16-skill family for running structured, spec-driven feature development
 end-to-end (plus a separate 9-skill `skills/project-bootstrap/` family for
 one-time project setup — see below). The pipeline: **preflight → discover
-→ spec → reviews → ADRs → plan → reviews → per-task implementation →
-optional feature testing → handoff doc → memory file → finish**. Coordinated
+→ spec → auto spec-review → ADRs → spec approval → plan → settle branch →
+per-task implementation + final review → optional feature testing →
+optional memory file → finish**. Coordinated
 by `ss-sdd-coordinator`, which is the only entry point the user invokes —
 every other skill is loaded by the coordinator or dispatched as a
 subagent. Designed to be self-contained (no dependencies on external
-skill families), resumable after an interruption via a gitignored state
-file at `.sublime-skills/state.json`, and configurable via `.sublime-skills/config.yml`
-(context paths, branch pattern, grill cap, memory file path/limit). Specs and plans
-live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`; handoff docs
-at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
+skill families), driven end-to-end in a single conversation via a
+gitignored state file at `.sublime-skills/state.json` (the data-carrier
+between stages, not a resume mechanism), and configurable via `.sublime-skills/config.yml`
+(context paths, branch pattern, memory file path/limit). Specs and plans
+live at `docs/specs/NNN-short-name/`; ADRs at `docs/adr/`.
 
 Shared scripts at `skills/spec-driven-development/framework/`:
 - `discover-context.sh` — reads project convention file paths from
@@ -183,23 +183,23 @@ Shared scripts at `skills/spec-driven-development/framework/`:
   constitution-evidence-file existence, principle contradictions, stale
   suggestion-pass provenance). Invoked by `ss-bs-bootstrapping-project`
   at end of run and by `ss-bs-auditing-project` at start of run.
-- `validate-spec.sh`, `validate-plan.sh`, `validate-handoff.sh` —
+- `validate-spec.sh`, `validate-plan.sh` —
   schema-check the artifacts each writer skill produces. Catch gross
   format violations (missing sections, placeholders, forbidden diagram
-  syntax, unredacted secrets) before the artifact is committed.
+  syntax) before the artifact is committed.
 
 #### [ss-sdd-coordinator](skills/spec-driven-development/ss-sdd-coordinator/)
 
 Entry point for SDD runs. Thin state machine + dispatcher — knows the
-18-stage pipeline, starts at Stage 0 on a fresh user invocation and
+12-stage pipeline, starts at Stage 0 on a fresh user invocation and
 picks up from `current_stage` on re-entry within the same conversation
 (no test-and-ask resume ceremony — the conversation context already
 says where the pipeline is). Loads phase-skills inline for interactive
-stages, dispatches subagents for fresh-context stages (reviews, ADR
-maintenance, per-task implementation, testing, handoff). Holds state
+stages, dispatches subagents for fresh-context stages (spec review, ADR
+maintenance, per-task implementation, final review, testing, memory file). Holds state
 updates atomic at stage boundaries, never mid-stage.
-Surfaces user-gated optional stages (grill, 2nd review pass, feature
-testing). Critically: never tests the feature itself — if the tester
+Surfaces user-gated optional stages (feature testing, memory-file
+maintenance). Critically: never tests the feature itself — if the tester
 subagent reports MCP unavailability, the coordinator surfaces a manual
 test plan rather than improvising.
 
@@ -214,7 +214,7 @@ files stay untouched. Once every check passes, creates
 `.sublime-skills/state.json` as a minimal shell (silently removing any
 orphan state file from a dead prior pipeline first); on abort, no state
 file is written. Does NOT create branches: that decision happens later
-at Stage 12 (`ss-sdd-choosing-feature-branch`), right before
+at Stage 7 (`ss-sdd-choosing-feature-branch`), right before
 implementation.
 
 #### [ss-sdd-discovering-requirements](skills/spec-driven-development/ss-sdd-discovering-requirements/)
@@ -251,19 +251,8 @@ writing. Detection passes: completeness, internal consistency, clarity/
 testability, constitution / ADR alignment, scope, YAGNI, vocabulary
 drift. Findings categorized CRITICAL / HIGH / MEDIUM / LOW. Strict
 read-only — does not modify files. Calibrated to approve unless there's
-a real CRITICAL/HIGH finding (noisy reviewers get ignored). Used for
-both the mandatory first pass and the optional second pass.
-
-#### [ss-sdd-grilling-specs](skills/spec-driven-development/ss-sdd-grilling-specs/)
-
-Optional bounded grill that interviews the user about weak/unclear/
-underspecified areas of the spec, with a recommended answer per
-question. Every accepted answer is logged inline with an atomic
-per-answer save; substantive answers also edit the affected spec
-sections, while answers that just confirm the spec as-is are log-only —
-the grill produces only actionable changes, no manufactured edits.
-Stop conditions: user signals done, all high-impact areas resolved, or
-hard cap (default 10, configurable, hard ceiling 20).
+a real CRITICAL/HIGH finding (noisy reviewers get ignored). This is the
+single spec-review pass.
 
 #### [ss-sdd-maintaining-adrs](skills/spec-driven-development/ss-sdd-maintaining-adrs/)
 
@@ -286,45 +275,34 @@ traceability. Each task has bite-sized TDD steps (2-5 min each) with
 actual code, exact test commands with expected output, and commit
 messages. `[NO-TDD]` opt-out marker is allowed ONLY for strict
 categories (docs-only, config-only, asset-addition, dependency-bump,
-mechanical-rename, lint-only); reviewer flags misuse as CRITICAL.
-Forbids placeholders, Mermaid/C4/PlantUML/ASCII diagrams, and references
+mechanical-rename, lint-only); the writer's own self-review flags misuse
+as CRITICAL. Forbids placeholders, Mermaid/C4/PlantUML/ASCII diagrams, and references
 to things not defined in the plan or codebase. Includes automated schema
-validation (`validate-plan.sh`).
-
-#### [ss-sdd-reviewing-plans](skills/spec-driven-development/ss-sdd-reviewing-plans/)
-
-Subagent skill. Independent review of an implementation plan before
-per-task execution. Detection passes: spec coverage (every FR has a
-task), placeholder scan, type/name/path consistency across tasks, TDD
-discipline, `[P]` correctness, story independence (MVP-first),
-constitution/ADR alignment, granularity. Findings categorized
-CRITICAL / HIGH / MEDIUM / LOW. Strict read-only.
+validation (`validate-plan.sh`). There is no separate plan-review or
+plan-approval stage — the plan is a mechanical rendering of the
+already-approved spec, so the writer's self-review is its only check.
 
 #### [ss-sdd-choosing-feature-branch](skills/spec-driven-development/ss-sdd-choosing-feature-branch/)
 
-Stage 12: branching decision + batch commit. After plan approval, asks
-the user via a 3-way prompt whether to create a feature branch (default
-`feat/<short-name>` from `branching.branch_pattern`), use a different
-name, or stay on the current branch. Optionally runs `git checkout -b`,
-then batch-commits all SDD planning artifacts (spec, plan, ADRs) in
-two thematic, **path-scoped** commits on the chosen branch.
-Path-scoping protects the user's pre-existing dirty files.
+Stage 7: branching decision + batch commit. After the plan is written,
+settles the feature branch via an opinionated rule — silent when on
+`main` (creates `feat/<short-name>` from `branching.branch_pattern`) or
+already on the derived branch, with a prompt only when the current
+branch is ambiguous. Then batch-commits all SDD planning artifacts
+(spec, plan, ADRs) in two thematic, **path-scoped** commits on the
+chosen branch. Path-scoping protects the user's pre-existing dirty files.
 
 #### [ss-sdd-implementing-plans](skills/spec-driven-development/ss-sdd-implementing-plans/)
 
 Per-task orchestration loop. For each task in plan order: dispatch
 implementer subagent → handle status (DONE / DONE_WITH_CONCERNS /
-BLOCKED / NEEDS_CONTEXT) → (only when `per_task_reviews: full`) dispatch
-spec-compliance reviewer subagent → loop fix-review until approved
-(cap 3) → (only when `per_task_reviews: full`) dispatch code-quality
-reviewer subagent → loop until approved (cap 3, Minor findings
-non-blocking) → mark task complete. The per-task reviewers are gated by
-a user-gate the coordinator asks once at Stage 13 entry (default off —
-most features don't need it). After all tasks: a mandatory final code
-review on the full branch diff runs regardless of the per-task mode.
-Continuous execution between tasks — no needless check-ins. Includes
-three prompt templates as separate files (implementer-prompt.md,
-spec-compliance-reviewer-prompt.md, code-quality-reviewer-prompt.md).
+BLOCKED / NEEDS_CONTEXT) → mark task complete. There are no per-task
+reviews — the implementer's own TDD and self-review carry per-task
+discipline. After all tasks: a single mandatory final cross-cutting
+code-quality review on the full branch diff (driven by a self-contained
+prompt template; no skill loaded). Continuous execution between tasks —
+no needless check-ins. Includes two prompt templates as separate files
+(implementer-prompt.md, final-review-prompt.md).
 
 #### [ss-sdd-implementing-task](skills/spec-driven-development/ss-sdd-implementing-task/)
 
@@ -338,32 +316,14 @@ table calling out the most common scope-creep traps. Includes the
 "your work will be reviewed" priming that measurably improves output
 quality.
 
-#### [ss-sdd-reviewing-task-compliance](skills/spec-driven-development/ss-sdd-reviewing-task-compliance/)
-
-Protocol skill loaded by the first-stage per-task reviewer subagent
-(only dispatched when the user opts in to per-task review at Stage 13
-entry; default off). Spec-compliance checks only: coverage + FR traceability, scope creep
-(the dominant failure mode), test presence and meaningful coverage,
-test verification by re-running tests (not trusting the implementer's
-report), silent design decisions, commit hygiene, files-touched scope.
-Outputs Approved | Issues Found with categorized findings. Strict lane
-discipline — does NOT flag code quality, naming, or idiom (that's the
-next reviewer). Calibrated to approve clean work and call out real
-problems, not manufacture issues.
-
-#### [ss-sdd-reviewing-task-quality](skills/spec-driven-development/ss-sdd-reviewing-task-quality/)
-
-Protocol skill loaded by the second-stage per-task reviewer subagent
-after spec compliance is approved (only dispatched when the user opts in
-to per-task review at Stage 13 entry; default off). Also reused for the
-mandatory final cross-cutting code review at end of Stage 13. Six-dimension code review:
-readability, correctness around edges, idiom alignment with the rest of
-the codebase, security (with specific scan anchors for SQL injection,
-unsafe deserialization, secrets in logs, missing authz, custom crypto),
-performance (O(n²), unbounded growth, N+1, missing indexes),
-maintainability. Severity rubric: Critical (correctness/security/data),
-Important (idiom/readability), Minor (style preferences). Style is
-never Critical. Does NOT re-check spec compliance or re-run tests.
+The final cross-cutting code review (end of Stage 8) is driven by the
+self-contained `final-review-prompt.md` template — no skill is loaded.
+It runs once over the whole branch diff with a six-dimension rubric
+(readability, correctness around edges, idiom, security, performance,
+maintainability), prioritizing cross-cutting concerns (inter-task
+inconsistency, integration drift) over isolated per-task nits. Severity:
+Critical (correctness/security/data) / Important (idiom/readability) /
+Minor (style). Style is never Critical.
 
 #### [ss-sdd-testing-implementation](skills/spec-driven-development/ss-sdd-testing-implementation/)
 
@@ -407,7 +367,7 @@ failure when separable, grouped by root cause when shared.
 #### [ss-sdd-finishing](skills/spec-driven-development/ss-sdd-finishing/)
 
 Final stage. Reads the state file, prints a structured summary of what
-the pipeline produced (feature_id, spec/plan/handoff paths, ADRs,
+the pipeline produced (feature_id, spec/plan paths, ADRs,
 tasks, test status, branch info), then closes the loop:
 `git checkout main && git merge --no-ff <branch_name>` and safe-delete
 the feature branch on success. Last step is `rm .sublime-skills/state.json`
@@ -415,18 +375,6 @@ via plain `rm` (no commit; the file is gitignored throughout).
 Local-only — no push, no PR. If the merge fails (conflicts, hook
 rejection), the skill halts and leaves the working tree as-is; re-
 invocation is naturally idempotent once the merge is resolved.
-
-#### [ss-sdd-generating-handoff](skills/spec-driven-development/ss-sdd-generating-handoff/)
-
-Subagent skill. Reads spec, plan, ADRs, state file, and git log to
-produce a self-contained handoff document at
-`~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<short-title>.md`. The handoff is a *bridge*
-— it references the source artifacts (with one-line summaries) rather
-than duplicating them. Includes a redaction sweep that catches OpenAI/
-AWS/GitHub tokens, JWTs, private keys, URLs with credentials, and
-sensitive env-var assignments before writing. Schema-validated via
-`validate-handoff.sh`. Optimized for the "iterating on PR feedback in a
-fresh session" use case.
 
 #### [ss-sdd-maintaining-memory-file](skills/spec-driven-development/ss-sdd-maintaining-memory-file/)
 
@@ -446,13 +394,12 @@ cadence, pruning, and anti-patterns to avoid.
 
 #### [ss-sdd-receiving-review-findings](skills/spec-driven-development/ss-sdd-receiving-review-findings/)
 
-Inline skill loaded by the coordinator whenever a reviewer subagent
-returns findings on a spec or plan (Stages 3, 5, 9, 10). Borrows from
+Inline skill loaded by the coordinator when the spec-review subagent
+returns findings (Stage 3). Borrows from
 superpowers' `receiving-code-review`: no performative agreement, verify
 before fixing, push back with technical reasoning when the reviewer is
 wrong, track push-backs in state file, surface to user when findings
-need human judgment. Per-task reviews stay handled by
-`ss-sdd-implementing-plans` (different dynamic — fresh implementer re-dispatch).
+need human judgment.
 
 ### project-bootstrap (separate family)
 

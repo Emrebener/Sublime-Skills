@@ -1,6 +1,6 @@
 ---
 name: ss-sdd-receiving-review-findings
-description: Use inline by the SDD coordinator when a reviewer subagent returns its findings for a spec or plan (Stages 3, 5, 9, 10). Guides how to evaluate findings, decide what to fix vs push back on, and avoid performative agreement.
+description: Use inline by the SDD coordinator when the spec-review subagent returns its findings (Stage 3). Guides how to evaluate findings, decide what to fix vs push back on, and avoid performative agreement.
 ---
 
 # Receiving Review Findings
@@ -15,13 +15,10 @@ Review feedback is *input to evaluate*, not orders to follow. The coordinator's 
 
 ## When to Use
 
-The coordinator loads this skill inline whenever a reviewer subagent returns output, in any of:
+The coordinator loads this skill inline whenever the spec-review subagent returns output:
 - Stage 3 — auto spec-review findings
-- Stage 5 — optional 2nd spec-review findings
-- Stage 9 — auto plan-review findings
-- Stage 10 — optional 2nd plan-review findings
 
-This skill does NOT cover per-task reviewer findings during implementation — `ss-sdd-implementing-plans` handles those with its own re-dispatch-implementer loop. Per-task reviews are about delegating fixes to a fresh implementer; this skill is about the coordinator directly handling the artifact (spec or plan).
+This skill does NOT cover the final implementation review — `ss-sdd-implementing-plans` handles that with its own re-dispatch-implementer loop. That review delegates fixes to a fresh implementer; this skill is about the coordinator directly handling the spec artifact.
 
 ## Hard Gates
 
@@ -83,7 +80,6 @@ For each CRITICAL or HIGH finding:
 If you're fixing a finding:
 
 - **For spec issues:** edit the spec file directly. The coordinator has the discovery context; you can resolve most issues without re-running discovery.
-- **For plan issues:** edit the plan file directly. Same logic.
 - **If the issue is too substantive** (e.g., the spec is fundamentally underspecified in a way that requires going back to the user): STOP applying fixes. Surface to the user (see Step 7).
 - Always use atomic writes (write to `.tmp`, then `mv`) for any artifact edit.
 
@@ -133,7 +129,7 @@ Format:
 >
 > Options:
 > - Address them now (tell me what to do for each)
-> - Return to spec/plan stage and revise — I'll re-run discovery if needed
+> - Return to the spec stage and revise — I'll re-run discovery if needed
 > - Override the reviewer (you'll need to give a reason; it goes in `reviewer_pushbacks`)"
 
 Wait for the user's direction.
@@ -152,7 +148,7 @@ At this point, do NOT iterate further. The pattern of unresolved findings says o
 
 Surface to user explicitly with the full history. Format:
 
-> "Spec/plan review hit its fix-loop cap (2 iterations) with unresolved findings.
+> "Spec review hit its fix-loop cap (2 iterations) with unresolved findings.
 >
 > **Fix history:**
 > - Iteration 1: reviewer flagged [N] CRITICAL/HIGH. Coordinator applied: [brief summary]. Re-review: [N] new/remaining issues.
@@ -180,8 +176,6 @@ Wait for user's selection. Whatever they choose:
   ```
 - Do NOT re-dispatch the reviewer on iteration 3. The cap is hard.
 
-The same protocol applies to plan review (Stage 9 / 10) — substitute `plan_auto_review_iterations`.
-
 ## Step 9: Update State
 
 After processing, update the state file (atomic write) with any tracked information:
@@ -194,7 +188,7 @@ After processing, update the state file (atomic write) with any tracked informat
 }
 ```
 
-**Do NOT commit.** `.sublime-skills/state.json` is permanently gitignored and NEVER committed at any stage — not at Stage 12, not at Stage 13, not ever. Atomic writes update the file in place; do not `git add -f` or otherwise bypass the ignore.
+**Do NOT commit.** `.sublime-skills/state.json` is permanently gitignored and NEVER committed at any stage — not at Stage 7, not at Stage 8, not ever. Atomic writes update the file in place; do not `git add -f` or otherwise bypass the ignore.
 
 ## Common Mistakes
 

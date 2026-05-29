@@ -4,16 +4,14 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ## Contents
 
-- [Why an 18-stage pipeline](#why-an-18-stage-pipeline)
+- [Why a 12-stage pipeline](#why-a-12-stage-pipeline)
 - [Why thin coordinator + many skills](#why-thin-coordinator--many-skills)
 - [Why no external skill dependencies](#why-no-external-skill-dependencies)
 - [Why abort-only preflight](#why-abort-only-preflight)
 - [Why split discovery and spec-writing](#why-split-discovery-and-spec-writing)
 - [Why per-task subagent dispatch](#why-per-task-subagent-dispatch)
-- [Why two-stage review per task](#why-two-stage-review-per-task)
 - [Why state file is gitignored](#why-state-file-is-gitignored)
 - [Why ADRs over Constitution (initially)](#why-adrs-over-constitution-initially)
-- [Why a handoff document](#why-a-handoff-document)
 - [Why no diagrams](#why-no-diagrams)
 - [Why strict `[NO-TDD]` criteria](#why-strict-no-tdd-criteria)
 - [Why the coordinator doesn't test itself](#why-the-coordinator-doesnt-test-itself)
@@ -23,16 +21,16 @@ Why we built SDD this way. Each decision explained, with the alternatives we con
 
 ---
 
-## Why an 18-stage pipeline
+## Why a 12-stage pipeline
 
-An 18-stage pipeline sounds heavy (Stages 0-17). For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
+A 12-stage pipeline sounds heavy (Stages 0-11). For trivial changes it might be overkill. We accepted that because the alternative — a flexible pipeline where stages can be skipped freely — fails predictably:
 
 - AI agents tend to skip stages they shouldn't (especially review stages) when given the option
 - Inconsistent application means inconsistent quality across features
 - "Trivial" changes that turn out to be non-trivial don't get the rigor they need
 - Optional stages compound: if every stage is optional, the pipeline degenerates to a chat
 
-The pipeline as designed has **6 user-gated optional stages** (grill, 2nd spec-review, 2nd plan-review, feature testing, handoff generation, memory file maintenance — Stages 4, 5, 10, 14, 15, 16). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
+The pipeline as designed has **2 user-gated optional stages** (feature testing, memory-file maintenance — Stages 9, 10). Everything else is mandatory and requires editing the coordinator skill itself to bypass.
 
 **Why this is OK in practice:** for genuinely small changes (a typo fix, a config bump), you wouldn't invoke SDD at all. SDD is for features that warrant structured development. The pipeline is calibrated for that scale.
 
@@ -46,7 +44,7 @@ The alternative would be one giant coordinator skill that contains all phase log
 - **Coupling:** changes to phase logic require editing the coordinator, increasing risk of unintended side effects.
 - **Reusability:** with phase logic in dedicated skills, individual skills (e.g., `ss-sdd-writing-specs`, `ss-sdd-reviewing-specs`) can be invoked outside the pipeline if needed.
 
-The trade-off is more skill files to maintain (21 skills + 6 shared scripts + 2 schema files = 29 files) and the coordinator loading skills just-in-time. We judged this worth it.
+The trade-off is more skill files to maintain (16 skills + 6 shared scripts + 2 schema files = 24 files) and the coordinator loading skills just-in-time. We judged this worth it.
 
 **Concrete benefit:** the coordinator's SKILL.md is ~450 lines. The combined skills are ~5000 lines, but at any given moment only the active phase-skill is loaded. The coordinator stays a state machine + dispatcher.
 
@@ -61,7 +59,7 @@ Reasons:
 - **Stability:** external skills can change in incompatible ways; we can't control that.
 - **Clarity:** when something goes wrong, the failure mode is contained within SDD.
 
-We did borrow design patterns extensively from external sources (Superpowers' two-stage review, spec-kit's user-story priorities, Kiro's EARS format option, `receiving-code-review`'s no-performative-agreement rule). But we re-implemented them inside SDD rather than calling them.
+We did borrow design patterns extensively from external sources (Superpowers' per-task implementer dispatch, spec-kit's user-story priorities, Kiro's EARS format option, `receiving-code-review`'s no-performative-agreement rule). But we re-implemented them inside SDD rather than calling them.
 
 **Exception:** Phase 4 of the build process (using `superpowers:writing-skills` to review our own skills) is a one-time meta step, not part of the runtime SDD workflow. That's allowed.
 
@@ -94,43 +92,19 @@ The cost is a small amount of coordinator overhead (advance from Stage 1 to Stag
 
 ## Why per-task subagent dispatch
 
-For Stage 13 implementation, every task gets one fresh implementer dispatch and — when the user opts in at Stage 13 entry (`per_task_reviews: full`, default off) — up to two more (spec-compliance reviewer, code-quality reviewer). A single final cross-cutting code-quality reviewer runs once at end of Stage 13 regardless.
+For Stage 8 implementation, every task gets one fresh implementer dispatch. After the last task, a single mandatory final cross-cutting code-quality review runs once over the whole branch diff.
 
 The fresh-subagent pattern itself is expensive (subagent dispatch isn't free) and slow (sequential, not parallel). We use it because:
 
 - **Context isolation.** Per-task subagents don't carry context from previous tasks. T002's design choices don't bleed into T003's work.
 - **Smaller context budgets.** Each subagent's prompt + the relevant files fits comfortably in a small context window.
-- **Focused review.** Reviewers focus on one task's diff, not the whole feature's diff (until the final review, which is a different mechanism).
 - **Resilience.** A misbehaving subagent doesn't poison the rest of the pipeline.
 
-The cost is dispatch overhead and inability to parallelize within a task (the three subagents must be sequential because the reviewers depend on the implementer's output).
+The cost is dispatch overhead and inability to parallelize within a task.
 
-We considered an alternative: dispatch one subagent per task that does implementation + self-review, with the coordinator doing the spec-compliance and code-quality checks itself. We rejected this because the coordinator's context would get polluted with task-level details over time.
+We considered an alternative: dispatch one subagent per task that does implementation + self-review, with the coordinator doing quality checks itself. We rejected this because the coordinator's context would get polluted with task-level details over time.
 
----
-
-## Why two-stage review per task
-
-The implementer produces a diff. The reviewer evaluates it. We could have one reviewer that checks everything (compliance + quality). We chose two because they look at different things:
-
-- **Spec-compliance:** did the implementer do exactly what the task said? Anything missing or added? This is a checklist-style review.
-- **Code-quality:** is the code readable, idiomatic, secure, performant? This is a craft review.
-
-Conflating them produces noisier, less actionable feedback. A reviewer that's looking for both ends up flagging style issues as if they were compliance gaps, or skipping over scope creep because the code "looks clean."
-
-Two reviewers, with two different prompt templates, with explicit "stay in your lane" rules in each prompt. The cost is one more subagent dispatch per task; the benefit is consistently higher signal-to-noise.
-
-**Per-task code-quality also distinguishes Critical / Important / Minor.** Critical and Important come back to the implementer for fixes; Minor is noted but doesn't block. This prevents the "every minor style suggestion is a re-dispatch" cycle.
-
-### Why it's opt-in (default off)
-
-Per-task review is valuable on large or risky implementations and overkill on most features. Three reasons we made it opt-in with a default-off:
-
-- **The implementer's self-review already covers per-task discipline.** `ss-sdd-implementing-task` walks the implementer through scope, tests, and commit hygiene before they report DONE. For typical features, that's enough.
-- **The mandatory final cross-cutting reviewer catches systemic issues.** Inconsistencies between tasks, integration drift, and cumulative quality problems show up at end-of-stage anyway — and per-task review can't see them.
-- **The cost compounds.** Two extra subagent dispatches per task, plus their fix-loops, can double or triple Stage 13's wall-clock time. That's worth paying on a 12-task feature touching auth boundaries; it's wasted on a 4-task copy change.
-
-When the user opts in (`per_task_reviews: full`), both per-task reviewers run with the cap-3 fix loop. Otherwise (`per_task_reviews: skipped`, the default), the implementer's DONE flows straight to "task complete" and the final cross-cutting review at end of Stage 13 is the safety net.
+**Why no per-task review.** Each task gets no separate reviewer subagent. The implementer's own self-review (`ss-sdd-implementing-task` walks it through scope, tests, and commit hygiene before reporting DONE) plus the single mandatory final cross-cutting code-quality review at end of Stage 8 are the safety net. Per-task reviewers would double or triple Stage 8's wall-clock time for marginal gain — systemic issues (inconsistencies between tasks, integration drift, cumulative quality problems) show up at end-of-stage anyway, and a per-task reviewer can't see them. The final review is driven by a self-contained prompt template (`skills/spec-driven-development/ss-sdd-implementing-plans/final-review-prompt.md`) that loads no skill.
 
 ---
 
@@ -140,7 +114,7 @@ The state file at `.sublime-skills/state.json` is never committed at any stage. 
 
 Alternatives considered and rejected:
 
-- **Committed state (original design).** We previously committed state.json from Stage 12 onward, with a deletion commit at Stage 17. Reasons cited at the time: durability across interruptions, git-log auditability of stage progression, and squash-merge collapsing the churn.
+- **Committed state (original design).** We previously committed state.json from Stage 7 onward, with a deletion commit at Stage 11. Reasons cited at the time: durability across interruptions, git-log auditability of stage progression, and squash-merge collapsing the churn.
 - **External state** (e.g., a database or a per-host `~/.sublime-skills-state/` directory). Adds storage management and decouples state from the per-project working tree.
 
 Why the committed-state arguments don't hold under the project's actual design philosophy:
@@ -151,10 +125,10 @@ Why the committed-state arguments don't hold under the project's actual design p
 
 Net benefit of gitignored state:
 
-- Three pure-state chore commits eliminated per SDD run (Stage 13 implementation-complete chore, Stage 15 handoff-path chore, Stage 17 deletion chore).
-- Two stage commits lose their state ride-along (Stage 12 spec+plan; Stage 16 memory file).
+- Two pure-state chore commits eliminated per SDD run (Stage 8 implementation-complete chore, Stage 11 deletion chore).
+- Two stage commits lose their state ride-along (Stage 7 spec+plan; Stage 10 memory file).
 - Five stage-boundary commit-failure surfaces collapse to zero (no commit, no failure).
-- Stages 2-11's "uncommitted state" rule extends to all stages — one rule, no exceptions.
+- Stages 2-6's "uncommitted state" rule extends to all stages — one rule, no exceptions.
 - Branch operations no longer disturb state — gitignored files don't move with `git checkout`, and `git stash -u` skips them by spec.
 
 The trade-off: no git-log marker for "SDD finished here." The committed spec / plan / ADRs ARE the artifact; the absence of a chore commit isn't a loss.
@@ -177,41 +151,9 @@ If a project starts repeating the same guidance in every spec, that's the signal
 
 ---
 
-## Why a handoff document
-
-The handoff doc is generated at Stage 15 (user-prompted, default yes). It's a redacted, summary-style document at `~/.sublime-skills/handoffs/<repo-basename>/YYYY-MM-DD-<title>.md`.
-
-Why have it:
-
-- **PR iteration.** When you come back to address PR feedback in a new session, the handoff doc lets you orient without re-reading the whole spec + plan + ADR set.
-- **Cross-session continuity.** If a different agent (or human) picks up the work, they have a self-contained starting point.
-- **Auditability.** The handoff doc captures "what was actually built" alongside "what was supposed to be built" (the spec) and "how it was supposed to be built" (the plan).
-
-Why it's a separate doc, not in the spec or plan:
-
-- The spec and plan are pre-implementation; the handoff is post-implementation.
-- The handoff includes git log highlights, test results, and observations from implementation — none of which fit in spec/plan.
-
-Why it references rather than duplicates:
-
-- ADRs and spec sections shouldn't be repeated; that's churn and drift waiting to happen.
-- The handoff is a bridge, not a duplicate.
-
-Why redaction:
-
-- Handoff docs may be shared more freely than internal code (e.g., pasted into ticketing systems, attached to PRs, shared with consultants).
-- Any secrets, API keys, tokens, or passwords that slipped into commits should NOT be in the handoff.
-
-Why `validate-handoff.sh` checks for unredacted secrets:
-
-- Defense-in-depth. The handoff generator does a redaction sweep; the validator catches anything that slipped through.
-- Critical failures on unredacted patterns force the writer to fix or explicitly mark the false positive.
-
----
-
 ## Why no diagrams
 
-Specs, plans, and handoffs are prose-only. No Mermaid, no C4, no PlantUML, no ASCII art.
+Specs and plans are prose-only. No Mermaid, no C4, no PlantUML, no ASCII art.
 
 Reasons:
 - **Diagrams encode information for human eyes.** LLMs read them as text and often miss the structure they're meant to convey.
@@ -235,7 +177,7 @@ If you genuinely want a visual, put it in a separate file (e.g., `docs/architect
 Strict criteria:
 - Only 6 allowed categories: `docs-only`, `config-only`, `asset-addition`, `dependency-bump`, `mechanical-rename`, `lint-only`
 - The reason line must match one of these labels
-- `ss-sdd-reviewing-plans` flags misuse as CRITICAL
+- The plan writer's own self-review flags `[NO-TDD]` misuse
 
 Why this strict:
 - **TDD pays off most on logic changes.** That's exactly the case `[NO-TDD]` was being used to skip.
@@ -248,7 +190,7 @@ If you're tempted to use `[NO-TDD]` outside these categories, write the test. Th
 
 ## Why the coordinator doesn't test itself
 
-When Stage 14 tester returns `MCP_UNAVAILABLE` (no browser MCP for UI testing, no DB MCP for backend testing, etc.), the coordinator is forbidden from testing the feature itself, even if it has Bash, Playwright, curl, etc., available.
+When Stage 9 tester returns `MCP_UNAVAILABLE` (no browser MCP for UI testing, no DB MCP for backend testing, etc.), the coordinator is forbidden from testing the feature itself, even if it has Bash, Playwright, curl, etc., available.
 
 This is the highest-risk rationalization point in the pipeline. The reasoning the coordinator might use:
 - "I have Bash; let me just curl the endpoint"
@@ -267,37 +209,37 @@ The `ss-sdd-testing-implementation` skill repeats this rule in five different pl
 
 ## Why SDD owns the merge to `main` (closes the loop)
 
-Stage 17 (`ss-sdd-finishing`) does more than print a summary and delete `state.json` — it runs `git checkout main && git merge --no-ff $branch_name`, and on success `git branch -d $branch_name`. No push, no PR, no prompts.
+Stage 11 (`ss-sdd-finishing`) does more than print a summary and delete `state.json` — it runs `git checkout main && git merge --no-ff $branch_name`, and on success `git branch -d $branch_name`. No push, no PR, no prompts.
 
 This is an opinionated, single-workflow choice — this repo is for the maintainer's personal use, not a multi-team library — so we close the loop in the pipeline rather than handing branch management back to the user. The three arguments that originally pushed this out of scope:
 
 - **Workflow diversity.** Was the original blocker: teams have wildly different workflows (PR vs trunk, fast-forward vs no-ff vs squash, with/without `gh`, with/without protected branches, signed commits). The combinatorial surface is large. *Moot here* — one user, one workflow (`--no-ff` merge to `main`, safe-delete, local-only). The branching surface collapses to a constant.
-- **Tests already ran.** Still true. Stage 14 is the test gate; Stage 17 does not re-test. The merge happens on already-tested commits.
+- **Tests already ran.** Still true. Stage 9 is the test gate; Stage 11 does not re-test. The merge happens on already-tested commits.
 - **Artifacts are durable.** Still true. The merge just propagates the spec / plan / ADRs / per-task commits / memory-file commit from the feature branch onto `main` as a single merge commit, making the feature easy to find later via `git log --first-parent main`.
 
 Why this works without becoming brittle:
 
 - The merge strategy is a constant (`--no-ff`), not a configurable. No surprise behavior.
 - Safe-delete (`git branch -d`, not `-D`) is a second safety net — git refuses if the branch isn't fully merged, so we'd halt rather than destroy work in a weird intermediate state.
-- The merge step is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date"), so continuing Stage 17 after a manual conflict resolution just works.
+- The merge step is naturally idempotent (`git merge --no-ff <already-merged>` returns 0 with "Already up to date"), so continuing Stage 11 after a manual conflict resolution just works.
 - Push is still the user's call. SDD never touches the remote.
 
-Branch creation still happens at Stage 12 (`ss-sdd-choosing-feature-branch`), not preflight — by then the spec and plan exist and `short_name` is known, so the feature branch can be derived from `branch_pattern`. Preflight stays branch-agnostic on purpose: starting SDD on an existing feature branch (to build on top of a partial implementation) is a supported path, and Stage 12's silent "already on derived name" case handles it.
+Branch creation still happens at Stage 7 (`ss-sdd-choosing-feature-branch`), not preflight — by then the spec and plan exist and `short_name` is known, so the feature branch can be derived from `branch_pattern`. Preflight stays branch-agnostic on purpose: starting SDD on an existing feature branch (to build on top of a partial implementation) is a supported path, and Stage 7's silent "already on derived name" case handles it.
 
 ---
 
 ## Why a separate skill for receiving review findings
 
-`ss-sdd-receiving-review-findings` is loaded inline by the coordinator after every spec/plan reviewer subagent returns. It establishes how to evaluate findings: verify before fixing, push back when wrong, no performative agreement.
+`ss-sdd-receiving-review-findings` is loaded inline by the coordinator after the spec reviewer subagent returns (Stage 3). It establishes how to evaluate findings: verify before fixing, push back when wrong, no performative agreement.
 
 Why a separate skill (instead of inline in the coordinator):
 
-- **Used in 4 places** (Stages 3, 5, 9, 10). DRY argument.
+- **Used at Stage 3** (after the spec reviewer returns). The rules are too specific to inline.
 - **Borrowed wisdom.** `superpowers:receiving-code-review` codifies a lot of hard-won "how to receive feedback without theater" rules. Adopting them as a skill makes them load-bearing.
 - **Anti-performative-agreement is non-obvious.** "You're absolutely right!" is the default for an LLM. Explicitly forbidding it requires explicit instruction.
 - **Centralized push-back logic.** When the coordinator pushes back on a finding, the rationale is logged in `reviewer_pushbacks` in the state file. Consistent across stages.
 
-We considered keeping it inline. Decided against because the rules are too specific and too important to inline-repeat across the coordinator's 4 review stages.
+We considered keeping it inline. Decided against because the rules are too specific and too important to bury in the coordinator's spec-review handling.
 
 ---
 
@@ -310,14 +252,14 @@ SDD borrows from all three. Here's how it differs:
 | Aspect | spec-kit | SDD |
 |---|---|---|
 | Coordination | None — user runs each command manually | `ss-sdd-coordinator` drives the whole pipeline |
-| Artifacts per feature | 7+ files (spec, plan, tasks, research, data-model, contracts, quickstart, checklists) | 2-3 (spec, plan, state file; ADRs and handoff at project level) |
+| Artifacts per feature | 7+ files (spec, plan, tasks, research, data-model, contracts, quickstart, checklists) | 2-3 (spec, plan, state file; ADRs at project level) |
 | Constitution | First-class (`/speckit.constitution`) | Optional, opt-in via bootstrap |
-| Per-task implementation | One sequential run | Fresh subagents per task with two-stage review |
+| Per-task implementation | One sequential run | Fresh subagent per task + one final cross-cutting review |
 | Resumability | None explicit | State file in git; coordinator reads first |
 | Diagram policy | Allowed (templates have Mermaid) | Prohibited |
 | Format prescriptiveness | Heavy templates with many placeholders | Lighter; structure prescribed, content not templated |
 
-We borrowed: user-story priorities (P1/P2/P3), FR-### / SC-### IDs, the "checklists are unit tests for English" framing, the `[T###] [P] [US#]` task format, the cross-artifact consistency analysis idea (but we don't have a dedicated analyze stage — `ss-sdd-reviewing-plans` covers that ground).
+We borrowed: user-story priorities (P1/P2/P3), FR-### / SC-### IDs, the "checklists are unit tests for English" framing, the `[T###] [P] [US#]` task format, the cross-artifact consistency analysis idea (but we don't have a dedicated analyze stage — the plan writer's own self-review covers granularity and coverage).
 
 We dropped: the constitution as a first-class artifact, the proliferation of supporting files (research.md, data-model.md, etc. — we consolidate into spec or plan), the hooks/extensions YAML system.
 
@@ -325,24 +267,21 @@ We dropped: the constitution as a first-class artifact, the proliferation of sup
 
 | Aspect | Brainstorming | SDD |
 |---|---|---|
-| Pipeline | brainstorming → ss-sdd-writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 18-stage pipeline with explicit stage boundaries |
-| ADR step | None | Stage 6, dedicated skill |
-| Optional grill | None | Stage 4, dedicated skill |
-| 2nd review | None | Optional Stages 5 + 10 |
+| Pipeline | brainstorming → ss-sdd-writing-plans → using-git-worktrees → subagent-driven-development → finishing-a-development-branch | 12-stage pipeline with explicit stage boundaries |
+| ADR step | None | Stage 4, dedicated skill |
 | State file | Harness todo tool for tasks, no explicit state file | Gitignored `state.json` as data-carrier between stages + per-task orchestration record (no resume protocol — same-conversation only) |
-| Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 14 with browser/DB MCP awareness |
-| Handoff doc | None | Stage 15, dedicated skill |
+| Feature testing | Unit tests in each task; no dedicated feature-level test stage | Stage 9 with browser/DB MCP awareness |
 | Self-containment | Family of skills that depend on each other (and on some that aren't always available) | No external skill dependencies |
 
-We borrowed extensively: the per-task implementer + two-stage review, the implementer status protocol (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), the one-question-at-a-time conversation style, "continuous execution between tasks" rule, the finishing 4 options.
+We borrowed extensively: the per-task implementer, the implementer status protocol (DONE / DONE_WITH_CONCERNS / BLOCKED / NEEDS_CONTEXT), the one-question-at-a-time conversation style, "continuous execution between tasks" rule, the finishing 4 options.
 
-We added: the ADR step, the optional grill, the 2nd review pass, dedicated feature testing with MCP awareness, the handoff doc, an explicit state file for between-stage data and per-task orchestration, abort-only preflight.
+We added: the ADR step, dedicated feature testing with MCP awareness, an explicit state file for between-stage data and per-task orchestration, abort-only preflight.
 
 ### vs Kiro-skill (feiskyer)
 
 | Aspect | Kiro | SDD |
 |---|---|---|
-| Pipeline | requirements → design → tasks → execute | 18 stages |
+| Pipeline | requirements → design → tasks → execute | 12 stages |
 | Format | EARS format for acceptance criteria | Given/When/Then default; EARS as opt-in option |
 | Diagrams | Mermaid in design docs | Prohibited |
 | Per-task gating | STOP after every task; wait for user | Continuous execution; user only involved at approval gates |
@@ -358,8 +297,6 @@ We dropped: stop-after-every-task (too friction-heavy), the `.kiro/` directory n
 SDD takes the Superpowers shape (spec → plan → implementation with reviews), the spec-kit format conventions (user-story priorities, FR-### IDs, task format), the Kiro EARS option, and adds:
 
 - ADR maintenance as a first-class stage
-- Optional grill for spec hardening
-- Handoff doc generation for continuity
 - Explicit state file for between-stage data and per-task orchestration (no resume protocol — same-conversation only)
 - Receiving-review-findings skill for consistent handling across stages
 - Abort-only preflight for safety
@@ -376,7 +313,7 @@ The result is heavier than brainstorming, lighter than spec-kit, and more strict
 A handful of things we considered and rejected:
 
 - **`maintaining-constitution` as a first-class skill.** ADRs cover the immediate need. We can add it later if patterns emerge.
-- **Auto-clarify stage between discovery and spec.** Discovery + automated review + optional grill cover the same ground.
+- **Auto-clarify stage between discovery and spec.** Discovery + the automated spec-review cover the same ground.
 - **Pressure-testing skills (writing-skills TDD methodology).** Expensive; pays off most for discipline skills like TDD. Our skills are procedural; structural review catches what matters.
 - **Description optimization for skill discovery.** The coordinator invokes skills by name, so auto-discovery isn't load-bearing. Optimizing descriptions is token-heavy and slow.
 - **Real-time multi-implementer parallelism.** Sequential per-task is fine. Parallel adds conflict-resolution complexity for marginal speedup.

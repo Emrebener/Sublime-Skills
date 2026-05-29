@@ -9,9 +9,9 @@
 #   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" <block> <key> [config-path]
 #
 # Example:
-#   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" finishing test_command
+#   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" context constitution_path
 #   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" branching branch_pattern
-#   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" grill question_cap
+#   "$SUBLIME_SKILLS_HOME/skills/spec-driven-development/framework/get-config-value.sh" memory_file character_limit
 #
 # If [config-path] is supplied, the sibling overlay path is derived by
 # replacing the trailing `config.yml` (or any `*.yml` filename) with

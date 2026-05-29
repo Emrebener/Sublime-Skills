@@ -30,7 +30,7 @@ The dispatch prompt includes:
 - `SPEC_PATH` — absolute path to the spec
 - `ADR_DIR` — directory where ADRs live (hardcoded `docs/adr`; the coordinator passes the value into the dispatch)
 - `EXISTING_ADRS` — list of paths to existing ADR files (may be empty if this is the project's first feature)
-- `DECISIONS_CAPTURED` — list of decisions the coordinator flagged during discovery + grill as ADR candidates (may be empty)
+- `DECISIONS_CAPTURED` — list of decisions the coordinator flagged during discovery as ADR candidates (may be empty)
 
 ## Checklist
 
@@ -46,7 +46,6 @@ The dispatch prompt includes:
 Read `SPEC_PATH`. Pay attention to:
 - The "Decisions" section (often where the major choices land)
 - The Constraints and Out of Scope sections (sometimes record the rejected alternatives)
-- The `## Clarifications` section (if present — written by the `ss-sdd-grilling-specs` skill). Each clarification is a `- Q: ... → A: ...` bullet inside a `### Session YYYY-MM-DD` subheading; grill-driven decisions are valid ADR sources when they meet the ADR-worthy criteria below
 
 Then read every file in `EXISTING_ADRS` — you need to know:
 
@@ -139,7 +138,7 @@ Use this **locked format** (do not deviate):
 
 **Status:** Default to `Proposed`. The coordinator's user-approval stage will flip it to `Accepted` (or the user can during review).
 
-**Do NOT commit.** Write the ADR files but do NOT run `git commit`. Stage 12 (`ss-sdd-choosing-feature-branch`) batch-commits all SDD planning artifacts — including these ADRs — on the user's chosen branch.
+**Do NOT commit.** Write the ADR files but do NOT run `git commit`. Stage 7 (`ss-sdd-choosing-feature-branch`) batch-commits all SDD planning artifacts — including these ADRs — on the user's chosen branch.
 
 **Date:** Today in UTC: `date -u +%Y-%m-%d`. Don't use local time.
 

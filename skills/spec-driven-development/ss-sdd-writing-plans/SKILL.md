@@ -52,8 +52,8 @@ Run the discovery script (skip re-Reads if these files are already in your worki
 
 Required reads when present (skip files the JSON returns as `null`):
 
-- `constitution` — tasks MUST comply; violations are flagged CRITICAL by ss-sdd-reviewing-plans (Stage 9)
-- All `adrs` — especially the newly accepted ones from Stage 6 — tasks must reflect the chosen approaches; silent contradiction is CRITICAL
+- `constitution` — tasks MUST comply; treat a violation as a CRITICAL issue to catch in your Step 6 self-review
+- All `adrs` — especially the newly accepted ones from Stage 4 — tasks must reflect the chosen approaches; silent contradiction is CRITICAL
 - `architecture` — fit the plan into the existing structure; follow established file/module patterns
 - `glossary` / `domain` — use canonical terms in task descriptions and code identifiers
 
@@ -189,7 +189,7 @@ git commit -m "feat(auth): JWT issue/verify (T012)"
 
 If you find yourself reaching for `[NO-TDD]` because the test would be "tedious", you're in TDD territory; write the test.
 
-The ss-sdd-reviewing-plans skill checks `[NO-TDD]` usage and flags violations as CRITICAL.
+Your Step 6 self-review checks `[NO-TDD]` usage — treat any misuse as a CRITICAL fix before saving.
 
 ### Non-TDD Step Format (when `[NO-TDD]` applies)
 
@@ -232,7 +232,7 @@ After the validator passes, read the plan with fresh eyes:
 6. **Story independence** — each story phase, on its own, produces a working increment
 7. **[NO-TDD] usage** — every `[NO-TDD]` marker has a reason matching one of the allowed categories
 
-Fix issues inline. The dedicated `ss-sdd-reviewing-plans` reviewer will pass over this next.
+Fix issues inline before saving. There is no separate plan-review stage — this self-review is the plan's last check before it goes to the branch-settle and implementation stages.
 
 ## Step 7: Save
 
@@ -254,7 +254,7 @@ Update `.sublime-skills/state.json` using the atomic pattern (write to `.sublime
 
 Leave `current_stage` as `"plan_writing"` and DO NOT append `"plan_written"` to `stages_completed` here. The coordinator advances and marks completion after this skill returns.
 
-**Do NOT commit plan.md.** It stays uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 12 batch-commits plan.md alongside spec.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
+**Do NOT commit plan.md.** It stays uncommitted in the working tree. The `ss-sdd-choosing-feature-branch` skill at Stage 7 batch-commits plan.md alongside spec.md and ADRs. The state file at `.sublime-skills/state.json` is gitignored and is never committed at any stage.
 
 ## Step 9: Report
 
@@ -367,8 +367,8 @@ If a section doesn't apply, omit it entirely — don't leave "N/A" placeholders.
 
 ## Red Flags
 
-- About to write tasks without having Read constitution + ADRs (when present) → STOP; ss-sdd-reviewing-plans (Stage 9) checks task alignment with these and flags violations CRITICAL
-- About to write a task that contradicts a newly-accepted ADR from Stage 6 → STOP; re-Read the ADRs and revise the task
+- About to write tasks without having Read constitution + ADRs (when present) → STOP; your Step 6 self-review must catch misalignment with these, and silent contradiction is CRITICAL
+- About to write a task that contradicts a newly-accepted ADR from Stage 4 → STOP; re-Read the ADRs and revise the task
 - Plan is longer than ~1500 lines → likely too big; check if the spec needed decomposition
 - Found a real spec gap → stop, return to coordinator, do not patch with assumptions
 - Task is hard to write because the implementation is genuinely unclear → that's a sign the spec is underspecified; flag it to the coordinator rather than guessing
