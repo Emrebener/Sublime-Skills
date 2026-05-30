@@ -7,7 +7,7 @@ description: Use during the optional feature-testing stage of an SDD pipeline ru
 
 ## Overview
 
-Feature-level verification, separate from the per-task unit tests that ran during implementation. The tester subagent picks a strategy based on what kind of feature this is and what tools are actually available — Playwright/ss-web-browser-tools for UI, DB MCPs for data verification, regular test runners always, code review as a last-resort fallback.
+Feature-level verification, separate from the per-task unit tests that ran during implementation. The tester subagent picks a strategy based on what kind of feature this is and what tools are actually available — Playwright for UI, DB MCPs for data verification, regular test runners always, code review as a last-resort fallback.
 
 **Core principle:** The coordinator does NOT test itself. If the tester subagent reports MCP unavailability, the coordinator surfaces a manual test plan to the user — it does not improvise.
 
@@ -183,7 +183,7 @@ Testing complete.
 - Status: <pass/fail/skipped>
 - Depth: <quick/standard>
 - Feature type: <UI/backend/library/mixed>
-- Tools used: <ss-web-browser-tools | playwright | postgres-mcp | code-review-fallback>
+- Tools used: <playwright | postgres-mcp | code-review-fallback>
 - Fix iterations: <N>
 - Manual test plan: <yes/no>
 ```

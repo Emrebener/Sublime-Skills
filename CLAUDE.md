@@ -7,7 +7,7 @@ and teams alike.
 
 ## Structure
 
-Skills are grouped into category directories (e.g. `skills/web-utilities/`). Each
+Skills are grouped into category directories (e.g. `skills/workflow/`). Each
 skill lives in its own directory within a category, containing a `SKILL.md`
 with YAML frontmatter (`name`, `description`) and instructions. Supporting
 files (references, scripts, templates) sit alongside it. A new skill goes

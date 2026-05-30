@@ -70,7 +70,7 @@ Check which MCPs and runners you actually have. Common categories:
 
 | Category | Examples (vary by harness) |
 |---|---|
-| Browser automation | Playwright MCP, Puppeteer MCP, ss-web-browser-tools, Chrome DevTools MCP |
+| Browser automation | Playwright MCP, Puppeteer MCP, Chrome DevTools MCP |
 | Database inspection | Postgres MCP, SQLite MCP, MySQL MCP |
 | Project test runner | Detected from project — pytest, vitest, jest, cargo test, go test, mvn test, etc. (usable via Bash) |
 | HTTP testing | `curl` via Bash; HTTP MCPs |
